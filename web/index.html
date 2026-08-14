@@ -1,0 +1,54 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <base href="$FLUTTER_BASE_HREF">
+
+  <meta charset="UTF-8">
+  <meta content="IE=Edge" http-equiv="X-UA-Compatible">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+  <meta name="description" content="Saldos e extrato da sua conta Bybit, no celular e no computador.">
+  <meta name="theme-color" content="#0A0E14">
+
+  <!-- iOS -->
+  <meta name="mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <meta name="apple-mobile-web-app-title" content="Extrato Bybit">
+  <link rel="apple-touch-icon" href="icons/Icon-192.png">
+
+  <link rel="icon" type="image/png" href="favicon.png"/>
+
+  <title>Extrato Bybit</title>
+  <link rel="manifest" href="manifest.json">
+
+  <style>
+    /* Fundo do app enquanto o Flutter carrega, para não piscar branco. */
+    html, body {
+      margin: 0;
+      padding: 0;
+      height: 100%;
+      background-color: #0A0E14;
+    }
+    #loading {
+      position: fixed;
+      inset: 0;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+      color: #8798AB;
+      font-size: 14px;
+      letter-spacing: 0.3px;
+    }
+  </style>
+</head>
+<body>
+  <div id="loading">Carregando…</div>
+  <script>
+    window.addEventListener('flutter-first-frame', function () {
+      var el = document.getElementById('loading');
+      if (el) el.remove();
+    });
+  </script>
+  <script src="flutter_bootstrap.js" async></script>
+</body>
+</html>

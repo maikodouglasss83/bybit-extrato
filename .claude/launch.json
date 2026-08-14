@@ -1,0 +1,11 @@
+{
+  "version": "0.0.1",
+  "configurations": [
+    {
+      "name": "bybit-extrato",
+      "runtimeExecutable": "node",
+      "runtimeArgs": ["tool/serve.js", "8099"],
+      "port": 8099
+    }
+  ]
+}

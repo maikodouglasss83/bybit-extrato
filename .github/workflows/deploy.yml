@@ -1,0 +1,61 @@
+# Compila o app e publica no GitHub Pages a cada push na main.
+name: Publicar no GitHub Pages
+
+on:
+  push:
+    branches: [main]
+  # Permite disparar manualmente pela aba Actions.
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+# Uma publicação por vez; se houver duas, a mais nova espera a atual terminar.
+concurrency:
+  group: pages
+  cancel-in-progress: false
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+          cache: true
+
+      - name: Instalar dependências
+        run: flutter pub get
+
+      - name: Conferir análise e testes
+        run: |
+          flutter analyze
+          flutter test
+
+      # O Pages serve o projeto em /nome-do-repositorio/, então o base href
+      # precisa apontar para lá — senão a página abre em branco.
+      - name: Compilar para a web
+        run: flutter build web --release --base-href "/${{ github.event.repository.name }}/"
+
+      # O Pages não serve caminhos desconhecidos: uma cópia do index como
+      # 404 faz o app responder em qualquer rota.
+      - name: Preparar fallback de rotas
+        run: cp build/web/index.html build/web/404.html
+
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: build/web
+
+  deploy:
+    needs: build
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - id: deployment
+        uses: actions/deploy-pages@v4

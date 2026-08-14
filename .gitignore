@@ -1,0 +1,27 @@
+# Ferramentas do Flutter e do Dart
+.dart_tool/
+.packages
+build/
+.flutter-plugins
+.flutter-plugins-dependencies
+*.iml
+
+# Editores
+.idea/
+.vscode/
+*.swp
+.DS_Store
+
+# Dependências resolvidas por plataforma
+android/.gradle/
+ios/Pods/
+windows/flutter/ephemeral/
+linux/flutter/ephemeral/
+macos/Flutter/ephemeral/
+
+# Nada de credencial entra aqui: a chave da Bybit fica só no dispositivo,
+# no cofre do navegador ou do sistema. Este bloco é uma rede de segurança.
+*.env
+*.pem
+secrets.json
+credentials.json
