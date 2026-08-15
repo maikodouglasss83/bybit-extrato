@@ -38,8 +38,15 @@ jobs:
 
       # O Pages serve o projeto em /nome-do-repositorio/, então o base href
       # precisa apontar para lá — senão a página abre em branco.
+      #
+      # As credenciais do Supabase entram aqui. Sem elas o app compila e
+      # funciona igual, apenas sem sincronizar entre aparelhos.
       - name: Compilar para a web
-        run: flutter build web --release --base-href "/${{ github.event.repository.name }}/"
+        run: |
+          flutter build web --release \
+            --base-href "/${{ github.event.repository.name }}/" \
+            --dart-define=SUPABASE_URL="${{ secrets.SUPABASE_URL }}" \
+            --dart-define=SUPABASE_KEY="${{ secrets.SUPABASE_KEY }}"
 
       # O Pages não serve caminhos desconhecidos: uma cópia do index como
       # 404 faz o app responder em qualquer rota.

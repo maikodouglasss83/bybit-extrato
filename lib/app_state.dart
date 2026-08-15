@@ -1,8 +1,11 @@
+import 'dart:async' show unawaited;
+
 import 'package:flutter/foundation.dart' show ChangeNotifier, visibleForTesting;
 
 import 'budget.dart';
 import 'models.dart';
 import 'services/bybit_client.dart';
+import 'services/cloud_sync.dart';
 import 'services/credentials.dart';
 import 'services/fx.dart';
 import 'services/preferences.dart';
@@ -54,14 +57,30 @@ String ledgerFilterLabel(LedgerFilter f) {
 
 /// Estado único do app: credenciais, saldos, extrato e preferências de exibição.
 class AppState extends ChangeNotifier {
-  AppState({CredentialsStore? store, FxService? fx, PreferencesStore? preferences})
-      : _store = store ?? CredentialsStore(),
+  AppState({
+    CredentialsStore? store,
+    FxService? fx,
+    PreferencesStore? preferences,
+    CloudSync? cloud,
+  })  : _store = store ?? CredentialsStore(),
         _fx = fx ?? FxService(),
-        _preferences = preferences ?? PreferencesStore();
+        _preferences = preferences ?? PreferencesStore(),
+        _cloud = cloud ?? CloudSync();
 
   final CredentialsStore _store;
   final FxService _fx;
   final PreferencesStore _preferences;
+  final CloudSync _cloud;
+
+  CloudSync get cloud => _cloud;
+
+  bool get cloudAvailable => _cloud.available;
+  bool get cloudSignedIn => _cloud.signedIn;
+  String? get cloudEmail => _cloud.userEmail;
+
+  bool cloudSyncing = false;
+  String? cloudError;
+  DateTime? cloudLastSync;
 
   BybitClient? _client;
   Credentials? _credentials;
@@ -248,6 +267,7 @@ class AppState extends ChangeNotifier {
     _hiddenIds = novo;
     notifyListeners();
     await _preferences.saveHiddenEntries(_hiddenIds);
+    _syncPreference(_kSyncOcultos, _hiddenIds.toList());
   }
 
   /// Devolve todos os lançamentos ocultos às contas.
@@ -256,6 +276,7 @@ class AppState extends ChangeNotifier {
     _hiddenIds = {};
     notifyListeners();
     await _preferences.saveHiddenEntries(_hiddenIds);
+    _syncPreference(_kSyncOcultos, _hiddenIds.toList());
   }
 
   /// Chave usada para guardar a correção de um estabelecimento.
@@ -325,6 +346,8 @@ class AppState extends ChangeNotifier {
     notifyListeners();
     await _preferences.saveCategoryOverrides(_categoryOverrides);
     await _preferences.saveNameOverrides(_nameOverrides);
+    _syncPreference(_kSyncCategorias, _categoryOverrides);
+    _syncPreference(_kSyncNomes, _nameOverrides);
   }
 
   /// Devolve o estabelecimento ao nome e à categoria automáticos.
@@ -338,6 +361,8 @@ class AppState extends ChangeNotifier {
     notifyListeners();
     await _preferences.saveCategoryOverrides(_categoryOverrides);
     await _preferences.saveNameOverrides(_nameOverrides);
+    _syncPreference(_kSyncCategorias, _categoryOverrides);
+    _syncPreference(_kSyncNomes, _nameOverrides);
   }
 
   /// Quantos estabelecimentos foram ajustados à mão, por nome ou categoria.
@@ -483,6 +508,10 @@ class AppState extends ChangeNotifier {
   Future<void> _persistBudget() async {
     notifyListeners();
     await _preferences.saveBudgetTree(budgetNodes);
+    _syncPreference(
+      _kSyncPlanejamento,
+      budgetNodes.map((n) => n.toJson()).toList(),
+    );
   }
 
   /// Define a meta mensal de uma categoria ou subcategoria, em reais.
@@ -574,6 +603,7 @@ class AppState extends ChangeNotifier {
     cardGoalUsd = value;
     notifyListeners();
     await _preferences.saveCardGoal(value);
+    _syncPreference(_kSyncMetaCartao, value);
   }
 
   /// Gasto do mês no cartão convertido para dólar, que é a moeda da régua.
@@ -747,6 +777,13 @@ class AppState extends ChangeNotifier {
 
   /// Carrega credenciais salvas e, se existirem, já busca os dados.
   Future<void> boot() async {
+    // Sem projeto configurado isto é um no-op e o app segue só local.
+    try {
+      await _cloud.init();
+    } catch (_) {
+      // Falha ao ligar a nuvem não pode impedir o app de abrir.
+    }
+
     _categoryOverrides = await _preferences.loadCategoryOverrides();
     _nameOverrides = await _preferences.loadNameOverrides();
     _hiddenIds = await _preferences.loadHiddenEntries();
@@ -898,8 +935,10 @@ class AppState extends ChangeNotifier {
       cardLoadedCount = cardEntries.length;
       lastSync = DateTime.now();
 
-      // Guarda o acumulado para a próxima abertura.
+      // Guarda o acumulado para a próxima abertura e leva para os outros
+      // aparelhos, se a sincronização estiver ligada.
       await _preferences.saveCachedEntries(_entries);
+      unawaited(syncWithCloud(pushOnly: true));
       errorMessage = null;
       phase = LoadPhase.ready;
     } on BybitException catch (e) {
@@ -952,6 +991,107 @@ class AppState extends ChangeNotifier {
       pageSize: _cardPageSize,
       totalCount: primeira.totalCount,
     );
+  }
+
+  // ---------------------------------------------------------------------
+  // Sincronização entre aparelhos
+  // ---------------------------------------------------------------------
+
+  /// Chaves usadas tanto no armazenamento local quanto na nuvem.
+  static const _kSyncCategorias = 'category_overrides';
+  static const _kSyncNomes = 'name_overrides';
+  static const _kSyncOcultos = 'hidden_entries';
+  static const _kSyncPlanejamento = 'budget_tree';
+  static const _kSyncMetaCartao = 'card_goal_usd';
+
+  /// Junta o que está na nuvem com o que está neste aparelho.
+  ///
+  /// Transações são fatos: a união dos dois lados é sempre o conjunto certo,
+  /// e é o que preserva os meses que a Bybit apagou. Já os ajustes seguem o
+  /// que veio da nuvem, para um aparelho novo adotar a configuração dos
+  /// outros em vez de sobrescrevê-la com o padrão.
+  Future<void> syncWithCloud({bool pushOnly = false}) async {
+    if (!_cloud.available || !_cloud.signedIn || cloudSyncing) return;
+
+    cloudSyncing = true;
+    cloudError = null;
+    notifyListeners();
+
+    try {
+      if (!pushOnly) {
+        final remotos = await _cloud.pullEntries();
+        if (remotos.isNotEmpty) {
+          _mergeUnique(remotos);
+          await _preferences.saveCachedEntries(_entries);
+        }
+
+        final ajustes = await _cloud.pullPreferences();
+        _applyRemotePreferences(ajustes);
+      }
+
+      await _cloud.pushEntries(_entries);
+      await _pushAllPreferences();
+
+      cloudLastSync = DateTime.now();
+    } catch (e) {
+      cloudError = 'Não foi possível sincronizar: $e';
+    }
+
+    cloudSyncing = false;
+    notifyListeners();
+  }
+
+  void _applyRemotePreferences(Map<String, dynamic> ajustes) {
+    Map<String, String> comoMapa(dynamic v) => v is Map
+        ? v.map((k, valor) => MapEntry(k.toString(), valor.toString()))
+        : {};
+
+    if (ajustes.containsKey(_kSyncCategorias)) {
+      _categoryOverrides = comoMapa(ajustes[_kSyncCategorias]);
+    }
+    if (ajustes.containsKey(_kSyncNomes)) {
+      _nameOverrides = comoMapa(ajustes[_kSyncNomes]);
+    }
+    if (ajustes[_kSyncOcultos] is List) {
+      _hiddenIds =
+          (ajustes[_kSyncOcultos] as List).map((e) => e.toString()).toSet();
+    }
+    if (ajustes[_kSyncPlanejamento] is List) {
+      final nos = (ajustes[_kSyncPlanejamento] as List)
+          .map((e) => BudgetNode.fromJson(Map<String, dynamic>.from(e as Map)))
+          .toList();
+      if (nos.isNotEmpty) budgetNodes = nos;
+    }
+    if (ajustes[_kSyncMetaCartao] is num) {
+      cardGoalUsd = (ajustes[_kSyncMetaCartao] as num).toDouble();
+    }
+
+    // O que veio da nuvem passa a valer também neste aparelho.
+    _preferences.saveCategoryOverrides(_categoryOverrides);
+    _preferences.saveNameOverrides(_nameOverrides);
+    _preferences.saveHiddenEntries(_hiddenIds);
+    _preferences.saveBudgetTree(budgetNodes);
+    _preferences.saveCardGoal(cardGoalUsd);
+  }
+
+  Future<void> _pushAllPreferences() async {
+    await _cloud.pushPreference(_kSyncCategorias, _categoryOverrides);
+    await _cloud.pushPreference(_kSyncNomes, _nameOverrides);
+    await _cloud.pushPreference(_kSyncOcultos, _hiddenIds.toList());
+    await _cloud.pushPreference(
+      _kSyncPlanejamento,
+      budgetNodes.map((n) => n.toJson()).toList(),
+    );
+    await _cloud.pushPreference(_kSyncMetaCartao, cardGoalUsd);
+  }
+
+  /// Manda um ajuste para a nuvem sem travar quem chamou.
+  void _syncPreference(String chave, dynamic valor) {
+    if (!_cloud.available || !_cloud.signedIn) return;
+    _cloud.pushPreference(chave, valor).catchError((_) {
+      // Falha de rede não pode atrapalhar o uso: a próxima sincronização
+      // completa reenvia tudo.
+    });
   }
 
   /// Intervalo abaixo do qual não vale a pena buscar de novo.

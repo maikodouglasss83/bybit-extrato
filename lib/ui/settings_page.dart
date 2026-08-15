@@ -4,6 +4,7 @@ import '../app_state.dart';
 import '../theme.dart';
 import '../util/format.dart';
 import 'connect_page.dart';
+import 'widgets/cloud_card.dart';
 import 'widgets/common.dart';
 
 /// Preferências, informações da conexão e gestão das credenciais.
@@ -117,6 +118,8 @@ class SettingsPage extends StatelessWidget {
             ],
           ),
         ),
+        const SizedBox(height: 16),
+        CloudCard(state: state),
         const SizedBox(height: 16),
         AppCard(
           child: Column(
