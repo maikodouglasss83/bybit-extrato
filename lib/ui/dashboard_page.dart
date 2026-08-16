@@ -966,8 +966,8 @@ class _Compromissos extends StatelessWidget {
             const SizedBox(width: 6),
             Expanded(
               child: Text(
-                'As datas vêm do seu histórico: o dia em que cada um costuma '
-                'cair.',
+                'As datas vêm do seu histórico. Para acertar uma, segure a '
+                'compra no extrato e defina o dia do vencimento.',
                 style: context.texts.bodySmall,
               ),
             ),
@@ -1053,8 +1053,19 @@ class _LinhaCompromisso extends StatelessWidget {
                 color: previsao.paid ? tones.muted : null,
               ),
             ),
-            if (!previsao.paid && previsao.monthsSeen >= 3)
-              Text('${previsao.monthsSeen} meses', style: context.texts.bodySmall),
+            if (!previsao.paid)
+              if (previsao.confirmedDay)
+                Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Icon(Icons.push_pin_rounded, size: 11, color: tones.muted),
+                    const SizedBox(width: 4),
+                    Text('data fixa', style: context.texts.bodySmall),
+                  ],
+                )
+              else if (previsao.monthsSeen >= 3)
+                Text('${previsao.monthsSeen} meses',
+                    style: context.texts.bodySmall),
           ],
         ),
       ],

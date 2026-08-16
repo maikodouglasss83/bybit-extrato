@@ -14,6 +14,7 @@ class PreferencesStore {
   static const _kCategoryOverrides = 'category_overrides';
   static const _kNameOverrides = 'name_overrides';
   static const _kFixedOverrides = 'fixed_overrides';
+  static const _kDueDays = 'due_days';
   static const _kHiddenEntries = 'hidden_entries';
   static const _kOnlineLogos = 'online_logos';
   static const _kShowInBrl = 'show_in_brl';
@@ -52,6 +53,32 @@ class PreferencesStore {
         return;
       }
       await _storage.write(key: _kFixedOverrides, value: jsonEncode(overrides));
+    } catch (_) {
+      // Sem cofre disponível a escolha vale só enquanto o app estiver aberto.
+    }
+  }
+
+  /// Dias de vencimento definidos à mão, por estabelecimento.
+  Future<Map<String, int>> loadDueDays() async {
+    try {
+      final raw = await _storage.read(key: _kDueDays);
+      if (raw == null || raw.isEmpty) return {};
+      final decoded = jsonDecode(raw) as Map<String, dynamic>;
+      return decoded.map(
+        (k, v) => MapEntry(k, int.tryParse(v.toString()) ?? 0),
+      )..removeWhere((_, dia) => dia < 1 || dia > 31);
+    } catch (_) {
+      return {};
+    }
+  }
+
+  Future<void> saveDueDays(Map<String, int> dias) async {
+    try {
+      if (dias.isEmpty) {
+        await _storage.delete(key: _kDueDays);
+        return;
+      }
+      await _storage.write(key: _kDueDays, value: jsonEncode(dias));
     } catch (_) {
       // Sem cofre disponível a escolha vale só enquanto o app estiver aberto.
     }

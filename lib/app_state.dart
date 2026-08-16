@@ -25,6 +25,7 @@ class FixedForecast {
     required this.monthsSeen,
     required this.daysUntil,
     this.paidDate,
+    this.confirmedDay = false,
   });
 
   final String merchant;
@@ -41,6 +42,9 @@ class FixedForecast {
 
   /// Em quantos meses diferentes já apareceu — mede a confiança na previsão.
   final int monthsSeen;
+
+  /// O dia foi definido pelo usuário, e não deduzido do histórico.
+  final bool confirmedDay;
 
   /// Dias até a data prevista. Negativo quando ela já passou.
   final int daysUntil;
@@ -529,27 +533,56 @@ class AppState extends ChangeNotifier {
     return (fixo: fixo, variavel: variavel);
   }
 
+  /// Dia de vencimento definido à mão, por estabelecimento.
+  /// Sem definição, o app deduz o dia do histórico.
+  Map<String, int> _dueDayOverrides = {};
+
+  /// Dia que o usuário fixou para aquele estabelecimento, se houver.
+  int? dueDayOf(LedgerEntry e) => _dueDayOverrides[_merchantKey(e)];
+
+  /// Fixa o dia do vencimento. Passar `null` devolve ao palpite automático.
+  Future<void> setDueDay(LedgerEntry e, int? dia) async {
+    final key = _merchantKey(e);
+    if (key.isEmpty) return;
+
+    final novo = Map<String, int>.from(_dueDayOverrides);
+    if (dia == null || dia < 1 || dia > 31) {
+      novo.remove(key);
+    } else {
+      novo[key] = dia;
+    }
+    _dueDayOverrides = novo;
+
+    notifyListeners();
+    await _preferences.saveDueDays(_dueDayOverrides);
+    _syncPreference(_kSyncVencimentos, _dueDayOverrides);
+  }
+
   /// Previsão de um compromisso no mês de referência.
   ///
   /// Sai do próprio histórico: o dia costumeiro e o valor recente de cada
   /// estabelecimento marcado como fixo.
   List<FixedForecast> fixedForecast(DateTime month) {
-    // Agrupa as compras fixas por estabelecimento, olhando todo o histórico.
+    // Agrupa as compras fixas pelo estabelecimento de origem — a mesma chave
+    // usada nos ajustes, para o dia definido à mão bater com o grupo certo.
     final porEstabelecimento = <String, List<LedgerEntry>>{};
     for (final e in cardEntries) {
       if (e.kind != LedgerKind.cardPurchase || isHidden(e)) continue;
       if (!isFixed(e)) continue;
-      porEstabelecimento.putIfAbsent(displayNameOf(e), () => []).add(e);
+      porEstabelecimento.putIfAbsent(_merchantKey(e), () => []).add(e);
     }
 
     final agora = DateTime.now();
     final previsoes = <FixedForecast>[];
 
-    porEstabelecimento.forEach((nome, compras) {
+    porEstabelecimento.forEach((chave, compras) {
       compras.sort((a, b) => b.time.compareTo(a.time));
 
+      final definidoPeloUsuario = _dueDayOverrides[chave];
+
       // Em quantos meses distintos apareceu. Um único mês não é padrão, é
-      // coincidência — não dá para prever nada dali.
+      // coincidência — não dá para deduzir nada dali. Com o dia definido à
+      // mão isso deixa de importar: a data já é conhecida.
       final meses = compras
           .map((e) => '${e.time.year}-${e.time.month}')
           .toSet();
@@ -558,16 +591,23 @@ class AppState extends ChangeNotifier {
           .where((e) => e.time.year == month.year && e.time.month == month.month)
           .toList();
 
-      if (meses.length < 2 && doMes.isEmpty) return;
+      if (definidoPeloUsuario == null && meses.length < 2 && doMes.isEmpty) {
+        return;
+      }
 
-      // O dia típico é a mediana: um adiantamento ou atraso isolado não
-      // desloca a previsão como a média faria.
-      final dias = compras.map((e) => e.time.day).toList()..sort();
-      final diaTipico = dias[dias.length ~/ 2];
+      // O dia definido manda; na falta dele, a mediana das cobranças — que
+      // não se desloca por um adiantamento isolado, como a média faria.
+      final int diaBase;
+      if (definidoPeloUsuario != null) {
+        diaBase = definidoPeloUsuario;
+      } else {
+        final dias = compras.map((e) => e.time.day).toList()..sort();
+        diaBase = dias[dias.length ~/ 2];
+      }
 
       // Meses têm tamanhos diferentes: dia 31 vira o último dia de fevereiro.
       final ultimoDia = DateTime(month.year, month.month + 1, 0).day;
-      final diaPrevisto = diaTipico > ultimoDia ? ultimoDia : diaTipico;
+      final diaPrevisto = diaBase > ultimoDia ? ultimoDia : diaBase;
       final dataPrevista = DateTime(month.year, month.month, diaPrevisto);
 
       final pago = doMes.isNotEmpty;
@@ -576,14 +616,15 @@ class AppState extends ChangeNotifier {
           : compras.first.change.abs();
 
       previsoes.add(FixedForecast(
-        merchant: nome,
+        merchant: displayNameOf(compras.first),
         expectedDay: diaPrevisto,
         expectedDate: dataPrevista,
         expectedAmount: valorPrevisto,
         paid: pago,
         paidDate: pago ? doMes.first.time : null,
         monthsSeen: meses.length,
-        daysUntil: DateTime(month.year, month.month, diaPrevisto)
+        confirmedDay: definidoPeloUsuario != null,
+        daysUntil: dataPrevista
             .difference(DateTime(agora.year, agora.month, agora.day))
             .inDays,
       ));
@@ -1042,6 +1083,7 @@ class AppState extends ChangeNotifier {
     _categoryOverrides = await _preferences.loadCategoryOverrides();
     _nameOverrides = await _preferences.loadNameOverrides();
     _fixedOverrides = await _preferences.loadFixedOverrides();
+    _dueDayOverrides = await _preferences.loadDueDays();
     _hiddenIds = await _preferences.loadHiddenEntries();
     useOnlineLogos = await _preferences.loadOnlineLogos();
     _showInBrl = await _preferences.loadShowInBrl();
@@ -1262,6 +1304,7 @@ class AppState extends ChangeNotifier {
   static const _kSyncMetaCartao = 'card_goal_usd';
   static const _kSyncFixos = 'fixed_overrides';
   static const _kSyncMoeda = 'show_in_brl';
+  static const _kSyncVencimentos = 'due_days';
 
   /// Junta o que está na nuvem com o que está neste aparelho.
   ///
@@ -1315,6 +1358,11 @@ class AppState extends ChangeNotifier {
       _fixedOverrides = (ajustes[_kSyncFixos] as Map)
           .map((k, v) => MapEntry(k.toString(), v == true));
     }
+    if (ajustes[_kSyncVencimentos] is Map) {
+      _dueDayOverrides = (ajustes[_kSyncVencimentos] as Map).map(
+        (k, v) => MapEntry(k.toString(), int.tryParse(v.toString()) ?? 0),
+      )..removeWhere((_, dia) => dia < 1 || dia > 31);
+    }
     if (ajustes[_kSyncOcultos] is List) {
       _hiddenIds =
           (ajustes[_kSyncOcultos] as List).map((e) => e.toString()).toSet();
@@ -1337,6 +1385,7 @@ class AppState extends ChangeNotifier {
     _preferences.saveCategoryOverrides(_categoryOverrides);
     _preferences.saveNameOverrides(_nameOverrides);
     _preferences.saveFixedOverrides(_fixedOverrides);
+    _preferences.saveDueDays(_dueDayOverrides);
     _preferences.saveHiddenEntries(_hiddenIds);
     _preferences.saveBudgetTree(budgetNodes);
     _preferences.saveCardGoal(cardGoalUsd);
@@ -1346,6 +1395,7 @@ class AppState extends ChangeNotifier {
     await _cloud.pushPreference(_kSyncCategorias, _categoryOverrides);
     await _cloud.pushPreference(_kSyncNomes, _nameOverrides);
     await _cloud.pushPreference(_kSyncFixos, _fixedOverrides);
+    await _cloud.pushPreference(_kSyncVencimentos, _dueDayOverrides);
     await _cloud.pushPreference(_kSyncOcultos, _hiddenIds.toList());
     await _cloud.pushPreference(
       _kSyncPlanejamento,

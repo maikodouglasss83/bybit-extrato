@@ -986,6 +986,87 @@ void main() {
       expect(previsao.expectedDate.month, 2);
     });
 
+    test('o dia definido à mão manda no palpite do histórico', () async {
+      final agora = DateTime.now();
+      final mes = DateTime(agora.year, agora.month);
+      final state = AppState()
+        ..seedEntries([
+          compra('a', 'NETFLIX.COM', 20, DateTime(mes.year, mes.month - 2, 9)),
+          compra('b', 'NETFLIX.COM', 20, DateTime(mes.year, mes.month - 1, 9)),
+        ]);
+
+      expect(state.fixedForecast(mes).single.expectedDay, 9);
+      expect(state.fixedForecast(mes).single.confirmedDay, isFalse);
+
+      final netflix = state.cardEntries.first;
+      await state.setDueDay(netflix, 20);
+
+      final previsao = state.fixedForecast(mes).single;
+      expect(previsao.expectedDay, 20);
+      expect(previsao.confirmedDay, isTrue);
+      expect(state.dueDayOf(netflix), 20);
+    });
+
+    test('com dia definido, um mês só de histórico já vira previsão', () async {
+      final agora = DateTime.now();
+      final mes = DateTime(agora.year, agora.month);
+      final state = AppState()
+        ..seedEntries([
+          compra('a', 'NETFLIX.COM', 20, DateTime(mes.year, mes.month - 1, 9)),
+        ]);
+
+      // Sem o dia, um mês só não basta.
+      expect(state.fixedForecast(mes), isEmpty);
+
+      await state.setDueDay(state.cardEntries.first, 15);
+      expect(state.fixedForecast(mes).single.expectedDay, 15);
+    });
+
+    test('dia definido também respeita meses curtos', () async {
+      final fevereiro = DateTime(2027, 2);
+      final state = AppState()
+        ..seedEntries([
+          compra('a', 'NETFLIX.COM', 20, DateTime(2027, 1, 10)),
+          compra('b', 'NETFLIX.COM', 20, DateTime(2026, 12, 10)),
+        ]);
+
+      await state.setDueDay(state.cardEntries.first, 31);
+      expect(state.fixedForecast(fevereiro).single.expectedDay, 28);
+    });
+
+    test('remover o dia devolve ao palpite do histórico', () async {
+      final agora = DateTime.now();
+      final mes = DateTime(agora.year, agora.month);
+      final state = AppState()
+        ..seedEntries([
+          compra('a', 'NETFLIX.COM', 20, DateTime(mes.year, mes.month - 2, 9)),
+          compra('b', 'NETFLIX.COM', 20, DateTime(mes.year, mes.month - 1, 9)),
+        ]);
+
+      final netflix = state.cardEntries.first;
+      await state.setDueDay(netflix, 20);
+      await state.setDueDay(netflix, null);
+
+      expect(state.dueDayOf(netflix), isNull);
+      expect(state.fixedForecast(mes).single.expectedDay, 9);
+      expect(state.fixedForecast(mes).single.confirmedDay, isFalse);
+    });
+
+    test('dia fora do intervalo é recusado', () async {
+      final agora = DateTime.now();
+      final mes = DateTime(agora.year, agora.month);
+      final state = AppState()
+        ..seedEntries([
+          compra('a', 'NETFLIX.COM', 20, DateTime(mes.year, mes.month - 1, 9)),
+        ]);
+
+      final netflix = state.cardEntries.first;
+      await state.setDueDay(netflix, 0);
+      expect(state.dueDayOf(netflix), isNull);
+      await state.setDueDay(netflix, 32);
+      expect(state.dueDayOf(netflix), isNull);
+    });
+
     test('gasto variável não entra na previsão', () {
       final agora = DateTime.now();
       final mes = DateTime(agora.year, agora.month);

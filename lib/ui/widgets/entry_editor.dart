@@ -43,6 +43,7 @@ class _EntryEditorState extends State<_EntryEditor> {
   final FocusNode _nameFocus = FocusNode();
   late String _category = widget.state.categoryOf(widget.entry);
   late bool _fixo = widget.state.isFixed(widget.entry);
+  late int? _diaVencimento = widget.state.dueDayOf(widget.entry);
 
   @override
   void dispose() {
@@ -64,6 +65,8 @@ class _EntryEditorState extends State<_EntryEditor> {
       category: _category,
     );
     await widget.state.setFixed(widget.entry, _fixo);
+    // O dia só faz sentido em compromisso mensal.
+    await widget.state.setDueDay(widget.entry, _fixo ? _diaVencimento : null);
     if (!mounted) return;
     Navigator.of(context).maybePop();
   }
@@ -147,6 +150,37 @@ class _EntryEditorState extends State<_EntryEditor> {
                   fixo: _fixo,
                   onChanged: (v) => setState(() => _fixo = v),
                 ),
+                if (_fixo) ...[
+                  const SizedBox(height: 16),
+                  DropdownButtonFormField<int?>(
+                    initialValue: _diaVencimento,
+                    decoration: const InputDecoration(
+                      labelText: 'Vence no dia',
+                      prefixIcon: Icon(Icons.event_rounded, size: 20),
+                    ),
+                    items: [
+                      const DropdownMenuItem<int?>(
+                        value: null,
+                        child: Text('Deduzir do histórico'),
+                      ),
+                      for (var dia = 1; dia <= 31; dia++)
+                        DropdownMenuItem<int?>(
+                          value: dia,
+                          child: Text('Dia $dia'),
+                        ),
+                    ],
+                    onChanged: (v) => setState(() => _diaVencimento = v),
+                  ),
+                  const SizedBox(height: 8),
+                  Text(
+                    _diaVencimento == null
+                        ? 'Sem definir, o app usa o dia em que este gasto '
+                            'costuma cair.'
+                        : 'Meses mais curtos usam o último dia — o 31 vira 28 '
+                            'em fevereiro.',
+                    style: context.texts.bodySmall,
+                  ),
+                ],
                 const SizedBox(height: 26),
                 Text('Categoria', style: context.texts.titleSmall),
                 const SizedBox(height: 12),
