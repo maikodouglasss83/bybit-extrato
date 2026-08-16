@@ -508,7 +508,7 @@ void main() {
       state.usdBrl = 5.0;
 
       // Em real, o que se digita é o que se guarda.
-      state.showInBrl = true;
+      state.preferBrl = true;
       await state.setBudget('transporte', state.displayToBrl(500));
       expect(
         state.budgetNodes.firstWhere((n) => n.id == 'transporte').budget,
@@ -516,7 +516,7 @@ void main() {
       );
 
       // Em dólar, US$ 100 viram R$ 500 no armazenamento…
-      state.showInBrl = false;
+      state.preferBrl = false;
       await state.setBudget('transporte', state.displayToBrl(100));
       expect(
         state.budgetNodes.firstWhere((n) => n.id == 'transporte').budget,
@@ -588,19 +588,19 @@ void main() {
 
     test('mudar a moeda converte os valores em real', () {
       // Em real, mostra como veio da fatura.
-      state.showInBrl = true;
+      state.preferBrl = true;
       expect(state.formatValue(-100, 'BRL', signed: false), contains('100,00'));
       expect(state.formatValue(-100, 'BRL', signed: false), startsWith(r'R$'));
 
       // Em dólar, o mesmo gasto vira US$ 20,00.
-      state.showInBrl = false;
+      state.preferBrl = false;
       expect(state.formatValue(-100, 'BRL', signed: false), startsWith(r'US$'));
       expect(state.formatValue(-100, 'BRL', signed: false), contains('20,00'));
     });
 
     test('cripto de verdade mantém a quantidade', () {
       state.prices = {'BTC': 100000};
-      state.showInBrl = false;
+      state.preferBrl = false;
       // Não vira dinheiro: 0,5 BTC continua 0,5 BTC.
       expect(state.formatValue(0.5, 'BTC', signed: false), contains('0,5'));
       expect(state.showsConverted('BTC'), isFalse);
@@ -608,7 +608,7 @@ void main() {
     });
 
     test('sem cotação, o valor em real não é convertido para dólar', () {
-      final semCotacao = AppState()..showInBrl = false;
+      final semCotacao = AppState()..preferBrl = false;
       expect(semCotacao.formatValue(-100, 'BRL', signed: false), contains('100'));
     });
   });
@@ -896,6 +896,36 @@ void main() {
       expect(fixos.first.key, 'Claro');
       expect(fixos.first.value, 100);
       expect(fixos.map((e) => e.key), contains('NETFLIX.COM'));
+    });
+  });
+
+  group('Moeda padrão', () {
+    test('o real é o padrão quando há cotação', () {
+      final state = AppState()..usdBrl = 5.0;
+      expect(state.showInBrl, isTrue);
+      expect(state.waitingForRate, isFalse);
+      expect(state.displayCurrencySymbol, r'R$ ');
+    });
+
+    test('sem cotação cai para dólar em vez de mentir o símbolo', () {
+      // O risco: mostrar o número em dólar com "R$" na frente.
+      final state = AppState();
+      expect(state.usdBrl, isNull);
+      expect(state.showInBrl, isFalse);
+      expect(state.waitingForRate, isTrue);
+      expect(state.displayCurrencySymbol, r'US$ ');
+
+      // Um valor em dólar não pode virar real sem cotação.
+      expect(state.toDisplay(10), 10);
+    });
+
+    test('quando a cotação chega, o real passa a valer sozinho', () {
+      final state = AppState();
+      expect(state.showInBrl, isFalse);
+
+      state.usdBrl = 5.0;
+      expect(state.showInBrl, isTrue);
+      expect(state.toDisplay(10), 50);
     });
   });
 

@@ -105,7 +105,23 @@ class AppState extends ChangeNotifier {
   double? usdBrl;
 
   // Preferências de exibição
-  bool showInBrl = false;
+
+  /// O que o usuário escolheu. O real é o padrão: é a moeda das compras dele.
+  bool _showInBrl = true;
+
+  /// O que de fato vale na tela.
+  ///
+  /// Sem cotação não dá para converter, e mostrar um número em dólar com o
+  /// símbolo de real seria pior do que mostrar em dólar: cai para o dólar até
+  /// a cotação chegar.
+  bool get showInBrl => _showInBrl && usdBrl != null;
+
+  /// Indica que o real está escolhido mas ainda não dá para usar.
+  bool get waitingForRate => _showInBrl && usdBrl == null;
+
+  /// Define a moeda sem passar por armazenamento nem rede, para os testes.
+  @visibleForTesting
+  set preferBrl(bool value) => _showInBrl = value;
   bool hideBalances = false;
   LedgerFilter filter = LedgerFilter.all;
   String search = '';
@@ -868,6 +884,7 @@ class AppState extends ChangeNotifier {
     _fixedOverrides = await _preferences.loadFixedOverrides();
     _hiddenIds = await _preferences.loadHiddenEntries();
     useOnlineLogos = await _preferences.loadOnlineLogos();
+    _showInBrl = await _preferences.loadShowInBrl();
     cardGoalUsd = await _preferences.loadCardGoal() ?? defaultCardGoalUsd;
     budgetNodes = await _preferences.loadBudgetTree() ?? defaultBudgetTree();
 
@@ -1084,6 +1101,7 @@ class AppState extends ChangeNotifier {
   static const _kSyncPlanejamento = 'budget_tree';
   static const _kSyncMetaCartao = 'card_goal_usd';
   static const _kSyncFixos = 'fixed_overrides';
+  static const _kSyncMoeda = 'show_in_brl';
 
   /// Junta o que está na nuvem com o que está neste aparelho.
   ///
@@ -1150,6 +1168,10 @@ class AppState extends ChangeNotifier {
     if (ajustes[_kSyncMetaCartao] is num) {
       cardGoalUsd = (ajustes[_kSyncMetaCartao] as num).toDouble();
     }
+    if (ajustes[_kSyncMoeda] is bool) {
+      _showInBrl = ajustes[_kSyncMoeda] as bool;
+      _preferences.saveShowInBrl(_showInBrl);
+    }
 
     // O que veio da nuvem passa a valer também neste aparelho.
     _preferences.saveCategoryOverrides(_categoryOverrides);
@@ -1170,6 +1192,7 @@ class AppState extends ChangeNotifier {
       budgetNodes.map((n) => n.toJson()).toList(),
     );
     await _cloud.pushPreference(_kSyncMetaCartao, cardGoalUsd);
+    await _cloud.pushPreference(_kSyncMoeda, _showInBrl);
   }
 
   /// Manda um ajuste para a nuvem sem travar quem chamou.
@@ -1294,10 +1317,14 @@ class AppState extends ChangeNotifier {
     notifyListeners();
   }
 
-  void toggleCurrency() {
+  /// Alterna entre real e dólar. A escolha fica guardada e vale nos outros
+  /// aparelhos.
+  Future<void> toggleCurrency() async {
     if (usdBrl == null) return;
-    showInBrl = !showInBrl;
+    _showInBrl = !_showInBrl;
     notifyListeners();
+    await _preferences.saveShowInBrl(_showInBrl);
+    _syncPreference(_kSyncMoeda, _showInBrl);
   }
 
   void toggleHideBalances() {

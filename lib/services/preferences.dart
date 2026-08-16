@@ -16,6 +16,7 @@ class PreferencesStore {
   static const _kFixedOverrides = 'fixed_overrides';
   static const _kHiddenEntries = 'hidden_entries';
   static const _kOnlineLogos = 'online_logos';
+  static const _kShowInBrl = 'show_in_brl';
   static const _kCardGoal = 'card_goal_usd';
   static const _kBudgetTree = 'budget_tree';
   static const _kCachedEntries = 'cached_entries';
@@ -52,6 +53,26 @@ class PreferencesStore {
       await _storage.write(key: _kFixedOverrides, value: jsonEncode(overrides));
     } catch (_) {
       // Sem cofre disponível a escolha vale só enquanto o app estiver aberto.
+    }
+  }
+
+  /// Moeda escolhida para exibir os valores. O real é o padrão: é a moeda em
+  /// que as compras acontecem.
+  Future<bool> loadShowInBrl() async {
+    try {
+      final raw = await _storage.read(key: _kShowInBrl);
+      if (raw == null || raw.isEmpty) return true;
+      return raw == 'true';
+    } catch (_) {
+      return true;
+    }
+  }
+
+  Future<void> saveShowInBrl(bool value) async {
+    try {
+      await _storage.write(key: _kShowInBrl, value: '$value');
+    } catch (_) {
+      // Sem cofre disponível a escolha volta ao padrão na próxima abertura.
     }
   }
 
