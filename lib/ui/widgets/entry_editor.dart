@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../../app_state.dart';
+import '../../budget.dart';
 import '../../models.dart';
 import '../../theme.dart';
 import 'common.dart';
@@ -183,19 +184,10 @@ class _EntryEditorState extends State<_EntryEditor> {
                 const SizedBox(height: 26),
                 Text('Categoria', style: context.texts.titleSmall),
                 const SizedBox(height: 12),
-                Wrap(
-                  spacing: 8,
-                  runSpacing: 8,
-                  children: [
-                    // Inclui as categorias criadas no planejamento.
-                    for (final categoria in widget.state.availableCategories)
-                      _CategoryChip(
-                        label: categoria,
-                        selected: categoria == _category,
-                        custom: widget.state.isCustomCategory(categoria),
-                        onTap: () => setState(() => _category = categoria),
-                      ),
-                  ],
+                _SeletorDeCategoria(
+                  state: widget.state,
+                  selecionada: _category,
+                  onChanged: (v) => setState(() => _category = v),
                 ),
                 const SizedBox(height: 8),
               ],
@@ -323,20 +315,116 @@ class _Opcao extends StatelessWidget {
   }
 }
 
+/// Escolha da categoria em dois níveis: primeiro a principal, depois a
+/// subcategoria. Acompanha a estrutura montada no planejamento, em vez de
+/// jogar dezenas de opções soltas na tela.
+class _SeletorDeCategoria extends StatefulWidget {
+  const _SeletorDeCategoria({
+    required this.state,
+    required this.selecionada,
+    required this.onChanged,
+  });
+
+  final AppState state;
+  final String selecionada;
+  final ValueChanged<String> onChanged;
+
+  @override
+  State<_SeletorDeCategoria> createState() => _SeletorDeCategoriaState();
+}
+
+class _SeletorDeCategoriaState extends State<_SeletorDeCategoria> {
+  BudgetNode? _principal;
+
+  @override
+  void initState() {
+    super.initState();
+    // Abre já na principal da categoria atual, para o usuário ver onde está.
+    _principal = widget.state.mainCategoryOf(widget.selecionada);
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final state = widget.state;
+    final principais = state.selectableMainCategories;
+    final aberta = _principal;
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Wrap(
+          spacing: 8,
+          runSpacing: 8,
+          children: [
+            for (final main in principais)
+              _CategoryChip(
+                label: main.name,
+                icon: _iconeDe(state, main),
+                selected: aberta?.id == main.id,
+                // A principal que contém a escolha atual fica marcada mesmo
+                // quando o usuário está navegando em outra.
+                trailing: state.mainCategoryOf(widget.selecionada)?.id == main.id
+                    ? Icons.check_circle_rounded
+                    : Icons.chevron_right_rounded,
+                onTap: () => setState(() {
+                  _principal = aberta?.id == main.id ? null : main;
+                }),
+              ),
+          ],
+        ),
+        if (aberta != null) ...[
+          const SizedBox(height: 16),
+          Text(
+            'Em ${aberta.name}',
+            style: context.texts.bodySmall?.copyWith(
+              fontWeight: FontWeight.w600,
+            ),
+          ),
+          const SizedBox(height: 10),
+          Wrap(
+            spacing: 8,
+            runSpacing: 8,
+            children: [
+              for (final sub in state.subcategoriesFor(aberta))
+                _CategoryChip(
+                  label: sub.name,
+                  icon: _iconeDe(state, sub),
+                  selected: state.categoryValueOf(sub) == widget.selecionada,
+                  onTap: () =>
+                      widget.onChanged(state.categoryValueOf(sub)),
+                ),
+            ],
+          ),
+        ],
+      ],
+    );
+  }
+
+  static IconData _iconeDe(AppState state, BudgetNode node) {
+    if (node.sources.isEmpty) return Icons.folder_outlined;
+    final valor = node.sources.first;
+    return state.isCustomCategory(valor)
+        ? Icons.bookmark_outline_rounded
+        : categoryIcon(valor);
+  }
+}
+
 class _CategoryChip extends StatelessWidget {
   const _CategoryChip({
     required this.label,
     required this.selected,
     required this.onTap,
-    this.custom = false,
+    required this.icon,
+    this.trailing,
   });
 
   final String label;
   final bool selected;
   final VoidCallback onTap;
+  final IconData icon;
 
-  /// Criada pelo usuário no planejamento, e não uma das que o app reconhece.
-  final bool custom;
+  /// Ícone à direita, usado para indicar que a principal tem conteúdo dentro.
+  final IconData? trailing;
 
   @override
   Widget build(BuildContext context) {
@@ -358,11 +446,7 @@ class _CategoryChip extends StatelessWidget {
         child: Row(
           mainAxisSize: MainAxisSize.min,
           children: [
-            Icon(
-              custom ? Icons.bookmark_outline_rounded : categoryIcon(label),
-              size: 16,
-              color: cor,
-            ),
+            Icon(icon, size: 16, color: cor),
             const SizedBox(width: 8),
             Text(
               label,
@@ -371,6 +455,16 @@ class _CategoryChip extends StatelessWidget {
                 fontWeight: selected ? FontWeight.w600 : FontWeight.w400,
               ),
             ),
+            if (trailing != null) ...[
+              const SizedBox(width: 6),
+              Icon(
+                trailing,
+                size: 14,
+                color: trailing == Icons.check_circle_rounded
+                    ? AppColors.accent
+                    : context.tones.muted,
+              ),
+            ],
           ],
         ),
       ),

@@ -789,6 +789,48 @@ class AppState extends ChangeNotifier {
   bool isCustomCategory(String categoria) =>
       !SpendCategories.all.contains(categoria);
 
+  /// Categorias principais que podem ser escolhidas numa compra.
+  ///
+  /// "Sem categoria" fica de fora: ela é o resto do planejamento, não uma
+  /// escolha — quem não quer classificar usa "Outros".
+  List<BudgetNode> get selectableMainCategories =>
+      mainBudgetNodes.where((n) => n.id != kUncategorizedId).toList();
+
+  /// O valor de categoria que um nó representa.
+  ///
+  /// Nós padrão apontam para a categoria que o app deduz sozinho; os criados
+  /// pelo usuário usam o próprio nome.
+  String categoryValueOf(BudgetNode node) =>
+      node.sources.isNotEmpty ? node.sources.first : node.name;
+
+  /// Nome que aparece na tela para um valor de categoria — o rótulo do nó,
+  /// quando ele existir, que costuma ser mais descritivo.
+  String categoryLabelOf(String categoria) {
+    for (final n in budgetNodes) {
+      if (n.sources.contains(categoria)) return n.name;
+    }
+    return categoria;
+  }
+
+  /// Categoria principal onde aquele valor de categoria está pendurado.
+  BudgetNode? mainCategoryOf(String categoria) {
+    for (final n in budgetNodes) {
+      if (!n.sources.contains(categoria)) continue;
+      if (n.isMain) return n;
+      return budgetNodes.where((m) => m.id == n.parentId).firstOrNull;
+    }
+    return null;
+  }
+
+  /// Opções de segundo nível de uma categoria principal.
+  ///
+  /// Se ela não tiver subcategorias, ela mesma vira a opção — assim nenhuma
+  /// principal fica sem caminho para ser escolhida.
+  List<BudgetNode> subcategoriesFor(BudgetNode main) {
+    final filhos = childrenOf(main.id);
+    return filhos.isEmpty ? [main] : filhos;
+  }
+
   /// Gasto do mês que cai direto neste nó, sem contar as subcategorias.
   double _ownSpent(BudgetNode node, DateTime month) {
     final compras = cardEntriesForMonth(month)

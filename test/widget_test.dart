@@ -499,6 +499,52 @@ void main() {
       expect(state.isCustomCategory(SpendCategories.mercado), isFalse);
     });
 
+    test('o seletor navega da principal para as subcategorias', () async {
+      await state.addBudgetNode(name: 'Terapia', parentId: 'saude');
+
+      // Nível 1: as principais, sem o "Sem categoria" que é o resto.
+      final principais = state.selectableMainCategories;
+      expect(principais.map((n) => n.name), contains('Saúde'));
+      expect(principais.any((n) => n.id == kUncategorizedId), isFalse);
+
+      // Nível 2: o que existe dentro de Saúde.
+      final saude = principais.firstWhere((n) => n.id == 'saude');
+      final dentro = state.subcategoriesFor(saude);
+      expect(dentro.map((n) => n.name),
+          containsAll(['Consultas e farmácia', 'Terapia']));
+
+      // Escolher a subcategoria devolve o valor certo para gravar.
+      final terapia = dentro.firstWhere((n) => n.name == 'Terapia');
+      expect(state.categoryValueOf(terapia), 'Terapia');
+    });
+
+    test('a principal sem subcategoria vira a própria opção', () async {
+      await state.addBudgetNode(name: 'Pets');
+      final pets = state.selectableMainCategories.firstWhere((n) => n.name == 'Pets');
+
+      // Sem filhos, ela mesma é a escolha — nenhuma principal fica sem caminho.
+      expect(state.subcategoriesFor(pets).single.name, 'Pets');
+      expect(state.categoryValueOf(pets), 'Pets');
+    });
+
+    test('o seletor abre na principal da categoria atual', () async {
+      await state.addBudgetNode(name: 'Terapia', parentId: 'saude');
+
+      expect(state.mainCategoryOf('Terapia')?.id, 'saude');
+      expect(state.mainCategoryOf(SpendCategories.mercado)?.id, 'alimentacao');
+      expect(state.mainCategoryOf(SpendCategories.restaurantes)?.id, 'alimentacao');
+      // Categoria desconhecida não trava o seletor.
+      expect(state.mainCategoryOf('inexistente'), isNull);
+    });
+
+    test('o rótulo mostrado é o do nó, mais descritivo', () {
+      expect(
+        state.categoryLabelOf(SpendCategories.restaurantes),
+        'Restaurantes e delivery',
+      );
+      expect(state.categoryLabelOf(SpendCategories.mercado), 'Mercado');
+    });
+
     test('marcar a compra com a subcategoria leva o valor até ela', () async {
       await state.addBudgetNode(name: 'Terapia', parentId: 'saude');
 
