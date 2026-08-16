@@ -1,3 +1,5 @@
+import 'dart:math' as math;
+
 import 'package:flutter/material.dart';
 
 import '../app_state.dart';
@@ -858,14 +860,16 @@ class _FixedVsVariableCard extends StatelessWidget {
               height: 14,
               child: Row(
                 children: [
+                  // O peso precisa ser sempre pelo menos 1: uma fatia mínima
+                  // arredondaria para zero e derrubaria a tela.
                   if (fracaoFixa > 0)
                     Expanded(
-                      flex: (fracaoFixa * 1000).round(),
+                      flex: math.max(1, (fracaoFixa * 1000).round()),
                       child: Container(color: _corFixo),
                     ),
                   if (fracaoFixa < 1)
                     Expanded(
-                      flex: ((1 - fracaoFixa) * 1000).round(),
+                      flex: math.max(1, ((1 - fracaoFixa) * 1000).round()),
                       child: Container(color: _corVariavel),
                     ),
                 ],

@@ -854,10 +854,13 @@ class AppState extends ChangeNotifier {
   /// Carrega credenciais salvas e, se existirem, já busca os dados.
   Future<void> boot() async {
     // Sem projeto configurado isto é um no-op e o app segue só local.
+    //
+    // Com prazo: a sincronização é um extra, e o app não pode ficar preso na
+    // tela de carregamento se o servidor demorar a responder.
     try {
-      await _cloud.init();
+      await _cloud.init().timeout(const Duration(seconds: 8));
     } catch (_) {
-      // Falha ao ligar a nuvem não pode impedir o app de abrir.
+      // Falha ou demora ao ligar a nuvem não impede o app de abrir.
     }
 
     _categoryOverrides = await _preferences.loadCategoryOverrides();

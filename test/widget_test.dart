@@ -1,6 +1,8 @@
 import 'package:bybit_extrato/app_state.dart';
 import 'package:bybit_extrato/budget.dart';
 import 'package:bybit_extrato/models.dart';
+import 'dart:math' as math;
+
 import 'package:flutter/material.dart' show Color;
 
 import 'package:bybit_extrato/util/brands.dart';
@@ -867,6 +869,25 @@ void main() {
       final d = state.fixedVsVariable(setembro);
       expect(d.fixo, 50);
       expect(d.variavel, 200);
+    });
+
+    test('fração mínima de fixo não zera o peso da barra', () {
+      // Um fixo insignificante perto do total: o peso da barra arredondava
+      // para zero e derrubava a tela.
+      final state = AppState()
+        ..seedEntries([
+          compra('n', 'NETFLIX.COM', 0.01, setembro), // fixo
+          compra('m', 'MERCADINHO DO TICO', 100000, setembro), // variável
+        ]);
+
+      final d = state.fixedVsVariable(setembro);
+      final total = d.fixo + d.variavel;
+      final fracao = d.fixo / total;
+
+      expect(fracao, greaterThan(0));
+      // É este arredondamento que precisa de piso 1 na interface.
+      expect((fracao * 1000).round(), 0);
+      expect(math.max(1, (fracao * 1000).round()), 1);
     });
 
     test('lista de compromissos usa o apelido e vem ordenada', () async {
