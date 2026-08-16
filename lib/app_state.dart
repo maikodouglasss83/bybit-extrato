@@ -1002,12 +1002,50 @@ class AppState extends ChangeNotifier {
     );
   }
 
+  /// Quanto ainda cabe na meta de uma subcategoria, em reais.
+  ///
+  /// É o que sobra da meta da principal depois das outras subcategorias.
+  /// Devolve `null` quando não há teto — principal sem meta definida, ou o
+  /// próprio nó sendo uma principal.
+  double? budgetHeadroomFor(String nodeId) {
+    final node = budgetNodes.where((n) => n.id == nodeId).firstOrNull;
+    if (node == null || node.isMain) return null;
+
+    final pai = budgetNodes.where((n) => n.id == node.parentId).firstOrNull;
+    if (pai == null || pai.budget <= 0) return null;
+
+    final outras = childrenOf(pai.id)
+        .where((c) => c.id != nodeId)
+        .fold<double>(0, (soma, c) => soma + c.budget);
+
+    final sobra = pai.budget - outras;
+    return sobra < 0 ? 0 : sobra;
+  }
+
   /// Define a meta mensal de uma categoria ou subcategoria, em reais.
-  Future<void> setBudget(String nodeId, double value) async {
+  ///
+  /// Devolve uma mensagem quando a meta não cabe na da categoria principal —
+  /// somar subcategorias além do teto do grupo tornaria o planejamento
+  /// incoerente consigo mesmo.
+  Future<String?> setBudget(String nodeId, double value) async {
+    final valor = value < 0 ? 0.0 : value;
+
+    final teto = budgetHeadroomFor(nodeId);
+    if (teto != null && valor > teto) {
+      final pai = budgetNodes
+          .where((n) => n.id ==
+              budgetNodes.firstWhere((x) => x.id == nodeId).parentId)
+          .firstOrNull;
+      return 'Só cabem ${fmtFiat(brlToDisplay(teto), brl: showInBrl)} aqui: '
+          'o restante da meta de ${pai?.name ?? 'grupo'} já está distribuído '
+          'nas outras subcategorias.';
+    }
+
     budgetNodes = budgetNodes
-        .map((n) => n.id == nodeId ? n.copyWith(budget: value < 0 ? 0 : value) : n)
+        .map((n) => n.id == nodeId ? n.copyWith(budget: valor) : n)
         .toList();
     await _persistBudget();
+    return null;
   }
 
   Future<void> renameBudgetNode(String nodeId, String name) async {
@@ -1088,15 +1126,32 @@ class AppState extends ChangeNotifier {
     }).toList();
   }
 
-  /// Remove uma categoria criada pelo usuário, junto das subcategorias dela.
+  /// Remove uma categoria do planejamento.
+  ///
+  /// Subcategorias podem ser apagadas mesmo sendo padrão — os gastos delas
+  /// sobem para a categoria pai, então nada some do planejamento. Já as
+  /// categorias principais padrão ficam protegidas: apagá-las derrubaria a
+  /// estrutura inteira.
   Future<void> removeBudgetNode(String nodeId) async {
     final node = budgetNodes.where((n) => n.id == nodeId).firstOrNull;
-    if (node == null || node.builtIn) return;
+    if (node == null) return;
+    if (node.isMain && node.builtIn) return;
+
+    // O que ela recebia passa a cair direto na principal.
+    if (!node.isMain && node.sources.isNotEmpty) {
+      budgetNodes = budgetNodes.map((n) {
+        if (n.id != node.parentId) return n;
+        return n.copyWith(sources: {...n.sources, ...node.sources}.toList());
+      }).toList();
+    }
+
     budgetNodes = budgetNodes
         .where((n) => n.id != nodeId && n.parentId != nodeId)
         .toList();
     await _persistBudget();
   }
+
+  bool canRemoveBudgetNode(BudgetNode node) => !(node.isMain && node.builtIn);
 
   /// Liga ou desliga uma categoria de gasto de um nó do planejamento. Uma
   /// categoria só alimenta um nó por vez, para nada ser contado duas vezes.

@@ -386,7 +386,7 @@ class _CategoryTile extends StatelessWidget {
               ),
             ),
           ),
-          if (!linha.node.builtIn)
+          if (state.canRemoveBudgetNode(linha.node))
             Padding(
               padding: const EdgeInsets.only(left: 4),
               child: Align(
@@ -494,6 +494,7 @@ class _SubcategoryTile extends StatelessWidget {
                     color: linha.exceeded ? tones.negative : null,
                   ),
                 ),
+                _MenuDaSubcategoria(state: state, node: linha.node),
               ],
             ),
             if (linha.hasBudget) ...[
@@ -535,22 +536,155 @@ class _SubcategoryTile extends StatelessWidget {
   }
 }
 
+/// Ações de uma subcategoria: meta, renomear e apagar.
+class _MenuDaSubcategoria extends StatelessWidget {
+  const _MenuDaSubcategoria({required this.state, required this.node});
+
+  final AppState state;
+  final BudgetNode node;
+
+  @override
+  Widget build(BuildContext context) {
+    return PopupMenuButton<String>(
+      tooltip: 'Opções',
+      padding: EdgeInsets.zero,
+      icon: Icon(Icons.more_vert_rounded, size: 18, color: context.tones.muted),
+      onSelected: (acao) async {
+        switch (acao) {
+          case 'meta':
+            await showBudgetGoalDialog(context, state: state, node: node);
+          case 'renomear':
+            if (context.mounted) await _renomear(context);
+          case 'apagar':
+            if (context.mounted) await _apagar(context);
+        }
+      },
+      itemBuilder: (_) => const [
+        PopupMenuItem(value: 'meta', child: Text('Definir meta')),
+        PopupMenuItem(value: 'renomear', child: Text('Renomear')),
+        PopupMenuItem(value: 'apagar', child: Text('Apagar')),
+      ],
+    );
+  }
+
+  Future<void> _renomear(BuildContext context) async {
+    final controller = TextEditingController(text: node.name);
+    final novo = await showDialog<String>(
+      context: context,
+      builder: (d) => AlertDialog(
+        title: const Text('Renomear'),
+        content: TextField(
+          controller: controller,
+          autofocus: true,
+          textCapitalization: TextCapitalization.sentences,
+          decoration: const InputDecoration(labelText: 'Nome'),
+          onSubmitted: (t) => Navigator.of(d).pop(t),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(d).pop(),
+            child: const Text('Cancelar'),
+          ),
+          TextButton(
+            onPressed: () => Navigator.of(d).pop(controller.text),
+            child: const Text('Salvar'),
+          ),
+        ],
+      ),
+    );
+    if (novo != null) await state.renameBudgetNode(node.id, novo);
+  }
+
+  Future<void> _apagar(BuildContext context) async {
+    final ok = await showDialog<bool>(
+      context: context,
+      builder: (d) => AlertDialog(
+        title: Text('Apagar "${node.name}"?'),
+        content: Text(
+          node.sources.isEmpty
+              ? 'A subcategoria some do planejamento.'
+              : 'Os gastos dela passam a contar direto na categoria acima — '
+                  'nada some do planejamento.',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(d).pop(false),
+            child: const Text('Cancelar'),
+          ),
+          TextButton(
+            onPressed: () => Navigator.of(d).pop(true),
+            child: const Text('Apagar'),
+          ),
+        ],
+      ),
+    );
+    if (ok == true) await state.removeBudgetNode(node.id);
+  }
+}
+
 /// Caixa para definir a meta mensal de uma categoria.
 Future<void> showBudgetGoalDialog(
   BuildContext context, {
   required AppState state,
   required BudgetNode node,
-}) async {
-  // A meta é guardada em reais, mas editada na moeda que está na tela.
-  final atual = state.brlToDisplay(node.budget);
-  final controller = TextEditingController(
-    text: node.budget > 0 ? atual.toStringAsFixed(2).replaceAll('.', ',') : '',
+}) {
+  return showDialog<void>(
+    context: context,
+    builder: (_) => _BudgetGoalDialog(state: state, node: node),
+  );
+}
+
+class _BudgetGoalDialog extends StatefulWidget {
+  const _BudgetGoalDialog({required this.state, required this.node});
+
+  final AppState state;
+  final BudgetNode node;
+
+  @override
+  State<_BudgetGoalDialog> createState() => _BudgetGoalDialogState();
+}
+
+class _BudgetGoalDialogState extends State<_BudgetGoalDialog> {
+  late final TextEditingController _controller = TextEditingController(
+    // A meta é guardada em reais, mas editada na moeda que está na tela.
+    text: widget.node.budget > 0
+        ? widget.state
+            .brlToDisplay(widget.node.budget)
+            .toStringAsFixed(2)
+            .replaceAll('.', ',')
+        : '',
   );
 
-  final digitado = await showDialog<double>(
-    context: context,
-    builder: (d) => AlertDialog(
-      title: Text('Meta de ${node.name}'),
+  String? _erro;
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
+
+  Future<void> _salvar() async {
+    final digitado =
+        double.tryParse(_controller.text.replaceAll(',', '.')) ?? 0;
+
+    final recusa = await widget.state
+        .setBudget(widget.node.id, widget.state.displayToBrl(digitado));
+
+    if (!mounted) return;
+    if (recusa != null) {
+      setState(() => _erro = recusa);
+      return;
+    }
+    Navigator.of(context).pop();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final state = widget.state;
+    final cabe = state.budgetHeadroomFor(widget.node.id);
+
+    return AlertDialog(
+      title: Text('Meta de ${widget.node.name}'),
       content: Column(
         mainAxisSize: MainAxisSize.min,
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -562,35 +696,34 @@ Future<void> showBudgetGoalDialog(
           ),
           const SizedBox(height: 16),
           TextField(
-            controller: controller,
+            controller: _controller,
             autofocus: true,
             keyboardType: const TextInputType.numberWithOptions(decimal: true),
             decoration: InputDecoration(
               prefixText: state.displayCurrencySymbol,
               labelText: 'Meta mensal',
+              // Deixa claro o teto antes de o usuário esbarrar nele.
+              helperText: cabe == null
+                  ? null
+                  : 'Cabem até ${fmtFiat(state.brlToDisplay(cabe), brl: state.showInBrl)}',
+              helperMaxLines: 2,
             ),
-            onSubmitted: (t) =>
-                Navigator.of(d).pop(double.tryParse(t.replaceAll(',', '.')) ?? 0),
+            onSubmitted: (_) => _salvar(),
           ),
+          if (_erro != null) ...[
+            const SizedBox(height: 14),
+            ErrorBanner(message: _erro!),
+          ],
         ],
       ),
       actions: [
         TextButton(
-          onPressed: () => Navigator.of(d).pop(),
+          onPressed: () => Navigator.of(context).pop(),
           child: const Text('Cancelar'),
         ),
-        TextButton(
-          onPressed: () => Navigator.of(d).pop(
-            double.tryParse(controller.text.replaceAll(',', '.')) ?? 0,
-          ),
-          child: const Text('Salvar'),
-        ),
+        TextButton(onPressed: _salvar, child: const Text('Salvar')),
       ],
-    ),
-  );
-
-  if (digitado != null) {
-    await state.setBudget(node.id, state.displayToBrl(digitado));
+    );
   }
 }
 

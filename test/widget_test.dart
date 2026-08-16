@@ -647,6 +647,74 @@ void main() {
       );
     });
 
+    test('a meta das subcategorias não passa da meta do grupo', () async {
+      await state.setBudget('alimentacao', 1000);
+
+      // Cabe tudo enquanto ninguém dividiu.
+      expect(state.budgetHeadroomFor('alimentacao_mercado'), 1000);
+      expect(await state.setBudget('alimentacao_mercado', 600), isNull);
+
+      // Agora só sobram 400 para a outra.
+      expect(state.budgetHeadroomFor('alimentacao_restaurantes'), 400);
+
+      final recusa = await state.setBudget('alimentacao_restaurantes', 500);
+      expect(recusa, isNotNull);
+      expect(recusa, contains('Alimentação'));
+      // E nada foi gravado.
+      expect(
+        state.budgetNodes
+            .firstWhere((n) => n.id == 'alimentacao_restaurantes')
+            .budget,
+        0,
+      );
+
+      // No limite exato, passa.
+      expect(await state.setBudget('alimentacao_restaurantes', 400), isNull);
+    });
+
+    test('sem meta na principal, a subcategoria não tem teto', () async {
+      expect(state.budgetHeadroomFor('alimentacao_mercado'), isNull);
+      expect(await state.setBudget('alimentacao_mercado', 99999), isNull);
+    });
+
+    test('a principal não tem teto vindo de cima', () async {
+      expect(state.budgetHeadroomFor('alimentacao'), isNull);
+      expect(await state.setBudget('alimentacao', 5000), isNull);
+    });
+
+    test('apagar subcategoria manda os gastos para a principal', () async {
+      // Mercado e Restaurantes somam 500 em Alimentação.
+      expect(
+        state.budgetLines(junho).firstWhere((l) => l.node.id == 'alimentacao').spent,
+        500,
+      );
+
+      await state.removeBudgetNode('alimentacao_mercado');
+
+      // A subcategoria some…
+      expect(state.childrenOf('alimentacao').any((n) => n.name == 'Mercado'),
+          isFalse);
+      // …mas o dinheiro continua em Alimentação, agora direto na principal.
+      expect(
+        state.budgetLines(junho).firstWhere((l) => l.node.id == 'alimentacao').spent,
+        500,
+      );
+      expect(
+        state.budgetLines(junho).firstWhere((l) => l.node.id == kUncategorizedId).spent,
+        0,
+      );
+    });
+
+    test('principal padrão continua protegida; subcategoria padrão não', () {
+      final alimentacao =
+          state.budgetNodes.firstWhere((n) => n.id == 'alimentacao');
+      final mercado =
+          state.budgetNodes.firstWhere((n) => n.id == 'alimentacao_mercado');
+
+      expect(state.canRemoveBudgetNode(alimentacao), isFalse);
+      expect(state.canRemoveBudgetNode(mercado), isTrue);
+    });
+
     test('categoria padrão não pode ser apagada; a criada sim', () async {
       await state.removeBudgetNode('alimentacao');
       expect(state.mainBudgetNodes.any((n) => n.id == 'alimentacao'), isTrue);
