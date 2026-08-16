@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../app_state.dart';
-import '../models.dart';
+import '../budget.dart';
 import '../theme.dart';
 import '../util/format.dart';
 import 'widgets/charts.dart';
@@ -32,7 +32,9 @@ class CategoriesPage extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final mes = state.selectedMonth;
-    final categorias = state.categoryBreakdown(mes);
+    // Primeiro nível: as categorias principais. As subcategorias somam dentro
+    // delas e aparecem ao tocar.
+    final categorias = state.mainCategoryBreakdown(mes);
     final total = state.cardSpentInMonth(mes);
     final anterior = state.cardSpentInMonth(DateTime(mes.year, mes.month - 1));
     final moeda = state.cardCurrency;
@@ -470,19 +472,18 @@ class _CategoryRow extends StatelessWidget {
         animation: state,
         builder: (_, __) {
           // Recalculado a cada mudança: uma compra recategorizada sai daqui.
-          final compras = state
-              .cardEntriesForMonth(state.selectedMonth)
-              .where((e) =>
-                  e.kind == LedgerKind.cardPurchase &&
-                  state.categoryOf(e) == categoria.label)
-              .toList();
+          final mainId = categoria.id ?? kUncategorizedId;
+          final subcategorias =
+              state.subcategoryBreakdown(state.selectedMonth, mainId);
           final total =
-              compras.fold<double>(0, (sum, e) => sum + e.change.abs());
+              subcategorias.fold<double>(0, (sum, s) => sum + s.total);
+          final compras =
+              subcategorias.fold<int>(0, (sum, s) => sum + s.count);
 
           return DraggableScrollableSheet(
             expand: false,
             initialChildSize: 0.6,
-            maxChildSize: 0.9,
+            maxChildSize: 0.92,
             builder: (_, scrollController) => Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
@@ -508,7 +509,7 @@ class _CategoryRow extends StatelessWidget {
                       const SizedBox(height: 4),
                       Text(
                         '${state.formatValue(total, moeda, signed: false)} · '
-                        '${compras.length} compras · '
+                        '$compras compras · '
                         '${fmtMonthYear(state.selectedMonth)}',
                         style: context.texts.bodySmall,
                       ),
@@ -517,7 +518,7 @@ class _CategoryRow extends StatelessWidget {
                 ),
                 const Divider(height: 1),
                 Expanded(
-                  child: compras.isEmpty
+                  child: subcategorias.isEmpty
                       ? Center(
                           child: Padding(
                             padding: const EdgeInsets.all(24),
@@ -530,18 +531,16 @@ class _CategoryRow extends StatelessWidget {
                         )
                       : ListView.builder(
                           controller: scrollController,
-                          padding:
-                              const EdgeInsets.symmetric(horizontal: 20, vertical: 8),
-                          itemCount: compras.length,
-                          itemBuilder: (_, i) => LedgerTile(
-                            entry: compras[i],
+                          padding: const EdgeInsets.fromLTRB(12, 8, 12, 24),
+                          itemCount: subcategorias.length,
+                          itemBuilder: (_, i) => _SubcategoriaExpansivel(
                             state: state,
-                            // Segurar o item leva direto ao editor.
-                            onLongPress: () => showEntryEditor(
-                              context,
-                              state: state,
-                              entry: compras[i],
-                            ),
+                            subcategoria: subcategorias[i],
+                            color: color,
+                            moeda: moeda,
+                            // Com uma subcategoria só, não há o que escolher:
+                            // as compras já aparecem abertas.
+                            aberta: subcategorias.length == 1,
                           ),
                         ),
                 ),
@@ -549,6 +548,89 @@ class _CategoryRow extends StatelessWidget {
             ),
           );
         },
+      ),
+    );
+  }
+}
+
+/// Uma subcategoria dentro da principal aberta: mostra o total e, ao tocar,
+/// as compras que formam aquele valor.
+class _SubcategoriaExpansivel extends StatelessWidget {
+  const _SubcategoriaExpansivel({
+    required this.state,
+    required this.subcategoria,
+    required this.color,
+    required this.moeda,
+    required this.aberta,
+  });
+
+  final AppState state;
+  final CategoryTotal subcategoria;
+  final Color color;
+  final String moeda;
+  final bool aberta;
+
+  @override
+  Widget build(BuildContext context) {
+    final compras = state.purchasesOfCategory(
+      state.selectedMonth,
+      subcategoria.id ?? subcategoria.label,
+    );
+
+    return Theme(
+      data: Theme.of(context).copyWith(dividerColor: Colors.transparent),
+      child: ExpansionTile(
+        initiallyExpanded: aberta,
+        tilePadding: const EdgeInsets.symmetric(horizontal: 12),
+        childrenPadding: const EdgeInsets.only(left: 4, right: 4, bottom: 8),
+        leading: Container(
+          width: 34,
+          height: 34,
+          decoration: BoxDecoration(
+            color: color.withValues(alpha: 0.14),
+            borderRadius: BorderRadius.circular(11),
+          ),
+          child: Icon(
+            categoryIcon(subcategoria.id ?? subcategoria.label),
+            size: 17,
+            color: color,
+          ),
+        ),
+        title: Row(
+          children: [
+            Expanded(
+              child: Text(
+                subcategoria.label,
+                style: context.texts.titleSmall,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+              ),
+            ),
+            Text(
+              state.hideBalances
+                  ? '••••'
+                  : state.formatValue(subcategoria.total, moeda, signed: false),
+              style: context.texts.titleSmall,
+            ),
+          ],
+        ),
+        subtitle: Padding(
+          padding: const EdgeInsets.only(top: 4),
+          child: Text(
+            '${fmtPercent(subcategoria.share)} da categoria · '
+            '${subcategoria.count}x',
+            style: context.texts.bodySmall,
+          ),
+        ),
+        children: [
+          for (final compra in compras)
+            LedgerTile(
+              entry: compra,
+              state: state,
+              onLongPress: () =>
+                  showEntryEditor(context, state: state, entry: compra),
+            ),
+        ],
       ),
     );
   }

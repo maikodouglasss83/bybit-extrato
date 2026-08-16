@@ -69,7 +69,11 @@ class CategoryTotal {
     required this.total,
     required this.count,
     required this.share,
+    this.id,
   });
+
+  /// Identificador da categoria principal, quando a soma é por grupo.
+  final String? id;
 
   final String label;
   final double total;
@@ -734,6 +738,88 @@ class AppState extends ChangeNotifier {
             ))
         .toList()
       ..sort((a, b) => b.total.compareTo(a.total));
+    return lista;
+  }
+
+  /// Gasto do mês somado por categoria principal do planejamento.
+  ///
+  /// É a visão de primeiro nível da tela de gastos: as subcategorias somam
+  /// dentro da principal em vez de disputarem espaço na mesma lista.
+  List<CategoryTotal> mainCategoryBreakdown(DateTime month) {
+    final compras = cardEntriesForMonth(month)
+        .where((e) => e.kind == LedgerKind.cardPurchase && !isHidden(e));
+
+    final totais = <String, double>{};
+    final contagem = <String, int>{};
+    final rotulos = <String, String>{};
+
+    for (final e in compras) {
+      final principal = mainCategoryOf(categoryOf(e));
+      final id = principal?.id ?? kUncategorizedId;
+      rotulos[id] = principal?.name ?? 'Sem categoria';
+      totais[id] = (totais[id] ?? 0) + e.change.abs();
+      contagem[id] = (contagem[id] ?? 0) + 1;
+    }
+
+    final soma = totais.values.fold<double>(0, (a, b) => a + b);
+    final lista = totais.entries
+        .map((e) => CategoryTotal(
+              id: e.key,
+              label: rotulos[e.key] ?? e.key,
+              total: e.value,
+              count: contagem[e.key] ?? 0,
+              share: soma == 0 ? 0 : e.value / soma,
+            ))
+        .toList()
+      ..sort((a, b) {
+        // O resto vai para o fim, como no planejamento.
+        final aResto = a.id == kUncategorizedId;
+        final bResto = b.id == kUncategorizedId;
+        if (aResto != bResto) return aResto ? 1 : -1;
+        return b.total.compareTo(a.total);
+      });
+    return lista;
+  }
+
+  /// Gasto por subcategoria dentro de uma principal.
+  List<CategoryTotal> subcategoryBreakdown(DateTime month, String mainId) {
+    final compras = cardEntriesForMonth(month).where((e) =>
+        e.kind == LedgerKind.cardPurchase &&
+        !isHidden(e) &&
+        (mainCategoryOf(categoryOf(e))?.id ?? kUncategorizedId) == mainId);
+
+    final totais = <String, double>{};
+    final contagem = <String, int>{};
+    for (final e in compras) {
+      final chave = categoryOf(e);
+      totais[chave] = (totais[chave] ?? 0) + e.change.abs();
+      contagem[chave] = (contagem[chave] ?? 0) + 1;
+    }
+
+    final soma = totais.values.fold<double>(0, (a, b) => a + b);
+    final lista = totais.entries
+        .map((e) => CategoryTotal(
+              id: e.key,
+              // O rótulo do nó é mais descritivo que o valor guardado.
+              label: categoryLabelOf(e.key),
+              total: e.value,
+              count: contagem[e.key] ?? 0,
+              share: soma == 0 ? 0 : e.value / soma,
+            ))
+        .toList()
+      ..sort((a, b) => b.total.compareTo(a.total));
+    return lista;
+  }
+
+  /// Compras de uma categoria dentro do mês.
+  List<LedgerEntry> purchasesOfCategory(DateTime month, String categoria) {
+    final lista = cardEntriesForMonth(month)
+        .where((e) =>
+            e.kind == LedgerKind.cardPurchase &&
+            !isHidden(e) &&
+            categoryOf(e) == categoria)
+        .toList()
+      ..sort((a, b) => b.time.compareTo(a.time));
     return lista;
   }
 

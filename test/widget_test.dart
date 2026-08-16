@@ -499,6 +499,52 @@ void main() {
       expect(state.isCustomCategory(SpendCategories.mercado), isFalse);
     });
 
+    test('a tela de gastos soma as subcategorias dentro da principal', () async {
+      // O caso da tela: subcategorias de Transporte disputando espaço com as
+      // categorias principais na mesma lista.
+      await state.addBudgetNode(name: 'Transporte Público', parentId: 'transporte');
+      await state.addBudgetNode(name: 'Aplicativo', parentId: 'transporte');
+
+      final uber = state.cardEntries.firstWhere((e) => e.id.endsWith('u1'));
+      await state.setEntryOverrides(uber, category: 'Aplicativo');
+
+      final principais = state.mainCategoryBreakdown(junho);
+      final rotulos = principais.map((c) => c.label).toList();
+
+      // Só principais na lista.
+      expect(rotulos, contains('Transporte'));
+      expect(rotulos, isNot(contains('Aplicativo')));
+      expect(rotulos, isNot(contains('Transporte Público')));
+
+      // E o valor continua somando na principal.
+      expect(principais.firstWhere((c) => c.label == 'Transporte').total, 150);
+      expect(state.mainCategoryBreakdown(junho).fold<double>(0, (s, c) => s + c.total), 700);
+    });
+
+    test('ao abrir a principal, as subcategorias aparecem', () async {
+      await state.addBudgetNode(name: 'Aplicativo', parentId: 'transporte');
+      final uber = state.cardEntries.firstWhere((e) => e.id.endsWith('u1'));
+      await state.setEntryOverrides(uber, category: 'Aplicativo');
+
+      final dentro = state.subcategoryBreakdown(junho, 'transporte');
+      expect(dentro.single.label, 'Aplicativo');
+      expect(dentro.single.total, 150);
+      expect(dentro.single.share, 1.0);
+
+      // E dali chega-se às compras.
+      final compras = state.purchasesOfCategory(junho, 'Aplicativo');
+      expect(compras.single.id, uber.id);
+    });
+
+    test('"Sem categoria" fica por último também na tela de gastos', () async {
+      await state.setBudgetSources('alimentacao_mercado', const []);
+      await state.setBudgetSources('alimentacao_restaurantes', const []);
+
+      final principais = state.mainCategoryBreakdown(junho);
+      expect(principais.last.label, 'Sem categoria');
+      expect(principais.last.total, 500);
+    });
+
     test('o seletor navega da principal para as subcategorias', () async {
       await state.addBudgetNode(name: 'Terapia', parentId: 'saude');
 
