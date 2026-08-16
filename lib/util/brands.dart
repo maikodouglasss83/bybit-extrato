@@ -14,6 +14,14 @@ class Brand {
 
   /// Domínio usado para buscar o logo, quando o usuário liga essa opção.
   final String? domain;
+
+  /// Identificador estável da marca.
+  ///
+  /// A Bybit manda o mesmo estabelecimento com grafias diferentes a cada mês
+  /// — `DM*Spotify`, `DM *Spotify`, `NETFLIX.COM`, `NETFLIX ENTRETENIMENTO`.
+  /// Este identificador é o que junta todas essas variações num só lugar,
+  /// para apelidos, categorias e vencimentos valerem para a marca inteira.
+  String get id => domain ?? '${label}_${color.toARGB32()}';
 }
 
 const _brands = <String, Brand>{

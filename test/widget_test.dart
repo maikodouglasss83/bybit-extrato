@@ -899,6 +899,84 @@ void main() {
     });
   });
 
+  group('Mesma marca, grafias diferentes', () {
+    LedgerEntry compra(String id, String merch, double valor, DateTime quando) =>
+        LedgerEntry.fromCardTransaction({
+          'transactionId': id,
+          'side': '1',
+          'transactionDate': '${quando.millisecondsSinceEpoch}',
+          'transactionAmount': '$valor',
+          'basicCurrency': 'BRL',
+          'merchName': merch,
+        });
+
+    test('as variações da Bybit viram um estabelecimento só', () {
+      // Exatamente o que aparecia duplicado na agenda.
+      expect(
+        AppState.merchantKeyFor('DM*Spotify'),
+        AppState.merchantKeyFor('DM *Spotify'),
+      );
+      expect(
+        AppState.merchantKeyFor('NETFLIX.COM'),
+        AppState.merchantKeyFor('NETFLIX ENTRETENIMENTO'),
+      );
+      expect(
+        AppState.merchantKeyFor('MERCADOLIVRE*MERCADOLI'),
+        AppState.merchantKeyFor('MP          *MELIMAIS'),
+      );
+    });
+
+    test('estabelecimentos diferentes continuam separados', () {
+      expect(
+        AppState.merchantKeyFor('NETFLIX.COM'),
+        isNot(AppState.merchantKeyFor('DM*Spotify')),
+      );
+      expect(
+        AppState.merchantKeyFor('MERCADINHO DO TICO'),
+        isNot(AppState.merchantKeyFor('MERCADO FLAMENGO')),
+      );
+    });
+
+    test('sem marca conhecida, só os espaços são normalizados', () {
+      expect(
+        AppState.merchantKeyFor('MERCADINHO   DO    TICO'),
+        AppState.merchantKeyFor('mercadinho do tico'),
+      );
+    });
+
+    test('o compromisso não se duplica entre as grafias', () async {
+      final agora = DateTime.now();
+      final mes = DateTime(agora.year, agora.month);
+      final state = AppState()
+        ..seedEntries([
+          compra('a', 'DM*Spotify', 31.90, DateTime(mes.year, mes.month - 1, 4)),
+          compra('b', 'DM *Spotify', 31.90, DateTime(mes.year, mes.month, 4)),
+        ]);
+
+      final previsoes = state.fixedForecast(mes);
+      expect(previsoes.length, 1);
+      // E o que já caiu neste mês aparece como pago, não como atrasado.
+      expect(previsoes.single.paid, isTrue);
+      expect(state.pendingFixedInMonth(mes), 0);
+    });
+
+    test('renomear uma grafia vale para todas', () async {
+      final agora = DateTime.now();
+      final state = AppState()
+        ..seedEntries([
+          compra('a', 'DM*Spotify', 31.90, DateTime(agora.year, agora.month, 4)),
+          compra('b', 'DM *Spotify', 31.90, DateTime(agora.year, agora.month, 4)),
+        ]);
+
+      final primeira = state.cardEntries.first;
+      await state.setEntryOverrides(primeira, name: 'Spotify');
+
+      for (final e in state.cardEntries) {
+        expect(state.displayNameOf(e), 'Spotify');
+      }
+    });
+  });
+
   group('Previsão dos compromissos', () {
     LedgerEntry compra(String id, String merch, double valor, DateTime quando) =>
         LedgerEntry.fromCardTransaction({

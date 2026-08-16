@@ -9,6 +9,7 @@ import 'services/cloud_sync.dart';
 import 'services/credentials.dart';
 import 'services/fx.dart';
 import 'services/preferences.dart';
+import 'util/brands.dart';
 import 'util/categorizer.dart';
 import 'util/format.dart';
 
@@ -383,8 +384,42 @@ class AppState extends ChangeNotifier {
     _syncPreference(_kSyncOcultos, _hiddenIds.toList());
   }
 
-  /// Chave usada para guardar a correção de um estabelecimento.
-  String _merchantKey(LedgerEntry e) => (e.note ?? '').trim().toLowerCase();
+  /// Chave que identifica o estabelecimento nos ajustes.
+  ///
+  /// Marcas conhecidas viram uma chave única, porque a Bybit escreve o mesmo
+  /// lugar de formas diferentes a cada mês. Sem isso, `DM*Spotify` e
+  /// `DM *Spotify` virariam dois compromissos separados na agenda — um pago,
+  /// outro eternamente pendente.
+  String _merchantKey(LedgerEntry e) => merchantKeyFor(e.note);
+
+  static String merchantKeyFor(String? merchant) {
+    final bruto = (merchant ?? '').trim();
+    if (bruto.isEmpty) return '';
+
+    final marca = brandFor(bruto);
+    if (marca != null) return 'marca:${marca.id}';
+
+    // Sem marca conhecida, normaliza os espaços: a Bybit alinha os nomes com
+    // sequências de espaços que variam ("MP          *MELIMAIS").
+    return bruto.toLowerCase().replaceAll(RegExp(r'\s+'), ' ');
+  }
+
+  /// Traz ajustes guardados com o formato antigo de chave para o novo.
+  ///
+  /// Sem isto, passar a agrupar por marca faria o usuário perder tudo que já
+  /// tinha personalizado.
+  static Map<String, T> _migrateKeys<T>(Map<String, T> antigo) {
+    final novo = <String, T>{};
+    antigo.forEach((chave, valor) {
+      if (chave.startsWith('marca:')) {
+        novo[chave] = valor;
+        return;
+      }
+      novo[merchantKeyFor(chave)] = valor;
+    });
+    novo.remove('');
+    return novo;
+  }
 
   /// Categoria válida de um lançamento: a correção do usuário vence a
   /// classificação automática.
@@ -1080,10 +1115,11 @@ class AppState extends ChangeNotifier {
 
     skippedLogin = await _preferences.loadSkippedLogin();
 
-    _categoryOverrides = await _preferences.loadCategoryOverrides();
-    _nameOverrides = await _preferences.loadNameOverrides();
-    _fixedOverrides = await _preferences.loadFixedOverrides();
-    _dueDayOverrides = await _preferences.loadDueDays();
+    // Os ajustes antigos foram gravados por grafia; passam a valer por marca.
+    _categoryOverrides = _migrateKeys(await _preferences.loadCategoryOverrides());
+    _nameOverrides = _migrateKeys(await _preferences.loadNameOverrides());
+    _fixedOverrides = _migrateKeys(await _preferences.loadFixedOverrides());
+    _dueDayOverrides = _migrateKeys(await _preferences.loadDueDays());
     _hiddenIds = await _preferences.loadHiddenEntries();
     useOnlineLogos = await _preferences.loadOnlineLogos();
     _showInBrl = await _preferences.loadShowInBrl();
@@ -1349,19 +1385,21 @@ class AppState extends ChangeNotifier {
         : {};
 
     if (ajustes.containsKey(_kSyncCategorias)) {
-      _categoryOverrides = comoMapa(ajustes[_kSyncCategorias]);
+      _categoryOverrides = _migrateKeys(comoMapa(ajustes[_kSyncCategorias]));
     }
     if (ajustes.containsKey(_kSyncNomes)) {
-      _nameOverrides = comoMapa(ajustes[_kSyncNomes]);
+      _nameOverrides = _migrateKeys(comoMapa(ajustes[_kSyncNomes]));
     }
     if (ajustes[_kSyncFixos] is Map) {
-      _fixedOverrides = (ajustes[_kSyncFixos] as Map)
-          .map((k, v) => MapEntry(k.toString(), v == true));
+      _fixedOverrides = _migrateKeys((ajustes[_kSyncFixos] as Map)
+          .map((k, v) => MapEntry(k.toString(), v == true)));
     }
     if (ajustes[_kSyncVencimentos] is Map) {
-      _dueDayOverrides = (ajustes[_kSyncVencimentos] as Map).map(
-        (k, v) => MapEntry(k.toString(), int.tryParse(v.toString()) ?? 0),
-      )..removeWhere((_, dia) => dia < 1 || dia > 31);
+      _dueDayOverrides = _migrateKeys(
+        (ajustes[_kSyncVencimentos] as Map).map(
+          (k, v) => MapEntry(k.toString(), int.tryParse(v.toString()) ?? 0),
+        )..removeWhere((_, dia) => dia < 1 || dia > 31),
+      );
     }
     if (ajustes[_kSyncOcultos] is List) {
       _hiddenIds =
