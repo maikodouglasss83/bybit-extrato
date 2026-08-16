@@ -769,6 +769,26 @@ class AppState extends ChangeNotifier {
   Set<String> get _mappedSources =>
       budgetNodes.expand((n) => n.sources).toSet();
 
+  /// Todas as categorias que o usuário pode escolher numa compra.
+  ///
+  /// Junta as que o app reconhece sozinho com as que ele criou no
+  /// planejamento — sem isso, uma subcategoria nova não teria como receber
+  /// gasto nenhum a partir do extrato.
+  List<String> get availableCategories {
+    final personalizadas = budgetNodes
+        .where((n) => !n.builtIn)
+        .map((n) => n.name)
+        .where((nome) => !SpendCategories.all.contains(nome))
+        .toList()
+      ..sort();
+
+    return [...SpendCategories.all, ...personalizadas];
+  }
+
+  /// Indica que a categoria foi criada pelo usuário no planejamento.
+  bool isCustomCategory(String categoria) =>
+      !SpendCategories.all.contains(categoria);
+
   /// Gasto do mês que cai direto neste nó, sem contar as subcategorias.
   double _ownSpent(BudgetNode node, DateTime month) {
     final compras = cardEntriesForMonth(month)
@@ -865,8 +885,36 @@ class AppState extends ChangeNotifier {
   Future<void> renameBudgetNode(String nodeId, String name) async {
     final limpo = name.trim();
     if (limpo.isEmpty) return;
-    budgetNodes =
-        budgetNodes.map((n) => n.id == nodeId ? n.copyWith(name: limpo) : n).toList();
+
+    final anterior = budgetNodes.where((n) => n.id == nodeId).firstOrNull;
+    if (anterior == null || anterior.name == limpo) return;
+
+    budgetNodes = budgetNodes.map((n) {
+      if (n.id != nodeId) return n;
+      final origens = n.sources.map((s) => s == n.name ? limpo : s).toList();
+      return n.copyWith(name: limpo, sources: origens);
+    }).toList();
+
+    // As compras marcadas com o nome antigo passam a levar o novo. Sem isto
+    // elas ficariam apontando para uma categoria que não existe mais, e o
+    // dinheiro sumiria do planejamento.
+    final renomeadas = <String, String>{};
+    var mudou = false;
+    _categoryOverrides.forEach((chave, categoria) {
+      if (categoria == anterior.name) {
+        renomeadas[chave] = limpo;
+        mudou = true;
+      } else {
+        renomeadas[chave] = categoria;
+      }
+    });
+
+    if (mudou) {
+      _categoryOverrides = renomeadas;
+      await _preferences.saveCategoryOverrides(_categoryOverrides);
+      _syncPreference(_kSyncCategorias, _categoryOverrides);
+    }
+
     await _persistBudget();
   }
 
@@ -881,16 +929,21 @@ class AppState extends ChangeNotifier {
     if (limpo.isEmpty) return;
 
     final id = 'user_${DateTime.now().microsecondsSinceEpoch}';
+
+    // O próprio nome entra como origem: é o que permite marcar uma compra
+    // com esta categoria no extrato e ver o valor cair aqui.
+    final origens = <String>{limpo, ...sources}.toList();
+
     budgetNodes = [
       // Uma categoria de gasto pertence a um nó só, senão o mesmo dinheiro
       // seria contado duas vezes no planejamento.
-      ..._withoutSources(budgetNodes, sources),
+      ..._withoutSources(budgetNodes, origens),
       BudgetNode(
         id: id,
         name: limpo,
         parentId: parentId,
         budget: budget,
-        sources: sources,
+        sources: origens,
       ),
     ];
     await _persistBudget();

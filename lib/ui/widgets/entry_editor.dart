@@ -3,7 +3,6 @@ import 'package:flutter/material.dart';
 import '../../app_state.dart';
 import '../../models.dart';
 import '../../theme.dart';
-import '../../util/categorizer.dart';
 import 'common.dart';
 
 /// Folha para renomear um estabelecimento e ajustar a categoria dele.
@@ -188,10 +187,12 @@ class _EntryEditorState extends State<_EntryEditor> {
                   spacing: 8,
                   runSpacing: 8,
                   children: [
-                    for (final categoria in SpendCategories.all)
+                    // Inclui as categorias criadas no planejamento.
+                    for (final categoria in widget.state.availableCategories)
                       _CategoryChip(
                         label: categoria,
                         selected: categoria == _category,
+                        custom: widget.state.isCustomCategory(categoria),
                         onTap: () => setState(() => _category = categoria),
                       ),
                   ],
@@ -327,11 +328,15 @@ class _CategoryChip extends StatelessWidget {
     required this.label,
     required this.selected,
     required this.onTap,
+    this.custom = false,
   });
 
   final String label;
   final bool selected;
   final VoidCallback onTap;
+
+  /// Criada pelo usuário no planejamento, e não uma das que o app reconhece.
+  final bool custom;
 
   @override
   Widget build(BuildContext context) {
@@ -353,7 +358,11 @@ class _CategoryChip extends StatelessWidget {
         child: Row(
           mainAxisSize: MainAxisSize.min,
           children: [
-            Icon(categoryIcon(label), size: 16, color: cor),
+            Icon(
+              custom ? Icons.bookmark_outline_rounded : categoryIcon(label),
+              size: 16,
+              color: cor,
+            ),
             const SizedBox(width: 8),
             Text(
               label,

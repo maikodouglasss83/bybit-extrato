@@ -489,6 +489,72 @@ void main() {
       expect(state.budgetSpentTotal(junho), 700);
     });
 
+    test('subcategoria criada aparece para escolher na compra', () async {
+      expect(state.availableCategories, isNot(contains('Terapia')));
+
+      await state.addBudgetNode(name: 'Terapia', parentId: 'saude');
+
+      expect(state.availableCategories, contains('Terapia'));
+      expect(state.isCustomCategory('Terapia'), isTrue);
+      expect(state.isCustomCategory(SpendCategories.mercado), isFalse);
+    });
+
+    test('marcar a compra com a subcategoria leva o valor até ela', () async {
+      await state.addBudgetNode(name: 'Terapia', parentId: 'saude');
+
+      final uber = state.cardEntries.firstWhere((e) => e.id.endsWith('u1'));
+      await state.setEntryOverrides(uber, category: 'Terapia');
+
+      expect(state.categoryOf(uber), 'Terapia');
+
+      final linhas = state.budgetLines(junho);
+      final saude = linhas.firstWhere((l) => l.node.id == 'saude');
+      final terapia =
+          saude.children.firstWhere((c) => c.node.name == 'Terapia');
+
+      expect(terapia.spent, 150); // o valor do Uber
+      expect(saude.spent, 150); // sobe para a categoria principal
+      // E saiu de Transporte, sem mudar o total.
+      expect(linhas.firstWhere((l) => l.node.id == 'transporte').spent, 0);
+      expect(state.budgetSpentTotal(junho), 700);
+    });
+
+    test('gasto da categoria criada não cai em "Sem categoria"', () async {
+      await state.addBudgetNode(name: 'Terapia', parentId: 'saude');
+      final uber = state.cardEntries.firstWhere((e) => e.id.endsWith('u1'));
+      await state.setEntryOverrides(uber, category: 'Terapia');
+
+      expect(
+        state.budgetLines(junho).firstWhere((l) => l.node.id == kUncategorizedId).spent,
+        0,
+      );
+    });
+
+    test('renomear a categoria não deixa as compras órfãs', () async {
+      await state.addBudgetNode(name: 'Terapia', parentId: 'saude');
+      final uber = state.cardEntries.firstWhere((e) => e.id.endsWith('u1'));
+      await state.setEntryOverrides(uber, category: 'Terapia');
+
+      final no = state.budgetNodes.firstWhere((n) => n.name == 'Terapia');
+      await state.renameBudgetNode(no.id, 'Psicólogo');
+
+      // A marcação da compra acompanha o novo nome…
+      expect(state.categoryOf(uber), 'Psicólogo');
+      // …e o valor continua chegando na categoria.
+      final saude =
+          state.budgetLines(junho).firstWhere((l) => l.node.id == 'saude');
+      expect(saude.spent, 150);
+      expect(
+        saude.children.firstWhere((c) => c.node.name == 'Psicólogo').spent,
+        150,
+      );
+      // Nada escorregou para "Sem categoria".
+      expect(
+        state.budgetLines(junho).firstWhere((l) => l.node.id == kUncategorizedId).spent,
+        0,
+      );
+    });
+
     test('categoria padrão não pode ser apagada; a criada sim', () async {
       await state.removeBudgetNode('alimentacao');
       expect(state.mainBudgetNodes.any((n) => n.id == 'alimentacao'), isTrue);
