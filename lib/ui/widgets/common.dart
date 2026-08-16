@@ -1,8 +1,44 @@
 import 'package:flutter/material.dart';
 
+import '../../budget.dart';
 import '../../models.dart';
 import '../../theme.dart';
 import '../../util/categorizer.dart';
+
+/// Ícone de uma categoria principal do planejamento.
+///
+/// Separado de [categoryIcon] porque os dois níveis têm nomes diferentes: a
+/// principal "Comunicação" agrupa a categoria de gasto "Telefonia e
+/// internet", e "Alimentação" agrupa mercado e restaurantes.
+IconData mainCategoryIcon(String nodeId) {
+  switch (nodeId) {
+    case 'casa':
+      return Icons.home_outlined;
+    case 'educacao':
+      return Icons.school_outlined;
+    case 'lazer':
+      return Icons.sports_esports_outlined;
+    case 'saude':
+      return Icons.favorite_border_rounded;
+    case 'alimentacao':
+      return Icons.restaurant_rounded;
+    case 'transporte':
+      return Icons.directions_car_filled_outlined;
+    case 'pessoais':
+      return Icons.person_outline_rounded;
+    case 'comunicacao':
+      return Icons.wifi_rounded;
+    case 'tarifas':
+      return Icons.receipt_long_outlined;
+    case 'outros':
+      return Icons.more_horiz_rounded;
+    case kUncategorizedId:
+      return Icons.help_outline_rounded;
+    default:
+      // Criada pelo usuário.
+      return Icons.bookmark_outline_rounded;
+  }
+}
 
 /// Ícone que representa cada categoria de gasto.
 IconData categoryIcon(String category) {

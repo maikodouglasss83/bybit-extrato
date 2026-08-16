@@ -431,33 +431,16 @@ class _CategoryTile extends StatelessWidget {
     if (ok == true) await state.removeBudgetNode(node.id);
   }
 
+  /// Principais usam o ícone do grupo; subcategorias, o da categoria de
+  /// gasto que elas representam.
   static IconData _iconFor(BudgetNode node) {
-    // A categoria de gasto ligada ao nó já tem um ícone bom.
-    if (node.sources.isNotEmpty) return categoryIcon(node.sources.first);
-    switch (node.id) {
-      case 'casa':
-        return Icons.home_outlined;
-      case 'educacao':
-        return Icons.school_outlined;
-      case 'lazer':
-        return Icons.sports_esports_outlined;
-      case 'saude':
-        return Icons.favorite_border_rounded;
-      case 'alimentacao':
-        return Icons.restaurant_rounded;
-      case 'transporte':
-        return Icons.directions_car_filled_outlined;
-      case 'pessoais':
-        return Icons.person_outline_rounded;
-      case 'comunicacao':
-        return Icons.wifi_rounded;
-      case 'tarifas':
-        return Icons.receipt_long_outlined;
-      case kUncategorizedId:
-        return Icons.help_outline_rounded;
-      default:
-        return Icons.folder_outlined;
-    }
+    if (node.isMain) return mainCategoryIcon(node.id);
+    if (node.sources.isEmpty) return Icons.bookmark_outline_rounded;
+
+    final valor = node.sources.first;
+    return SpendCategories.all.contains(valor)
+        ? categoryIcon(valor)
+        : Icons.bookmark_outline_rounded;
   }
 }
 

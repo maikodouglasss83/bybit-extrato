@@ -406,7 +406,11 @@ class _CategoryRow extends StatelessWidget {
                     color: color.withValues(alpha: 0.14),
                     borderRadius: BorderRadius.circular(11),
                   ),
-                  child: Icon(categoryIcon(categoria.label), size: 17, color: color),
+                  child: Icon(
+                    mainCategoryIcon(categoria.id ?? ''),
+                    size: 17,
+                    color: color,
+                  ),
                 ),
                 const SizedBox(width: 12),
                 Expanded(
@@ -494,7 +498,7 @@ class _CategoryRow extends StatelessWidget {
                     children: [
                       Row(
                         children: [
-                          Icon(categoryIcon(categoria.label),
+                          Icon(mainCategoryIcon(categoria.id ?? ''),
                               size: 20, color: color),
                           const SizedBox(width: 10),
                           Flexible(
@@ -591,7 +595,11 @@ class _SubcategoriaExpansivel extends StatelessWidget {
             borderRadius: BorderRadius.circular(11),
           ),
           child: Icon(
-            categoryIcon(subcategoria.id ?? subcategoria.label),
+            // Subcategoria criada pelo usuário não tem ícone próprio: ganha
+            // o marcador, em vez do genérico de "outros".
+            state.isCustomCategory(subcategoria.id ?? subcategoria.label)
+                ? Icons.bookmark_outline_rounded
+                : categoryIcon(subcategoria.id ?? subcategoria.label),
             size: 17,
             color: color,
           ),
