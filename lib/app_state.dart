@@ -14,6 +14,45 @@ import 'util/format.dart';
 
 enum LoadPhase { booting, needsSetup, loading, ready, failed }
 
+/// Previsão de um compromisso mensal, deduzida do histórico.
+class FixedForecast {
+  const FixedForecast({
+    required this.merchant,
+    required this.expectedDay,
+    required this.expectedDate,
+    required this.expectedAmount,
+    required this.paid,
+    required this.monthsSeen,
+    required this.daysUntil,
+    this.paidDate,
+  });
+
+  final String merchant;
+
+  /// Dia do mês em que costuma cair.
+  final int expectedDay;
+  final DateTime expectedDate;
+
+  /// Valor já cobrado, quando pago; senão o da última vez.
+  final double expectedAmount;
+
+  final bool paid;
+  final DateTime? paidDate;
+
+  /// Em quantos meses diferentes já apareceu — mede a confiança na previsão.
+  final int monthsSeen;
+
+  /// Dias até a data prevista. Negativo quando ela já passou.
+  final int daysUntil;
+
+  /// Passou do dia e não apareceu: vale um alerta.
+  bool get late => !paid && daysUntil < 0;
+
+  bool get dueToday => !paid && daysUntil == 0;
+
+  bool get dueSoon => !paid && daysUntil > 0 && daysUntil <= 5;
+}
+
 /// Quanto uma categoria representou nos gastos de um período.
 class CategoryTotal {
   const CategoryTotal({
@@ -489,6 +528,79 @@ class AppState extends ChangeNotifier {
     }
     return (fixo: fixo, variavel: variavel);
   }
+
+  /// Previsão de um compromisso no mês de referência.
+  ///
+  /// Sai do próprio histórico: o dia costumeiro e o valor recente de cada
+  /// estabelecimento marcado como fixo.
+  List<FixedForecast> fixedForecast(DateTime month) {
+    // Agrupa as compras fixas por estabelecimento, olhando todo o histórico.
+    final porEstabelecimento = <String, List<LedgerEntry>>{};
+    for (final e in cardEntries) {
+      if (e.kind != LedgerKind.cardPurchase || isHidden(e)) continue;
+      if (!isFixed(e)) continue;
+      porEstabelecimento.putIfAbsent(displayNameOf(e), () => []).add(e);
+    }
+
+    final agora = DateTime.now();
+    final previsoes = <FixedForecast>[];
+
+    porEstabelecimento.forEach((nome, compras) {
+      compras.sort((a, b) => b.time.compareTo(a.time));
+
+      // Em quantos meses distintos apareceu. Um único mês não é padrão, é
+      // coincidência — não dá para prever nada dali.
+      final meses = compras
+          .map((e) => '${e.time.year}-${e.time.month}')
+          .toSet();
+
+      final doMes = compras
+          .where((e) => e.time.year == month.year && e.time.month == month.month)
+          .toList();
+
+      if (meses.length < 2 && doMes.isEmpty) return;
+
+      // O dia típico é a mediana: um adiantamento ou atraso isolado não
+      // desloca a previsão como a média faria.
+      final dias = compras.map((e) => e.time.day).toList()..sort();
+      final diaTipico = dias[dias.length ~/ 2];
+
+      // Meses têm tamanhos diferentes: dia 31 vira o último dia de fevereiro.
+      final ultimoDia = DateTime(month.year, month.month + 1, 0).day;
+      final diaPrevisto = diaTipico > ultimoDia ? ultimoDia : diaTipico;
+      final dataPrevista = DateTime(month.year, month.month, diaPrevisto);
+
+      final pago = doMes.isNotEmpty;
+      final valorPrevisto = pago
+          ? doMes.fold<double>(0, (s, e) => s + e.change.abs())
+          : compras.first.change.abs();
+
+      previsoes.add(FixedForecast(
+        merchant: nome,
+        expectedDay: diaPrevisto,
+        expectedDate: dataPrevista,
+        expectedAmount: valorPrevisto,
+        paid: pago,
+        paidDate: pago ? doMes.first.time : null,
+        monthsSeen: meses.length,
+        daysUntil: DateTime(month.year, month.month, diaPrevisto)
+            .difference(DateTime(agora.year, agora.month, agora.day))
+            .inDays,
+      ));
+    });
+
+    // O que falta pagar vem primeiro, na ordem em que vence.
+    previsoes.sort((a, b) {
+      if (a.paid != b.paid) return a.paid ? 1 : -1;
+      return a.expectedDay.compareTo(b.expectedDay);
+    });
+    return previsoes;
+  }
+
+  /// Quanto ainda deve cair de compromisso neste mês.
+  double pendingFixedInMonth(DateTime month) => fixedForecast(month)
+      .where((f) => !f.paid)
+      .fold<double>(0, (sum, f) => sum + f.expectedAmount);
 
   /// Estabelecimentos fixos do mês, do maior para o menor — é a lista de
   /// compromissos que se repetem.

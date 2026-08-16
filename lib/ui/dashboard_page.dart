@@ -901,42 +901,163 @@ class _FixedVsVariableCard extends StatelessWidget {
             const SizedBox(height: 18),
             const Divider(),
             const SizedBox(height: 14),
-            Text('Seus compromissos do mês', style: context.texts.titleSmall),
-            const SizedBox(height: 12),
-            for (final c in compromissos.take(5))
-              Padding(
-                padding: const EdgeInsets.only(bottom: 10),
-                child: Row(
-                  children: [
-                    Container(
-                      width: 8,
-                      height: 8,
-                      decoration: const BoxDecoration(
-                        color: _corFixo,
-                        shape: BoxShape.circle,
-                      ),
-                    ),
-                    const SizedBox(width: 10),
-                    Expanded(
-                      child: Text(
-                        c.key,
-                        style: context.texts.bodyMedium,
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                      ),
-                    ),
-                    Text(valor(c.value), style: context.texts.titleSmall),
-                  ],
-                ),
-              ),
-            if (compromissos.length > 5)
-              Text(
-                'e mais ${compromissos.length - 5}',
-                style: context.texts.bodySmall,
-              ),
+            _Compromissos(state: state),
           ],
         ],
       ),
+    );
+  }
+}
+
+/// Compromissos do mês com a data prevista de cada um.
+///
+/// A previsão sai do próprio histórico — dia costumeiro e valor recente — e
+/// serve para o mês não terminar com uma surpresa.
+class _Compromissos extends StatelessWidget {
+  const _Compromissos({required this.state});
+
+  final AppState state;
+
+  @override
+  Widget build(BuildContext context) {
+    final tones = context.tones;
+    final agora = DateTime.now();
+    final mes = DateTime(agora.year, agora.month);
+    final previsoes = state.fixedForecast(mes);
+    final moeda = state.cardCurrency;
+    final falta = state.pendingFixedInMonth(mes);
+
+    if (previsoes.isEmpty) return const SizedBox.shrink();
+
+    String valor(double v) =>
+        state.hideBalances ? '••••' : state.formatValue(v, moeda, signed: false);
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Row(
+          children: [
+            Expanded(
+              child: Text('Compromissos do mês', style: context.texts.titleSmall),
+            ),
+            if (falta > 0)
+              Text(
+                'faltam ${valor(falta)}',
+                style: context.texts.bodySmall?.copyWith(
+                  color: AppColors.warning,
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
+          ],
+        ),
+        const SizedBox(height: 14),
+        for (final p in previsoes.take(6))
+          Padding(
+            padding: const EdgeInsets.only(bottom: 12),
+            child: _LinhaCompromisso(previsao: p, valor: valor(p.expectedAmount)),
+          ),
+        if (previsoes.length > 6)
+          Text('e mais ${previsoes.length - 6}', style: context.texts.bodySmall),
+        const SizedBox(height: 4),
+        Row(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Icon(Icons.auto_awesome_outlined, size: 13, color: tones.muted),
+            const SizedBox(width: 6),
+            Expanded(
+              child: Text(
+                'As datas vêm do seu histórico: o dia em que cada um costuma '
+                'cair.',
+                style: context.texts.bodySmall,
+              ),
+            ),
+          ],
+        ),
+      ],
+    );
+  }
+}
+
+class _LinhaCompromisso extends StatelessWidget {
+  const _LinhaCompromisso({required this.previsao, required this.valor});
+
+  final FixedForecast previsao;
+  final String valor;
+
+  @override
+  Widget build(BuildContext context) {
+    final tones = context.tones;
+
+    final (cor, icone, situacao) = switch (previsao) {
+      final p when p.paid => (
+          tones.positive,
+          Icons.check_circle_rounded,
+          'pago dia ${p.paidDate!.day}',
+        ),
+      final p when p.late => (
+          tones.negative,
+          Icons.error_outline_rounded,
+          'previsto dia ${p.expectedDay} · ${-p.daysUntil}d atrás',
+        ),
+      final p when p.dueToday => (
+          AppColors.warning,
+          Icons.today_rounded,
+          'previsto para hoje',
+        ),
+      final p when p.dueSoon => (
+          AppColors.warning,
+          Icons.schedule_rounded,
+          'dia ${p.expectedDay} · em ${p.daysUntil}d',
+        ),
+      final p => (
+          tones.muted,
+          Icons.event_outlined,
+          'previsto dia ${p.expectedDay}',
+        ),
+    };
+
+    return Row(
+      children: [
+        Icon(icone, size: 17, color: cor),
+        const SizedBox(width: 10),
+        Expanded(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                previsao.merchant,
+                style: context.texts.bodyMedium?.copyWith(
+                  // O que já foi pago sai do caminho visualmente.
+                  color: previsao.paid ? tones.muted : null,
+                ),
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+              ),
+              const SizedBox(height: 2),
+              Text(
+                situacao,
+                style: context.texts.bodySmall?.copyWith(
+                  color: previsao.paid ? tones.muted : cor,
+                ),
+              ),
+            ],
+          ),
+        ),
+        const SizedBox(width: 8),
+        Column(
+          crossAxisAlignment: CrossAxisAlignment.end,
+          children: [
+            Text(
+              previsao.paid ? valor : '~$valor',
+              style: context.texts.titleSmall?.copyWith(
+                color: previsao.paid ? tones.muted : null,
+              ),
+            ),
+            if (!previsao.paid && previsao.monthsSeen >= 3)
+              Text('${previsao.monthsSeen} meses', style: context.texts.bodySmall),
+          ],
+        ),
+      ],
     );
   }
 }

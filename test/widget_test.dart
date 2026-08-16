@@ -899,6 +899,105 @@ void main() {
     });
   });
 
+  group('Previsão dos compromissos', () {
+    LedgerEntry compra(String id, String merch, double valor, DateTime quando) =>
+        LedgerEntry.fromCardTransaction({
+          'transactionId': id,
+          'side': '1',
+          'transactionDate': '${quando.millisecondsSinceEpoch}',
+          'transactionAmount': '$valor',
+          'basicCurrency': 'BRL',
+          'merchName': merch,
+        });
+
+    test('deduz o dia costumeiro e o valor da última vez', () {
+      final agora = DateTime.now();
+      final mes = DateTime(agora.year, agora.month);
+      final state = AppState()
+        ..seedEntries([
+          compra('a', 'NETFLIX.COM', 20.90, DateTime(mes.year, mes.month - 3, 9)),
+          compra('b', 'NETFLIX.COM', 20.90, DateTime(mes.year, mes.month - 2, 9)),
+          compra('c', 'NETFLIX.COM', 24.90, DateTime(mes.year, mes.month - 1, 10)),
+        ]);
+
+      final previsao = state.fixedForecast(mes).single;
+      expect(previsao.merchant, 'NETFLIX.COM');
+      expect(previsao.expectedDay, 9); // mediana de 9, 9, 10
+      expect(previsao.expectedAmount, 24.90); // o mais recente
+      expect(previsao.paid, isFalse);
+      expect(previsao.monthsSeen, 3);
+    });
+
+    test('um mês só de histórico não vira previsão', () {
+      final agora = DateTime.now();
+      final mes = DateTime(agora.year, agora.month);
+      final state = AppState()
+        ..seedEntries([
+          compra('a', 'NETFLIX.COM', 20.90, DateTime(mes.year, mes.month - 1, 9)),
+        ]);
+      expect(state.fixedForecast(mes), isEmpty);
+    });
+
+    test('marca como pago quando já caiu no mês', () {
+      final agora = DateTime.now();
+      final mes = DateTime(agora.year, agora.month);
+      final state = AppState()
+        ..seedEntries([
+          compra('a', 'NETFLIX.COM', 20.90, DateTime(mes.year, mes.month - 1, 5)),
+          compra('b', 'NETFLIX.COM', 21.90, DateTime(mes.year, mes.month, 5)),
+        ]);
+
+      final previsao = state.fixedForecast(mes).single;
+      expect(previsao.paid, isTrue);
+      expect(previsao.paidDate!.day, 5);
+      expect(previsao.expectedAmount, 21.90); // o que de fato foi cobrado
+      expect(state.pendingFixedInMonth(mes), 0);
+    });
+
+    test('o que falta pagar soma só os pendentes', () {
+      final agora = DateTime.now();
+      final mes = DateTime(agora.year, agora.month);
+      final state = AppState()
+        ..seedEntries([
+          // Já pago neste mês.
+          compra('a', 'NETFLIX.COM', 20, DateTime(mes.year, mes.month - 1, 5)),
+          compra('b', 'NETFLIX.COM', 20, DateTime(mes.year, mes.month, 5)),
+          // Ainda não caiu.
+          compra('c', 'CLARO37', 100, DateTime(mes.year, mes.month - 2, 20)),
+          compra('d', 'CLARO37', 100, DateTime(mes.year, mes.month - 1, 20)),
+        ]);
+
+      expect(state.pendingFixedInMonth(mes), 100);
+      // O pendente vem antes do pago na lista.
+      expect(state.fixedForecast(mes).first.merchant, 'CLARO37');
+      expect(state.fixedForecast(mes).first.paid, isFalse);
+    });
+
+    test('dia 31 não escapa para o mês seguinte em fevereiro', () {
+      final fevereiro = DateTime(2027, 2);
+      final state = AppState()
+        ..seedEntries([
+          compra('a', 'NETFLIX.COM', 20, DateTime(2026, 12, 31)),
+          compra('b', 'NETFLIX.COM', 20, DateTime(2027, 1, 31)),
+        ]);
+
+      final previsao = state.fixedForecast(fevereiro).single;
+      expect(previsao.expectedDay, 28);
+      expect(previsao.expectedDate.month, 2);
+    });
+
+    test('gasto variável não entra na previsão', () {
+      final agora = DateTime.now();
+      final mes = DateTime(agora.year, agora.month);
+      final state = AppState()
+        ..seedEntries([
+          compra('a', 'MERCADINHO DO TICO', 50, DateTime(mes.year, mes.month - 1, 8)),
+          compra('b', 'MERCADINHO DO TICO', 60, DateTime(mes.year, mes.month - 2, 8)),
+        ]);
+      expect(state.fixedForecast(mes), isEmpty);
+    });
+  });
+
   group('Moeda padrão', () {
     test('o real é o padrão quando há cotação', () {
       final state = AppState()..usdBrl = 5.0;
