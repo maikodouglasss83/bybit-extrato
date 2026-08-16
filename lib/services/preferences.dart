@@ -13,6 +13,7 @@ class PreferencesStore {
   static const _storage = FlutterSecureStorage();
   static const _kCategoryOverrides = 'category_overrides';
   static const _kNameOverrides = 'name_overrides';
+  static const _kFixedOverrides = 'fixed_overrides';
   static const _kHiddenEntries = 'hidden_entries';
   static const _kOnlineLogos = 'online_logos';
   static const _kCardGoal = 'card_goal_usd';
@@ -29,6 +30,30 @@ class PreferencesStore {
 
   Future<void> saveNameOverrides(Map<String, String> overrides) =>
       _saveMap(_kNameOverrides, overrides);
+
+  /// Estabelecimentos marcados à mão como gasto fixo ou variável.
+  Future<Map<String, bool>> loadFixedOverrides() async {
+    try {
+      final raw = await _storage.read(key: _kFixedOverrides);
+      if (raw == null || raw.isEmpty) return {};
+      final decoded = jsonDecode(raw) as Map<String, dynamic>;
+      return decoded.map((k, v) => MapEntry(k, v == true));
+    } catch (_) {
+      return {};
+    }
+  }
+
+  Future<void> saveFixedOverrides(Map<String, bool> overrides) async {
+    try {
+      if (overrides.isEmpty) {
+        await _storage.delete(key: _kFixedOverrides);
+        return;
+      }
+      await _storage.write(key: _kFixedOverrides, value: jsonEncode(overrides));
+    } catch (_) {
+      // Sem cofre disponível a escolha vale só enquanto o app estiver aberto.
+    }
+  }
 
   /// Permissão para baixar os logos das marcas. Desligada por padrão: cada
   /// logo é uma requisição a um serviço de terceiros com o nome da marca.

@@ -369,6 +369,82 @@ class AppState extends ChangeNotifier {
   int get customizedMerchantCount =>
       {..._categoryOverrides.keys, ..._nameOverrides.keys}.length;
 
+  // ---------------------------------------------------------------------
+  // Gasto fixo x variável
+  // ---------------------------------------------------------------------
+
+  /// Estabelecimentos que o usuário marcou ou desmarcou como gasto fixo.
+  /// Sem marcação, vale o palpite pela categoria.
+  Map<String, bool> _fixedOverrides = {};
+
+  /// Se aquele gasto é compromisso mensal.
+  ///
+  /// A escolha do usuário vence; na falta dela, categorias como assinaturas,
+  /// telefone e casa entram como fixas — é o que costuma chegar todo mês.
+  bool isFixed(LedgerEntry e) {
+    final key = _merchantKey(e);
+    final escolha = _fixedOverrides[key];
+    if (escolha != null) return escolha;
+    return SpendCategories.fixasPorPadrao.contains(categoryOf(e));
+  }
+
+  /// Indica que o usuário decidiu isso à mão, e não o palpite automático.
+  bool hasFixedOverride(LedgerEntry e) =>
+      _fixedOverrides.containsKey(_merchantKey(e));
+
+  /// Marca ou desmarca o estabelecimento como gasto fixo, valendo para todas
+  /// as compras dele.
+  Future<void> setFixed(LedgerEntry e, bool fixo) async {
+    final key = _merchantKey(e);
+    if (key.isEmpty) return;
+    _fixedOverrides = {..._fixedOverrides, key: fixo};
+    notifyListeners();
+    await _preferences.saveFixedOverrides(_fixedOverrides);
+    _syncPreference(_kSyncFixos, _fixedOverrides);
+  }
+
+  /// Volta ao palpite automático da categoria.
+  Future<void> clearFixedOverride(LedgerEntry e) async {
+    final key = _merchantKey(e);
+    if (!_fixedOverrides.containsKey(key)) return;
+    _fixedOverrides = Map<String, bool>.from(_fixedOverrides)..remove(key);
+    notifyListeners();
+    await _preferences.saveFixedOverrides(_fixedOverrides);
+    _syncPreference(_kSyncFixos, _fixedOverrides);
+  }
+
+  /// Compras do mês separadas entre compromisso mensal e gasto do dia a dia.
+  ({double fixo, double variavel}) fixedVsVariable(DateTime month) {
+    var fixo = 0.0;
+    var variavel = 0.0;
+    for (final e in cardEntries) {
+      if (e.kind != LedgerKind.cardPurchase || isHidden(e)) continue;
+      if (e.time.year != month.year || e.time.month != month.month) continue;
+      if (isFixed(e)) {
+        fixo += e.change.abs();
+      } else {
+        variavel += e.change.abs();
+      }
+    }
+    return (fixo: fixo, variavel: variavel);
+  }
+
+  /// Estabelecimentos fixos do mês, do maior para o menor — é a lista de
+  /// compromissos que se repetem.
+  List<MapEntry<String, double>> fixedMerchants(DateTime month) {
+    final totais = <String, double>{};
+    for (final e in cardEntries) {
+      if (e.kind != LedgerKind.cardPurchase || isHidden(e)) continue;
+      if (e.time.year != month.year || e.time.month != month.month) continue;
+      if (!isFixed(e)) continue;
+      final nome = displayNameOf(e);
+      totais[nome] = (totais[nome] ?? 0) + e.change.abs();
+    }
+    final lista = totais.entries.toList()
+      ..sort((a, b) => b.value.compareTo(a.value));
+    return lista;
+  }
+
   /// Total gasto em uma categoria dentro de um período.
   /// Lançamentos ocultos nunca entram na conta.
   List<CategoryTotal> categoryBreakdown(DateTime month) {
@@ -786,6 +862,7 @@ class AppState extends ChangeNotifier {
 
     _categoryOverrides = await _preferences.loadCategoryOverrides();
     _nameOverrides = await _preferences.loadNameOverrides();
+    _fixedOverrides = await _preferences.loadFixedOverrides();
     _hiddenIds = await _preferences.loadHiddenEntries();
     useOnlineLogos = await _preferences.loadOnlineLogos();
     cardGoalUsd = await _preferences.loadCardGoal() ?? defaultCardGoalUsd;
@@ -1003,6 +1080,7 @@ class AppState extends ChangeNotifier {
   static const _kSyncOcultos = 'hidden_entries';
   static const _kSyncPlanejamento = 'budget_tree';
   static const _kSyncMetaCartao = 'card_goal_usd';
+  static const _kSyncFixos = 'fixed_overrides';
 
   /// Junta o que está na nuvem com o que está neste aparelho.
   ///
@@ -1052,6 +1130,10 @@ class AppState extends ChangeNotifier {
     if (ajustes.containsKey(_kSyncNomes)) {
       _nameOverrides = comoMapa(ajustes[_kSyncNomes]);
     }
+    if (ajustes[_kSyncFixos] is Map) {
+      _fixedOverrides = (ajustes[_kSyncFixos] as Map)
+          .map((k, v) => MapEntry(k.toString(), v == true));
+    }
     if (ajustes[_kSyncOcultos] is List) {
       _hiddenIds =
           (ajustes[_kSyncOcultos] as List).map((e) => e.toString()).toSet();
@@ -1069,6 +1151,7 @@ class AppState extends ChangeNotifier {
     // O que veio da nuvem passa a valer também neste aparelho.
     _preferences.saveCategoryOverrides(_categoryOverrides);
     _preferences.saveNameOverrides(_nameOverrides);
+    _preferences.saveFixedOverrides(_fixedOverrides);
     _preferences.saveHiddenEntries(_hiddenIds);
     _preferences.saveBudgetTree(budgetNodes);
     _preferences.saveCardGoal(cardGoalUsd);
@@ -1077,6 +1160,7 @@ class AppState extends ChangeNotifier {
   Future<void> _pushAllPreferences() async {
     await _cloud.pushPreference(_kSyncCategorias, _categoryOverrides);
     await _cloud.pushPreference(_kSyncNomes, _nameOverrides);
+    await _cloud.pushPreference(_kSyncFixos, _fixedOverrides);
     await _cloud.pushPreference(_kSyncOcultos, _hiddenIds.toList());
     await _cloud.pushPreference(
       _kSyncPlanejamento,

@@ -96,6 +96,7 @@ class LedgerTile extends StatelessWidget {
     final subtitle = [
       fmtTime(entry.time),
       if (entry.isCard) state.categoryOf(entry),
+      if (entry.isCard && state.isFixed(entry)) 'fixo',
       if (!entry.isCard && entry.note != null) entry.note!,
       if (entry.symbol != null) entry.symbol!,
       if (entry.status != null) entry.status!,
@@ -286,6 +287,14 @@ class _LedgerDetails extends StatelessWidget {
             else if (entry.note != null)
               _row(context, 'Caminho', entry.note!),
             if (entry.isCard) _categoryRow(context),
+            if (entry.isCard)
+              _row(
+                context,
+                'Tipo',
+                state.isFixed(entry)
+                    ? 'Gasto fixo — chega todo mês'
+                    : 'Gasto variável — depende do mês',
+              ),
             if (entry.cardLast4 != null) _row(context, 'Cartão', '•••• ${entry.cardLast4}'),
             if (entry.points != null && entry.points! > 0)
               _row(context, 'Pontos ganhos', '${entry.points}'),

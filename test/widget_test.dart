@@ -797,6 +797,87 @@ void main() {
     });
   });
 
+  group('Gasto fixo e variável', () {
+    LedgerEntry compra(String id, String merch, double valor, DateTime quando) =>
+        LedgerEntry.fromCardTransaction({
+          'transactionId': id,
+          'side': '1',
+          'transactionDate': '${quando.millisecondsSinceEpoch}',
+          'transactionAmount': '$valor',
+          'basicCurrency': 'BRL',
+          'merchName': merch,
+        });
+
+    final setembro = DateTime(2026, 9, 10);
+    late AppState state;
+    late LedgerEntry netflix;
+    late LedgerEntry mercado;
+    late LedgerEntry claro;
+
+    setUp(() {
+      netflix = compra('n', 'NETFLIX.COM', 50, setembro); // Assinaturas
+      claro = compra('c', 'CLARO37', 100, setembro); // Telefonia
+      mercado = compra('m', 'MERCADINHO DO TICO', 200, setembro); // Mercado
+      state = AppState()
+        ..seedEntries([netflix, claro, mercado])
+        ..selectMonth(setembro);
+    });
+
+    test('assinatura e telefone nascem como fixos; mercado, variável', () {
+      expect(state.isFixed(netflix), isTrue);
+      expect(state.isFixed(claro), isTrue);
+      expect(state.isFixed(mercado), isFalse);
+      // Nada disso foi decidido à mão ainda.
+      expect(state.hasFixedOverride(netflix), isFalse);
+    });
+
+    test('soma separa compromisso de gasto do dia a dia', () {
+      final d = state.fixedVsVariable(setembro);
+      expect(d.fixo, 150);
+      expect(d.variavel, 200);
+    });
+
+    test('a escolha do usuário vence o palpite', () async {
+      await state.setFixed(netflix, false);
+      expect(state.isFixed(netflix), isFalse);
+      expect(state.hasFixedOverride(netflix), isTrue);
+      expect(state.fixedVsVariable(setembro).fixo, 100);
+
+      await state.setFixed(mercado, true);
+      expect(state.fixedVsVariable(setembro).fixo, 300);
+      expect(state.fixedVsVariable(setembro).variavel, 50);
+    });
+
+    test('desfazer devolve ao palpite da categoria', () async {
+      await state.setFixed(netflix, false);
+      await state.clearFixedOverride(netflix);
+      expect(state.isFixed(netflix), isTrue);
+      expect(state.hasFixedOverride(netflix), isFalse);
+    });
+
+    test('mudar a categoria muda o palpite junto', () async {
+      // Mercado vira assinatura: passa a contar como compromisso.
+      await state.setEntryOverrides(mercado, category: SpendCategories.assinaturas);
+      expect(state.isFixed(mercado), isTrue);
+      expect(state.fixedVsVariable(setembro).fixo, 350);
+    });
+
+    test('gasto oculto não entra em nenhum dos dois lados', () async {
+      await state.setHidden(claro, true);
+      final d = state.fixedVsVariable(setembro);
+      expect(d.fixo, 50);
+      expect(d.variavel, 200);
+    });
+
+    test('lista de compromissos usa o apelido e vem ordenada', () async {
+      await state.setEntryOverrides(claro, name: 'Claro');
+      final fixos = state.fixedMerchants(setembro);
+      expect(fixos.first.key, 'Claro');
+      expect(fixos.first.value, 100);
+      expect(fixos.map((e) => e.key), contains('NETFLIX.COM'));
+    });
+  });
+
   group('Ocultar um gasto', () {
     LedgerEntry compraEm(String id, String merch, double valor, DateTime quando) =>
         LedgerEntry.fromCardTransaction({

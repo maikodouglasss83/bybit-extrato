@@ -56,6 +56,10 @@ class DashboardPage extends StatelessWidget {
             const SizedBox(height: 16),
             _CardSpendingCard(state: state, onSeeAll: onSeeCategories),
           ],
+          if (state.cardEntries.isNotEmpty) ...[
+            const SizedBox(height: 16),
+            _FixedVsVariableCard(state: state),
+          ],
           const SizedBox(height: 16),
           _FlowCard(state: state),
           const SizedBox(height: 16),
@@ -790,6 +794,187 @@ class _TierGoal extends StatelessWidget {
     );
 
     if (valor != null && valor > 0) await state.setCardGoal(valor);
+  }
+}
+
+/// Quanto do mês é compromisso e quanto é escolha do dia a dia.
+class _FixedVsVariableCard extends StatelessWidget {
+  const _FixedVsVariableCard({required this.state});
+
+  final AppState state;
+
+  static const _corFixo = Color(0xFF627EEA);
+  static const _corVariavel = AppColors.accent;
+
+  @override
+  Widget build(BuildContext context) {
+    final agora = DateTime.now();
+    final mes = DateTime(agora.year, agora.month);
+    final divisao = state.fixedVsVariable(mes);
+    final total = divisao.fixo + divisao.variavel;
+    final moeda = state.cardCurrency;
+    final compromissos = state.fixedMerchants(mes);
+
+    String valor(double v) =>
+        state.hideBalances ? '••••' : state.formatValue(v, moeda, signed: false);
+
+    if (total <= 0) {
+      return AppCard(
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            const SectionLabel('Fixo x variável'),
+            Padding(
+              padding: const EdgeInsets.symmetric(vertical: 20),
+              child: Center(
+                child: Text('Sem compras neste mês.',
+                    style: context.texts.bodySmall),
+              ),
+            ),
+          ],
+        ),
+      );
+    }
+
+    final fracaoFixa = divisao.fixo / total;
+
+    return AppCard(
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          SectionLabel(
+            'Fixo x variável',
+            trailing: Tooltip(
+              message: 'Segure uma compra no extrato para mudar o tipo.',
+              child: Icon(Icons.info_outline_rounded,
+                  size: 15, color: context.tones.muted),
+            ),
+          ),
+          // Uma barra só, dividida: a proporção entre os dois é a leitura
+          // que importa, mais do que os valores isolados.
+          ClipRRect(
+            borderRadius: BorderRadius.circular(7),
+            child: SizedBox(
+              height: 14,
+              child: Row(
+                children: [
+                  if (fracaoFixa > 0)
+                    Expanded(
+                      flex: (fracaoFixa * 1000).round(),
+                      child: Container(color: _corFixo),
+                    ),
+                  if (fracaoFixa < 1)
+                    Expanded(
+                      flex: ((1 - fracaoFixa) * 1000).round(),
+                      child: Container(color: _corVariavel),
+                    ),
+                ],
+              ),
+            ),
+          ),
+          const SizedBox(height: 18),
+          Row(
+            children: [
+              Expanded(
+                child: _Parte(
+                  cor: _corFixo,
+                  rotulo: 'Fixo',
+                  valor: valor(divisao.fixo),
+                  percentual: '${(fracaoFixa * 100).toStringAsFixed(0)}%',
+                ),
+              ),
+              Expanded(
+                child: _Parte(
+                  cor: _corVariavel,
+                  rotulo: 'Variável',
+                  valor: valor(divisao.variavel),
+                  percentual: '${((1 - fracaoFixa) * 100).toStringAsFixed(0)}%',
+                ),
+              ),
+            ],
+          ),
+          if (compromissos.isNotEmpty) ...[
+            const SizedBox(height: 18),
+            const Divider(),
+            const SizedBox(height: 14),
+            Text('Seus compromissos do mês', style: context.texts.titleSmall),
+            const SizedBox(height: 12),
+            for (final c in compromissos.take(5))
+              Padding(
+                padding: const EdgeInsets.only(bottom: 10),
+                child: Row(
+                  children: [
+                    Container(
+                      width: 8,
+                      height: 8,
+                      decoration: const BoxDecoration(
+                        color: _corFixo,
+                        shape: BoxShape.circle,
+                      ),
+                    ),
+                    const SizedBox(width: 10),
+                    Expanded(
+                      child: Text(
+                        c.key,
+                        style: context.texts.bodyMedium,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                    ),
+                    Text(valor(c.value), style: context.texts.titleSmall),
+                  ],
+                ),
+              ),
+            if (compromissos.length > 5)
+              Text(
+                'e mais ${compromissos.length - 5}',
+                style: context.texts.bodySmall,
+              ),
+          ],
+        ],
+      ),
+    );
+  }
+}
+
+class _Parte extends StatelessWidget {
+  const _Parte({
+    required this.cor,
+    required this.rotulo,
+    required this.valor,
+    required this.percentual,
+  });
+
+  final Color cor;
+  final String rotulo;
+  final String valor;
+  final String percentual;
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Row(
+          children: [
+            Container(
+              width: 9,
+              height: 9,
+              decoration: BoxDecoration(color: cor, borderRadius: BorderRadius.circular(3)),
+            ),
+            const SizedBox(width: 8),
+            Text(rotulo, style: context.texts.bodySmall),
+            const SizedBox(width: 6),
+            Text(
+              percentual,
+              style: context.texts.bodySmall?.copyWith(fontWeight: FontWeight.w700),
+            ),
+          ],
+        ),
+        const SizedBox(height: 4),
+        Text(valor, style: context.texts.titleMedium),
+      ],
+    );
   }
 }
 

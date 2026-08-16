@@ -42,6 +42,7 @@ class _EntryEditorState extends State<_EntryEditor> {
       TextEditingController(text: widget.state.displayNameOf(widget.entry));
   final FocusNode _nameFocus = FocusNode();
   late String _category = widget.state.categoryOf(widget.entry);
+  late bool _fixo = widget.state.isFixed(widget.entry);
 
   @override
   void dispose() {
@@ -62,6 +63,7 @@ class _EntryEditorState extends State<_EntryEditor> {
       name: _nameController.text,
       category: _category,
     );
+    await widget.state.setFixed(widget.entry, _fixo);
     if (!mounted) return;
     Navigator.of(context).maybePop();
   }
@@ -139,6 +141,13 @@ class _EntryEditorState extends State<_EntryEditor> {
                   ),
                 ],
                 const SizedBox(height: 26),
+                Text('Tipo de gasto', style: context.texts.titleSmall),
+                const SizedBox(height: 10),
+                _TipoDeGasto(
+                  fixo: _fixo,
+                  onChanged: (v) => setState(() => _fixo = v),
+                ),
+                const SizedBox(height: 26),
                 Text('Categoria', style: context.texts.titleSmall),
                 const SizedBox(height: 12),
                 Wrap(
@@ -186,6 +195,94 @@ class _EntryEditorState extends State<_EntryEditor> {
             ),
           ),
         ],
+      ),
+    );
+  }
+}
+
+/// Escolha entre compromisso mensal e gasto do dia a dia.
+class _TipoDeGasto extends StatelessWidget {
+  const _TipoDeGasto({required this.fixo, required this.onChanged});
+
+  final bool fixo;
+  final ValueChanged<bool> onChanged;
+
+  @override
+  Widget build(BuildContext context) {
+    return Row(
+      children: [
+        Expanded(
+          child: _Opcao(
+            selecionada: fixo,
+            icone: Icons.event_repeat_rounded,
+            titulo: 'Fixo',
+            descricao: 'Chega todo mês',
+            onTap: () => onChanged(true),
+          ),
+        ),
+        const SizedBox(width: 10),
+        Expanded(
+          child: _Opcao(
+            selecionada: !fixo,
+            icone: Icons.shopping_bag_outlined,
+            titulo: 'Variável',
+            descricao: 'Depende do mês',
+            onTap: () => onChanged(false),
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+class _Opcao extends StatelessWidget {
+  const _Opcao({
+    required this.selecionada,
+    required this.icone,
+    required this.titulo,
+    required this.descricao,
+    required this.onTap,
+  });
+
+  final bool selecionada;
+  final IconData icone;
+  final String titulo;
+  final String descricao;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    final cor = selecionada ? AppColors.accent : context.tones.muted;
+    return InkWell(
+      onTap: onTap,
+      borderRadius: BorderRadius.circular(14),
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 14),
+        decoration: BoxDecoration(
+          color: selecionada
+              ? AppColors.accent.withValues(alpha: 0.12)
+              : context.tones.surfaceAlt,
+          borderRadius: BorderRadius.circular(14),
+          border: Border.all(
+            color: selecionada ? AppColors.accent : context.tones.border,
+            width: selecionada ? 1.6 : 1,
+          ),
+        ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Icon(icone, size: 20, color: cor),
+            const SizedBox(height: 8),
+            Text(
+              titulo,
+              style: context.texts.titleSmall?.copyWith(
+                color: selecionada ? context.colors.onSurface : context.tones.muted,
+              ),
+            ),
+            const SizedBox(height: 2),
+            Text(descricao, style: context.texts.bodySmall),
+          ],
+        ),
       ),
     );
   }

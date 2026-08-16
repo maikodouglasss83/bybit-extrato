@@ -31,6 +31,18 @@ class SpendCategories {
   static const transferencias = 'Transferências';
   static const outros = 'Outros';
 
+  /// Categorias que costumam ser compromisso mensal: chegam todo mês, com
+  /// valor parecido, e não dependem de escolha do dia a dia.
+  ///
+  /// É só o palpite inicial — o usuário marca ou desmarca o que quiser, e a
+  /// escolha dele sempre vence.
+  static const fixasPorPadrao = <String>{
+    assinaturas,
+    telefonia,
+    casa,
+    educacao,
+  };
+
   /// Todas as categorias, na ordem em que aparecem no seletor.
   static const all = <String>[
     mercado,
