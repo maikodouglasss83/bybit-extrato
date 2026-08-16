@@ -27,6 +27,9 @@ class _BybitStatementAppState extends State<BybitStatementApp>
   void initState() {
     super.initState();
     WidgetsBinding.instance.addObserver(this);
+    // Endereço para onde o login deve devolver o usuário. Sai da própria
+    // página, então funciona igual em localhost e no site publicado.
+    _state.redirectUrl = Uri.base.origin + Uri.base.path;
     _state.boot();
   }
 

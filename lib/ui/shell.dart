@@ -5,6 +5,7 @@ import '../theme.dart';
 import 'categories_page.dart';
 import 'connect_page.dart';
 import 'dashboard_page.dart';
+import 'login_page.dart';
 import 'planning_page.dart';
 import 'settings_page.dart';
 import 'statement_page.dart';
@@ -47,6 +48,12 @@ class _AppShellState extends State<AppShell> {
       return const Scaffold(
         body: Center(child: CircularProgressIndicator()),
       );
+    }
+
+    // A entrada vem antes da chave da Bybit: quem já usa em outro aparelho
+    // recupera tudo aqui, inclusive o histórico.
+    if (state.needsLoginScreen) {
+      return LoginPage(state: state);
     }
 
     if (state.phase == LoadPhase.needsSetup) {

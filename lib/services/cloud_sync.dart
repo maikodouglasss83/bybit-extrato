@@ -31,10 +31,33 @@ class CloudSync {
 
   String? get userEmail => _client?.auth.currentUser?.email;
 
+  /// Nome e foto vindos da conta Google, quando houver.
+  String? get userName {
+    final dados = _client?.auth.currentUser?.userMetadata;
+    final nome = dados?['full_name'] ?? dados?['name'];
+    return nome?.toString();
+  }
+
+  String? get userAvatar =>
+      _client?.auth.currentUser?.userMetadata?['avatar_url']?.toString();
+
   String? get _userId => _client?.auth.currentUser?.id;
 
   /// Avisa quando o usuário entra ou sai, para a tela acompanhar.
   Stream<AuthState>? get authChanges => _client?.auth.onAuthStateChange;
+
+  /// Entra com a conta Google.
+  ///
+  /// No navegador isto leva a página inteira para o Google e volta com a
+  /// sessão pronta — sem senha, sem e-mail, sem espera.
+  Future<void> signInWithGoogle({String? redirectTo}) async {
+    final client = _client;
+    if (client == null) throw StateError('Sincronização não configurada.');
+    await client.auth.signInWithOAuth(
+      OAuthProvider.google,
+      redirectTo: redirectTo,
+    );
+  }
 
   /// Envia o link de acesso por e-mail. Sem senha para lembrar ou vazar.
   ///

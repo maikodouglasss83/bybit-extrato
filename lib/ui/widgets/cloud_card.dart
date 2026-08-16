@@ -102,22 +102,35 @@ class _CloudCardState extends State<CloudCard> {
     return [
       Row(
         children: [
-          Container(
-            width: 42,
-            height: 42,
-            decoration: BoxDecoration(
-              color: AppColors.accent.withValues(alpha: 0.14),
-              borderRadius: BorderRadius.circular(14),
+          // Com login pelo Google vem foto e nome; com e-mail, só o e-mail.
+          if (state.cloudAvatar != null)
+            CircleAvatar(
+              radius: 21,
+              backgroundImage: NetworkImage(state.cloudAvatar!),
+              onBackgroundImageError: (_, __) {},
+            )
+          else
+            Container(
+              width: 42,
+              height: 42,
+              decoration: BoxDecoration(
+                color: AppColors.accent.withValues(alpha: 0.14),
+                borderRadius: BorderRadius.circular(14),
+              ),
+              child: const Icon(Icons.cloud_done_rounded,
+                  color: AppColors.accent, size: 20),
             ),
-            child: const Icon(Icons.cloud_done_rounded,
-                color: AppColors.accent, size: 20),
-          ),
           const SizedBox(width: 14),
           Expanded(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text('Sincronizando', style: context.texts.titleSmall),
+                Text(
+                  state.cloudName ?? 'Sincronizando',
+                  style: context.texts.titleSmall,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                ),
                 const SizedBox(height: 2),
                 Text(
                   state.cloudEmail ?? '',
@@ -180,9 +193,30 @@ class _CloudCardState extends State<CloudCard> {
   List<Widget> _desconectado(BuildContext context) {
     return [
       Text(
-        'Entre com seu e-mail para que apelidos, categorias, planejamento e o '
-        'histórico de compras valham em todos os seus aparelhos.',
+        'Entre para que apelidos, categorias, planejamento e o histórico de '
+        'compras valham em todos os seus aparelhos.',
         style: context.texts.bodySmall,
+      ),
+      const SizedBox(height: 16),
+      SizedBox(
+        width: double.infinity,
+        child: OutlinedButton.icon(
+          onPressed: _enviando ? null : widget.state.signInWithGoogle,
+          icon: const Icon(Icons.g_mobiledata_rounded, size: 26),
+          label: const Text('Entrar com Google'),
+          style: OutlinedButton.styleFrom(minimumSize: const Size(0, 50)),
+        ),
+      ),
+      const SizedBox(height: 18),
+      Row(
+        children: [
+          Expanded(child: Divider(color: context.tones.border)),
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 12),
+            child: Text('ou por e-mail', style: context.texts.bodySmall),
+          ),
+          Expanded(child: Divider(color: context.tones.border)),
+        ],
       ),
       const SizedBox(height: 14),
       TextField(

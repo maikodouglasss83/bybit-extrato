@@ -1,4 +1,4 @@
-import 'dart:async' show unawaited;
+import 'dart:async' show StreamSubscription, unawaited;
 
 import 'package:flutter/foundation.dart' show ChangeNotifier, visibleForTesting;
 
@@ -77,6 +77,51 @@ class AppState extends ChangeNotifier {
   bool get cloudAvailable => _cloud.available;
   bool get cloudSignedIn => _cloud.signedIn;
   String? get cloudEmail => _cloud.userEmail;
+  String? get cloudName => _cloud.userName;
+  String? get cloudAvatar => _cloud.userAvatar;
+
+  /// O usuário optou por usar sem conta. Guardado para a tela de entrada não
+  /// reaparecer a cada abertura.
+  bool skippedLogin = false;
+
+  /// Mostra a tela de entrada só enquanto faz sentido oferecê-la.
+  bool get needsLoginScreen =>
+      cloudAvailable && !cloudSignedIn && !skippedLogin;
+
+  Future<void> skipLogin() async {
+    skippedLogin = true;
+    notifyListeners();
+    await _preferences.saveSkippedLogin(true);
+  }
+
+  Future<void> signInWithGoogle() async {
+    await _cloud.signInWithGoogle(redirectTo: _redirectUrl);
+  }
+
+  /// Para onde o provedor devolve o usuário depois de entrar.
+  String? _redirectUrl;
+  set redirectUrl(String? value) => _redirectUrl = value;
+
+  StreamSubscription<dynamic>? _authSub;
+
+  /// Assim que a sessão aparece, os dados descem — é o que faz o login já
+  /// trazer tudo pronto, sem passo extra.
+  void _watchAuth() {
+    _authSub?.cancel();
+    _authSub = _cloud.authChanges?.listen((_) {
+      if (_cloud.signedIn) {
+        skippedLogin = false;
+        unawaited(syncWithCloud());
+      }
+      notifyListeners();
+    });
+  }
+
+  @override
+  void dispose() {
+    _authSub?.cancel();
+    super.dispose();
+  }
 
   bool cloudSyncing = false;
   String? cloudError;
@@ -875,9 +920,12 @@ class AppState extends ChangeNotifier {
     // tela de carregamento se o servidor demorar a responder.
     try {
       await _cloud.init().timeout(const Duration(seconds: 8));
+      _watchAuth();
     } catch (_) {
       // Falha ou demora ao ligar a nuvem não impede o app de abrir.
     }
+
+    skippedLogin = await _preferences.loadSkippedLogin();
 
     _categoryOverrides = await _preferences.loadCategoryOverrides();
     _nameOverrides = await _preferences.loadNameOverrides();

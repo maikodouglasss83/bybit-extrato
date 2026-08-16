@@ -17,6 +17,7 @@ class PreferencesStore {
   static const _kHiddenEntries = 'hidden_entries';
   static const _kOnlineLogos = 'online_logos';
   static const _kShowInBrl = 'show_in_brl';
+  static const _kSkippedLogin = 'skipped_login';
   static const _kCardGoal = 'card_goal_usd';
   static const _kBudgetTree = 'budget_tree';
   static const _kCachedEntries = 'cached_entries';
@@ -53,6 +54,24 @@ class PreferencesStore {
       await _storage.write(key: _kFixedOverrides, value: jsonEncode(overrides));
     } catch (_) {
       // Sem cofre disponível a escolha vale só enquanto o app estiver aberto.
+    }
+  }
+
+  /// Se o usuário escolheu usar sem conta, para a tela de entrada não voltar
+  /// a cada abertura.
+  Future<bool> loadSkippedLogin() async {
+    try {
+      return (await _storage.read(key: _kSkippedLogin)) == 'true';
+    } catch (_) {
+      return false;
+    }
+  }
+
+  Future<void> saveSkippedLogin(bool value) async {
+    try {
+      await _storage.write(key: _kSkippedLogin, value: '$value');
+    } catch (_) {
+      // Sem cofre a tela reaparece na próxima abertura, o que é aceitável.
     }
   }
 
