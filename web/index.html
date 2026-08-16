@@ -44,6 +44,24 @@
 <body>
   <div id="loading">Carregando…</div>
   <script>
+    // Limpa service workers registrados por versões anteriores.
+    //
+    // Enquanto um deles existir, o navegador continua servindo o app antigo
+    // do próprio cache — foi o que fez publicações novas não aparecerem. Sem
+    // service worker, cada abertura pega o que está publicado.
+    if ('serviceWorker' in navigator) {
+      navigator.serviceWorker.getRegistrations()
+        .then(function (registros) {
+          registros.forEach(function (r) { r.unregister(); });
+          if (registros.length && window.caches) {
+            caches.keys().then(function (nomes) {
+              nomes.forEach(function (n) { caches.delete(n); });
+            });
+          }
+        })
+        .catch(function () { /* navegador sem suporte: nada a limpar */ });
+    }
+
     window.addEventListener('flutter-first-frame', function () {
       var el = document.getElementById('loading');
       if (el) el.remove();
