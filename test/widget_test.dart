@@ -1145,6 +1145,27 @@ void main() {
       expect(state.dueDayOf(netflix), isNull);
     });
 
+    test('a previsão leva à lista de cobranças do estabelecimento', () {
+      final agora = DateTime.now();
+      final mes = DateTime(agora.year, agora.month);
+      final state = AppState()
+        ..seedEntries([
+          // Mesma marca, grafias diferentes: tudo cai no mesmo compromisso.
+          compra('a', 'DM*Spotify', 31.90, DateTime(mes.year, mes.month - 2, 4)),
+          compra('b', 'DM *Spotify', 31.90, DateTime(mes.year, mes.month - 1, 4)),
+          compra('c', 'MERCADINHO DO TICO', 10, DateTime(mes.year, mes.month, 1)),
+        ]);
+
+      final previsao = state.fixedForecast(mes).single;
+      final cobrancas = state.entriesOfMerchant(previsao.merchantKey);
+
+      expect(cobrancas.length, 2);
+      // Da mais recente para a mais antiga.
+      expect(cobrancas.first.time.isAfter(cobrancas.last.time), isTrue);
+      // E sem misturar com outro estabelecimento.
+      expect(cobrancas.any((e) => e.note == 'MERCADINHO DO TICO'), isFalse);
+    });
+
     test('gasto variável não entra na previsão', () {
       final agora = DateTime.now();
       final mes = DateTime(agora.year, agora.month);

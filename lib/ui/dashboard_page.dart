@@ -8,6 +8,7 @@ import '../theme.dart';
 import '../util/format.dart';
 import 'widgets/charts.dart';
 import 'widgets/common.dart';
+import 'widgets/entry_editor.dart';
 import 'widgets/ledger_tile.dart';
 
 /// Visão geral: patrimônio, evolução, alocação e últimas movimentações.
@@ -913,13 +914,22 @@ class _FixedVsVariableCard extends StatelessWidget {
 ///
 /// A previsão sai do próprio histórico — dia costumeiro e valor recente — e
 /// serve para o mês não terminar com uma surpresa.
-class _Compromissos extends StatelessWidget {
+class _Compromissos extends StatefulWidget {
   const _Compromissos({required this.state});
 
   final AppState state;
 
   @override
+  State<_Compromissos> createState() => _CompromissosState();
+}
+
+class _CompromissosState extends State<_Compromissos> {
+  static const _quantosMostrar = 6;
+  bool _mostrarTodos = false;
+
+  @override
   Widget build(BuildContext context) {
+    final state = widget.state;
     final tones = context.tones;
     final agora = DateTime.now();
     final mes = DateTime(agora.year, agora.month);
@@ -931,6 +941,10 @@ class _Compromissos extends StatelessWidget {
 
     String valor(double v) =>
         state.hideBalances ? '••••' : state.formatValue(v, moeda, signed: false);
+
+    final visiveis =
+        _mostrarTodos ? previsoes : previsoes.take(_quantosMostrar).toList();
+    final restantes = previsoes.length - visiveis.length;
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -951,13 +965,32 @@ class _Compromissos extends StatelessWidget {
           ],
         ),
         const SizedBox(height: 14),
-        for (final p in previsoes.take(6))
-          Padding(
-            padding: const EdgeInsets.only(bottom: 12),
-            child: _LinhaCompromisso(previsao: p, valor: valor(p.expectedAmount)),
+        for (final p in visiveis)
+          _LinhaCompromisso(
+            previsao: p,
+            valor: valor(p.expectedAmount),
+            onTap: () => _abrirCompromisso(context, state, p),
           ),
-        if (previsoes.length > 6)
-          Text('e mais ${previsoes.length - 6}', style: context.texts.bodySmall),
+        if (restantes > 0 || _mostrarTodos)
+          Align(
+            alignment: Alignment.centerLeft,
+            child: TextButton.icon(
+              onPressed: () => setState(() => _mostrarTodos = !_mostrarTodos),
+              icon: Icon(
+                _mostrarTodos
+                    ? Icons.keyboard_arrow_up_rounded
+                    : Icons.keyboard_arrow_down_rounded,
+                size: 18,
+              ),
+              label: Text(
+                _mostrarTodos ? 'Mostrar menos' : 'Ver mais $restantes',
+              ),
+              style: TextButton.styleFrom(
+                padding: const EdgeInsets.symmetric(horizontal: 8),
+                minimumSize: const Size(0, 34),
+              ),
+            ),
+          ),
         const SizedBox(height: 4),
         Row(
           crossAxisAlignment: CrossAxisAlignment.start,
@@ -978,11 +1011,117 @@ class _Compromissos extends StatelessWidget {
   }
 }
 
+/// Histórico de um compromisso: as cobranças anteriores, para conferir o
+/// valor e a data, e o atalho para acertar os dados.
+void _abrirCompromisso(
+  BuildContext context,
+  AppState state,
+  FixedForecast previsao,
+) {
+  showModalBottomSheet<void>(
+    context: context,
+    backgroundColor: context.colors.surface,
+    showDragHandle: true,
+    isScrollControlled: true,
+    shape: const RoundedRectangleBorder(
+      borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+    ),
+    builder: (sheetContext) => AnimatedBuilder(
+      animation: state,
+      builder: (_, __) {
+        final compras = state.entriesOfMerchant(previsao.merchantKey);
+        final moeda = state.cardCurrency;
+
+        return DraggableScrollableSheet(
+          expand: false,
+          initialChildSize: 0.7,
+          maxChildSize: 0.92,
+          builder: (_, scrollController) => Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Padding(
+                padding: const EdgeInsets.fromLTRB(24, 4, 16, 12),
+                child: Row(
+                  children: [
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(previsao.merchant,
+                              style: context.texts.headlineSmall),
+                          const SizedBox(height: 4),
+                          Text(
+                            previsao.paid
+                                ? 'Pago dia ${previsao.paidDate!.day} · '
+                                    '${compras.length} cobranças no histórico'
+                                : 'Previsto para o dia ${previsao.expectedDay} · '
+                                    '${compras.length} cobranças no histórico',
+                            style: context.texts.bodySmall,
+                          ),
+                        ],
+                      ),
+                    ),
+                    if (compras.isNotEmpty)
+                      IconButton(
+                        tooltip: 'Editar nome, categoria e vencimento',
+                        onPressed: () => showEntryEditor(
+                          context,
+                          state: state,
+                          entry: compras.first,
+                        ),
+                        icon: const Icon(Icons.edit_outlined, size: 20),
+                      ),
+                  ],
+                ),
+              ),
+              const Divider(height: 1),
+              Expanded(
+                child: ListView.builder(
+                  controller: scrollController,
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 20, vertical: 8),
+                  itemCount: compras.length,
+                  itemBuilder: (_, i) => LedgerTile(
+                    entry: compras[i],
+                    state: state,
+                    onLongPress: () => showEntryEditor(
+                      context,
+                      state: state,
+                      entry: compras[i],
+                    ),
+                  ),
+                ),
+              ),
+              if (compras.length >= 2)
+                SafeArea(
+                  top: false,
+                  child: Padding(
+                    padding: const EdgeInsets.fromLTRB(24, 8, 24, 12),
+                    child: Text(
+                      'Valor médio: '
+                      '${state.formatValue(compras.fold<double>(0, (s, e) => s + e.change.abs()) / compras.length, moeda, signed: false)}',
+                      style: context.texts.bodySmall,
+                    ),
+                  ),
+                ),
+            ],
+          ),
+        );
+      },
+    ),
+  );
+}
+
 class _LinhaCompromisso extends StatelessWidget {
-  const _LinhaCompromisso({required this.previsao, required this.valor});
+  const _LinhaCompromisso({
+    required this.previsao,
+    required this.valor,
+    required this.onTap,
+  });
 
   final FixedForecast previsao;
   final String valor;
+  final VoidCallback onTap;
 
   @override
   Widget build(BuildContext context) {
@@ -1016,59 +1155,69 @@ class _LinhaCompromisso extends StatelessWidget {
         ),
     };
 
-    return Row(
-      children: [
-        Icon(icone, size: 17, color: cor),
-        const SizedBox(width: 10),
-        Expanded(
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text(
-                previsao.merchant,
-                style: context.texts.bodyMedium?.copyWith(
-                  // O que já foi pago sai do caminho visualmente.
-                  color: previsao.paid ? tones.muted : null,
-                ),
-                maxLines: 1,
-                overflow: TextOverflow.ellipsis,
-              ),
-              const SizedBox(height: 2),
-              Text(
-                situacao,
-                style: context.texts.bodySmall?.copyWith(
-                  color: previsao.paid ? tones.muted : cor,
-                ),
-              ),
-            ],
-          ),
-        ),
-        const SizedBox(width: 8),
-        Column(
-          crossAxisAlignment: CrossAxisAlignment.end,
+    return InkWell(
+      onTap: onTap,
+      borderRadius: BorderRadius.circular(10),
+      child: Padding(
+        padding: const EdgeInsets.symmetric(vertical: 8, horizontal: 2),
+        child: Row(
           children: [
-            Text(
-              previsao.paid ? valor : '~$valor',
-              style: context.texts.titleSmall?.copyWith(
-                color: previsao.paid ? tones.muted : null,
+            Icon(icone, size: 17, color: cor),
+            const SizedBox(width: 10),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    previsao.merchant,
+                    style: context.texts.bodyMedium?.copyWith(
+                      // O que já foi pago sai do caminho visualmente.
+                      color: previsao.paid ? tones.muted : null,
+                    ),
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                  const SizedBox(height: 2),
+                  Text(
+                    situacao,
+                    style: context.texts.bodySmall?.copyWith(
+                      color: previsao.paid ? tones.muted : cor,
+                    ),
+                  ),
+                ],
               ),
             ),
-            if (!previsao.paid)
-              if (previsao.confirmedDay)
-                Row(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    Icon(Icons.push_pin_rounded, size: 11, color: tones.muted),
-                    const SizedBox(width: 4),
-                    Text('data fixa', style: context.texts.bodySmall),
-                  ],
-                )
-              else if (previsao.monthsSeen >= 3)
-                Text('${previsao.monthsSeen} meses',
-                    style: context.texts.bodySmall),
+            const SizedBox(width: 8),
+            Column(
+              crossAxisAlignment: CrossAxisAlignment.end,
+              children: [
+                Text(
+                  previsao.paid ? valor : '~$valor',
+                  style: context.texts.titleSmall?.copyWith(
+                    color: previsao.paid ? tones.muted : null,
+                  ),
+                ),
+                if (!previsao.paid)
+                  if (previsao.confirmedDay)
+                    Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Icon(Icons.push_pin_rounded,
+                            size: 11, color: tones.muted),
+                        const SizedBox(width: 4),
+                        Text('data fixa', style: context.texts.bodySmall),
+                      ],
+                    )
+                  else if (previsao.monthsSeen >= 3)
+                    Text('${previsao.monthsSeen} meses',
+                        style: context.texts.bodySmall),
+              ],
+            ),
+            const SizedBox(width: 4),
+            Icon(Icons.chevron_right_rounded, size: 18, color: tones.muted),
           ],
         ),
-      ],
+      ),
     );
   }
 }

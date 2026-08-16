@@ -18,6 +18,7 @@ enum LoadPhase { booting, needsSetup, loading, ready, failed }
 /// Previsão de um compromisso mensal, deduzida do histórico.
 class FixedForecast {
   const FixedForecast({
+    required this.merchantKey,
     required this.merchant,
     required this.expectedDay,
     required this.expectedDate,
@@ -28,6 +29,9 @@ class FixedForecast {
     this.paidDate,
     this.confirmedDay = false,
   });
+
+  /// Identifica o estabelecimento, para chegar às compras dele.
+  final String merchantKey;
 
   final String merchant;
 
@@ -651,6 +655,7 @@ class AppState extends ChangeNotifier {
           : compras.first.change.abs();
 
       previsoes.add(FixedForecast(
+        merchantKey: chave,
         merchant: displayNameOf(compras.first),
         expectedDay: diaPrevisto,
         expectedDate: dataPrevista,
@@ -671,6 +676,16 @@ class AppState extends ChangeNotifier {
       return a.expectedDay.compareTo(b.expectedDay);
     });
     return previsoes;
+  }
+
+  /// Todas as compras de um estabelecimento, da mais recente para a mais
+  /// antiga. Junta as variações de grafia, porque a chave é a mesma.
+  List<LedgerEntry> entriesOfMerchant(String merchantKey) {
+    final lista = cardEntries
+        .where((e) => _merchantKey(e) == merchantKey)
+        .toList()
+      ..sort((a, b) => b.time.compareTo(a.time));
+    return lista;
   }
 
   /// Quanto ainda deve cair de compromisso neste mês.
