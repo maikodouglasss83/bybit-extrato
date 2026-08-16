@@ -5,7 +5,6 @@ import '../budget.dart';
 import '../theme.dart';
 import '../util/categorizer.dart';
 import '../util/format.dart';
-import 'widgets/charts.dart';
 import 'widgets/common.dart';
 
 /// Planejamento financeiro: metas por categoria e subcategoria, comparadas
@@ -39,8 +38,6 @@ class PlanningPage extends StatelessWidget {
           _MonthPicker(state: state),
           const SizedBox(height: 16),
           _Summary(state: state, month: mes),
-          const SizedBox(height: 16),
-          _Chart(state: state, linhas: linhas),
           const SizedBox(height: 16),
           _CategoryList(state: state, linhas: linhas),
           const SizedBox(height: 8),
@@ -235,50 +232,6 @@ class _Stat extends StatelessWidget {
           style: context.texts.titleMedium?.copyWith(color: color),
         ),
       ],
-    );
-  }
-}
-
-/// Gráfico horizontal comparando gasto e meta de cada categoria.
-class _Chart extends StatelessWidget {
-  const _Chart({required this.state, required this.linhas});
-
-  final AppState state;
-  final List<BudgetLine> linhas;
-
-  @override
-  Widget build(BuildContext context) {
-    final visiveis =
-        linhas.where((l) => l.spent > 0 || l.hasBudget).take(8).toList();
-
-    return AppCard(
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          SectionLabel(
-            'Gasto x meta',
-            trailing: Tooltip(
-              message: 'O traço marca onde está a meta da categoria.',
-              child: Icon(Icons.info_outline_rounded,
-                  size: 15, color: context.tones.muted),
-            ),
-          ),
-          HorizontalBarChart(
-            bars: [
-              for (var i = 0; i < visiveis.length; i++)
-                HorizontalBarData(
-                  label: visiveis[i].node.name,
-                  value: visiveis[i].spent,
-                  target: visiveis[i].budget,
-                  color: PlanningPage.colorFor(i),
-                ),
-            ],
-            labelBuilder: (bar) => state.hideBalances
-                ? '••••'
-                : state.formatValue(bar.value, 'BRL', signed: false),
-          ),
-        ],
-      ),
     );
   }
 }
