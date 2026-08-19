@@ -455,6 +455,10 @@ class _CategoryTile extends StatelessWidget {
   }
 }
 
+/// Espaço reservado ao menu de opções da subcategoria. A linha de baixo usa
+/// o mesmo valor, para o saldo terminar onde o valor termina.
+const double _larguraDoMenu = 36;
+
 class _SubcategoryTile extends StatelessWidget {
   const _SubcategoryTile({
     required this.state,
@@ -505,7 +509,12 @@ class _SubcategoryTile extends StatelessWidget {
                     color: linha.exceeded ? tones.negative : null,
                   ),
                 ),
-                _MenuDaSubcategoria(state: state, node: linha.node),
+                // Largura fixa: a linha de baixo reserva exatamente este
+                // espaço para o saldo alinhar com o valor de cima.
+                SizedBox(
+                  width: _larguraDoMenu,
+                  child: _MenuDaSubcategoria(state: state, node: linha.node),
+                ),
               ],
             ),
             if (linha.hasBudget) ...[
@@ -513,7 +522,7 @@ class _SubcategoryTile extends StatelessWidget {
               Padding(
                 // Mesma leitura da categoria acima: meta sob o nome, saldo
                 // sob o valor, e a barra ocupando a largura toda.
-                padding: const EdgeInsets.only(left: 16, right: 4),
+                padding: const EdgeInsets.only(left: 16, right: _larguraDoMenu),
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
