@@ -325,11 +325,30 @@ class _CategoryTile extends StatelessWidget {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Text(
-                linha.hasBudget
-                    ? 'Meta: ${valor(linha.budget)}'
-                    : 'Sem meta definida',
-                style: context.texts.bodySmall,
+              // Meta e saldo na mesma linha: um embaixo do nome, o outro
+              // embaixo do total, cada um sob o número a que se refere.
+              Row(
+                children: [
+                  Expanded(
+                    child: Text(
+                      linha.hasBudget
+                          ? 'Meta: ${valor(linha.budget)}'
+                          : 'Sem meta definida',
+                      style: context.texts.bodySmall,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                  ),
+                  if (linha.hasBudget)
+                    Text(
+                      linha.exceeded
+                          ? 'Excedeu: ${valor(linha.remaining.abs())}'
+                          : 'Resta: ${valor(linha.remaining)}',
+                      style: context.texts.bodySmall?.copyWith(
+                        color: linha.exceeded ? tones.negative : null,
+                      ),
+                    ),
+                ],
               ),
               const SizedBox(height: 8),
               ClipRRect(
@@ -343,17 +362,6 @@ class _CategoryTile extends StatelessWidget {
                   ),
                 ),
               ),
-              if (linha.hasBudget) ...[
-                const SizedBox(height: 6),
-                Text(
-                  linha.exceeded
-                      ? 'Excedeu: ${valor(linha.remaining.abs())}'
-                      : 'Resta: ${valor(linha.remaining)}',
-                  style: context.texts.bodySmall?.copyWith(
-                    color: linha.exceeded ? tones.negative : null,
-                  ),
-                ),
-              ],
             ],
           ),
         ),
