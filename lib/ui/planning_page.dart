@@ -280,7 +280,6 @@ class _CategoryTile extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final tones = context.tones;
-    final temFilhos = linha.children.isNotEmpty;
 
     String valor(double v) =>
         state.hideBalances ? '••••' : state.formatValue(v, 'BRL', signed: false);
@@ -292,8 +291,8 @@ class _CategoryTile extends StatelessWidget {
         tilePadding: const EdgeInsets.symmetric(horizontal: 4),
         childrenPadding: const EdgeInsets.only(left: 12, bottom: 8),
         expandedCrossAxisAlignment: CrossAxisAlignment.start,
-        // Sem subcategorias não há o que expandir.
-        trailing: temFilhos ? null : const SizedBox.shrink(),
+        // Expande sempre: mesmo sem subcategorias, é lá dentro que se
+        // define a meta.
         leading: Container(
           width: 38,
           height: 38,
@@ -322,10 +321,17 @@ class _CategoryTile extends StatelessWidget {
           ],
         ),
         subtitle: Padding(
-          padding: const EdgeInsets.only(top: 8),
+          padding: const EdgeInsets.only(top: 6),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
+              Text(
+                linha.hasBudget
+                    ? 'Meta: ${valor(linha.budget)}'
+                    : 'Sem meta definida',
+                style: context.texts.bodySmall,
+              ),
+              const SizedBox(height: 8),
               ClipRRect(
                 borderRadius: BorderRadius.circular(5),
                 child: LinearProgressIndicator(
@@ -337,37 +343,34 @@ class _CategoryTile extends StatelessWidget {
                   ),
                 ),
               ),
-              const SizedBox(height: 6),
-              Row(
-                children: [
-                  Expanded(
-                    child: Text(
-                      linha.hasBudget
-                          ? (linha.exceeded
-                              ? 'Excedeu ${valor(linha.remaining.abs())} da meta de ${valor(linha.budget)}'
-                              : 'Restam ${valor(linha.remaining)} de ${valor(linha.budget)}')
-                          : 'Sem meta definida',
-                      style: context.texts.bodySmall?.copyWith(
-                        color: linha.exceeded ? tones.negative : null,
-                      ),
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                    ),
+              if (linha.hasBudget) ...[
+                const SizedBox(height: 6),
+                Text(
+                  linha.exceeded
+                      ? 'Excedeu: ${valor(linha.remaining.abs())}'
+                      : 'Resta: ${valor(linha.remaining)}',
+                  style: context.texts.bodySmall?.copyWith(
+                    color: linha.exceeded ? tones.negative : null,
                   ),
-                  TextButton(
-                    onPressed: () => _editarMeta(context, linha.node),
-                    style: TextButton.styleFrom(
-                      padding: const EdgeInsets.symmetric(horizontal: 8),
-                      minimumSize: const Size(0, 32),
-                    ),
-                    child: Text(linha.hasBudget ? 'Editar' : 'Definir meta'),
-                  ),
-                ],
-              ),
+                ),
+              ],
             ],
           ),
         ),
         children: [
+          Padding(
+            padding: const EdgeInsets.only(left: 4, bottom: 4),
+            child: Align(
+              alignment: Alignment.centerLeft,
+              child: TextButton.icon(
+                onPressed: () => _editarMeta(context, linha.node),
+                icon: const Icon(Icons.flag_outlined, size: 16),
+                label: Text(
+                  linha.hasBudget ? 'Editar meta' : 'Definir meta de gastos',
+                ),
+              ),
+            ),
+          ),
           for (final filho in linha.children)
             _SubcategoryTile(state: state, linha: filho, color: color),
           Padding(
