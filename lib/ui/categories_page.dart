@@ -433,20 +433,22 @@ class _CategoryRow extends StatelessWidget {
             const SizedBox(height: 8),
             Padding(
               padding: const EdgeInsets.only(left: 46),
-              child: Row(
+              // A barra ocupa a largura toda e o resumo vem embaixo: assim
+              // todas as categorias começam e terminam no mesmo ponto, e dá
+              // para comparar o tamanho delas de relance.
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Expanded(
-                    child: ClipRRect(
-                      borderRadius: BorderRadius.circular(5),
-                      child: LinearProgressIndicator(
-                        value: proporcao.clamp(0.0, 1.0),
-                        minHeight: 6,
-                        backgroundColor: context.tones.surfaceAlt,
-                        valueColor: AlwaysStoppedAnimation(color),
-                      ),
+                  ClipRRect(
+                    borderRadius: BorderRadius.circular(5),
+                    child: LinearProgressIndicator(
+                      value: proporcao.clamp(0.0, 1.0),
+                      minHeight: 6,
+                      backgroundColor: context.tones.surfaceAlt,
+                      valueColor: AlwaysStoppedAnimation(color),
                     ),
                   ),
-                  const SizedBox(width: 12),
+                  const SizedBox(height: 6),
                   Text(
                     '${fmtPercent(categoria.share)} · ${categoria.count}x',
                     style: context.texts.bodySmall,
