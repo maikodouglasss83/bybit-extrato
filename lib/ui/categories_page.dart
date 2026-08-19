@@ -449,9 +449,18 @@ class _CategoryRow extends StatelessWidget {
                     ),
                   ),
                   const SizedBox(height: 6),
-                  Text(
-                    '${fmtPercent(categoria.share)} · ${categoria.count}x',
-                    style: context.texts.bodySmall,
+                  Row(
+                    children: [
+                      Text(
+                        '${categoria.count} ${categoria.count == 1 ? 'lançamento' : 'lançamentos'}',
+                        style: context.texts.bodySmall,
+                      ),
+                      const Spacer(),
+                      Text(
+                        fmtPercent(categoria.share),
+                        style: context.texts.bodySmall,
+                      ),
+                    ],
                   ),
                 ],
               ),
