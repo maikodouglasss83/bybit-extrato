@@ -509,31 +509,44 @@ class _SubcategoryTile extends StatelessWidget {
               ],
             ),
             if (linha.hasBudget) ...[
-              const SizedBox(height: 6),
+              const SizedBox(height: 4),
               Padding(
-                padding: const EdgeInsets.only(left: 16),
-                child: Row(
+                // Mesma leitura da categoria acima: meta sob o nome, saldo
+                // sob o valor, e a barra ocupando a largura toda.
+                padding: const EdgeInsets.only(left: 16, right: 4),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Expanded(
-                      child: ClipRRect(
-                        borderRadius: BorderRadius.circular(4),
-                        child: LinearProgressIndicator(
-                          value: linha.progress,
-                          minHeight: 4,
-                          backgroundColor: tones.surfaceAlt,
-                          valueColor: AlwaysStoppedAnimation(
-                            linha.exceeded ? tones.negative : color,
+                    Row(
+                      children: [
+                        Expanded(
+                          child: Text(
+                            'Meta: ${valor(linha.budget)}',
+                            style: context.texts.bodySmall,
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
                           ),
                         ),
-                      ),
+                        Text(
+                          linha.exceeded
+                              ? 'Excedeu: ${valor(linha.remaining.abs())}'
+                              : 'Resta: ${valor(linha.remaining)}',
+                          style: context.texts.bodySmall?.copyWith(
+                            color: linha.exceeded ? tones.negative : null,
+                          ),
+                        ),
+                      ],
                     ),
-                    const SizedBox(width: 10),
-                    Text(
-                      linha.exceeded
-                          ? '+${valor(linha.remaining.abs())}'
-                          : 'restam ${valor(linha.remaining)}',
-                      style: context.texts.bodySmall?.copyWith(
-                        color: linha.exceeded ? tones.negative : null,
+                    const SizedBox(height: 6),
+                    ClipRRect(
+                      borderRadius: BorderRadius.circular(4),
+                      child: LinearProgressIndicator(
+                        value: linha.progress,
+                        minHeight: 4,
+                        backgroundColor: tones.surfaceAlt,
+                        valueColor: AlwaysStoppedAnimation(
+                          linha.exceeded ? tones.negative : color,
+                        ),
                       ),
                     ),
                   ],
