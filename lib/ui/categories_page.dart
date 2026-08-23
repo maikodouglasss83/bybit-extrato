@@ -587,10 +587,15 @@ class _SubcategoriaExpansivel extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final compras = state.purchasesOfCategory(
+    final compras = state.purchasesOfSubcategory(
       state.selectedMonth,
-      subcategoria.id ?? subcategoria.label,
+      subcategoria.id ?? '',
     );
+
+    // O ícone vem do nó do planejamento: a subcategoria pode reunir mais de
+    // uma categoria de gasto, e é o nó que dá a identidade dela.
+    final no = state.budgetNodeById(subcategoria.id ?? '');
+    final origem = no?.sources.isNotEmpty ?? false ? no!.sources.first : null;
 
     return Theme(
       data: Theme.of(context).copyWith(dividerColor: Colors.transparent),
@@ -606,11 +611,11 @@ class _SubcategoriaExpansivel extends StatelessWidget {
             borderRadius: BorderRadius.circular(11),
           ),
           child: Icon(
-            // Subcategoria criada pelo usuário não tem ícone próprio: ganha
-            // o marcador, em vez do genérico de "outros".
-            state.isCustomCategory(subcategoria.id ?? subcategoria.label)
+            // Categoria criada pelo usuário não tem ícone próprio: ganha o
+            // marcador, em vez do genérico de "outros".
+            origem == null || state.isCustomCategory(origem)
                 ? Icons.bookmark_outline_rounded
-                : categoryIcon(subcategoria.id ?? subcategoria.label),
+                : categoryIcon(origem),
             size: 17,
             color: color,
           ),

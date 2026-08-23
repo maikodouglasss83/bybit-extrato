@@ -532,8 +532,34 @@ void main() {
       expect(dentro.single.share, 1.0);
 
       // E dali chega-se às compras.
-      final compras = state.purchasesOfCategory(junho, 'Aplicativo');
+      final compras = state.purchasesOfSubcategory(junho, dentro.single.id!);
       expect(compras.single.id, uber.id);
+    });
+
+    test('uma subcategoria com duas origens vira uma linha so', () async {
+      // O caso da tela: uma subcategoria criada recebendo tambem uma
+      // categoria que o app deduz sozinho. Agrupar pela categoria de gasto
+      // gerava duas linhas com o mesmo nome.
+      await state.addBudgetNode(
+        name: 'Streaming',
+        parentId: 'lazer',
+        sources: [SpendCategories.assinaturas],
+      );
+
+      final netflix = compra('nf', 'NETFLIX.COM', 90, junho);
+      final outro = compra('ou', 'LOJA QUALQUER', 10, junho);
+      state.seedEntries([netflix, outro]);
+      await state.setEntryOverrides(outro, category: 'Streaming');
+
+      final dentro = state.subcategoryBreakdown(junho, 'lazer');
+      expect(dentro.length, 1);
+      expect(dentro.single.label, 'Streaming');
+      expect(dentro.single.total, 100); // 90 da Netflix + 10 do outro
+      expect(dentro.single.count, 2);
+
+      // E a lista de compras reune as duas origens.
+      final compras2 = state.purchasesOfSubcategory(junho, dentro.single.id!);
+      expect(compras2.length, 2);
     });
 
     test('"Sem categoria" fica por último também na tela de gastos', () async {

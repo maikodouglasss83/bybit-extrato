@@ -782,6 +782,10 @@ class AppState extends ChangeNotifier {
   }
 
   /// Gasto por subcategoria dentro de uma principal.
+  ///
+  /// Agrupa pela subcategoria do planejamento, e não pela categoria de
+  /// gasto: uma subcategoria pode receber várias categorias — e também as
+  /// compras marcadas com o próprio nome — e tudo isso é a mesma linha.
   List<CategoryTotal> subcategoryBreakdown(DateTime month, String mainId) {
     final compras = cardEntriesForMonth(month).where((e) =>
         e.kind == LedgerKind.cardPurchase &&
@@ -790,8 +794,14 @@ class AppState extends ChangeNotifier {
 
     final totais = <String, double>{};
     final contagem = <String, int>{};
+    final rotulos = <String, String>{};
+
     for (final e in compras) {
-      final chave = categoryOf(e);
+      final categoria = categoryOf(e);
+      final no = nodeForCategory(categoria);
+      // Sem nó, o gasto está solto em "Sem categoria": ele mesmo é o grupo.
+      final chave = no?.id ?? '$_prefixoSolto$categoria';
+      rotulos[chave] = no?.name ?? categoria;
       totais[chave] = (totais[chave] ?? 0) + e.change.abs();
       contagem[chave] = (contagem[chave] ?? 0) + 1;
     }
@@ -800,8 +810,7 @@ class AppState extends ChangeNotifier {
     final lista = totais.entries
         .map((e) => CategoryTotal(
               id: e.key,
-              // O rótulo do nó é mais descritivo que o valor guardado.
-              label: categoryLabelOf(e.key),
+              label: rotulos[e.key] ?? e.key,
               total: e.value,
               count: contagem[e.key] ?? 0,
               share: soma == 0 ? 0 : e.value / soma,
@@ -811,6 +820,26 @@ class AppState extends ChangeNotifier {
     return lista;
   }
 
+  /// Marca as chaves que não vêm de um nó do planejamento.
+  static const _prefixoSolto = 'categoria:';
+
+  /// Compras que formam uma linha de [subcategoryBreakdown].
+  List<LedgerEntry> purchasesOfSubcategory(DateTime month, String chave) {
+    final semNo = chave.startsWith(_prefixoSolto);
+    final categoriaSolta =
+        semNo ? chave.substring(_prefixoSolto.length) : null;
+    final no = semNo ? null : budgetNodeById(chave);
+
+    final lista = cardEntriesForMonth(month).where((e) {
+      if (e.kind != LedgerKind.cardPurchase || isHidden(e)) return false;
+      final categoria = categoryOf(e);
+      return semNo
+          ? categoria == categoriaSolta
+          : (no?.sources.contains(categoria) ?? false);
+    }).toList()
+      ..sort((a, b) => b.time.compareTo(a.time));
+    return lista;
+  }
   /// Compras de uma categoria dentro do mês.
   List<LedgerEntry> purchasesOfCategory(DateTime month, String categoria) {
     final lista = cardEntriesForMonth(month)
@@ -897,6 +926,13 @@ class AppState extends ChangeNotifier {
     }
     return categoria;
   }
+
+  /// O nó do planejamento que recebe aquele valor de categoria.
+  BudgetNode? nodeForCategory(String categoria) =>
+      budgetNodes.where((n) => n.sources.contains(categoria)).firstOrNull;
+
+  BudgetNode? budgetNodeById(String id) =>
+      budgetNodes.where((n) => n.id == id).firstOrNull;
 
   /// Categoria principal onde aquele valor de categoria está pendurado.
   BudgetNode? mainCategoryOf(String categoria) {
