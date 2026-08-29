@@ -1,13 +1,18 @@
 import 'package:bybit_extrato/app_state.dart';
 import 'package:bybit_extrato/budget.dart';
 import 'package:bybit_extrato/models.dart';
+import 'package:bybit_extrato/subscriptions.dart';
 import 'dart:math' as math;
 
-import 'package:flutter/material.dart' show Color;
 
 import 'package:bybit_extrato/util/brands.dart';
 import 'package:bybit_extrato/util/categorizer.dart';
+import 'package:bybit_extrato/theme.dart';
+import 'package:bybit_extrato/ui/shell.dart';
+import 'package:bybit_extrato/ui/subscriptions_page.dart';
+import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:intl/date_symbol_data_local.dart';
 
 void main() {
   group('Conversão de valores da API', () {
@@ -1430,6 +1435,144 @@ void main() {
     });
   });
 
+  group('Assinaturas', () {
+    LedgerEntry compra(String id, String merch, double valor, DateTime quando) =>
+        LedgerEntry.fromCardTransaction({
+          'transactionId': id,
+          'side': '1',
+          'transactionDate': '${quando.millisecondsSinceEpoch}',
+          'transactionAmount': '$valor',
+          'basicCurrency': 'BRL',
+          'merchName': merch,
+        });
+
+    final julho = DateTime(2026, 7, 12);
+    final agosto = DateTime(2026, 8, 12);
+    late AppState state;
+
+    setUp(() {
+      state = AppState()
+        ..seedEntries([
+          compra('n1', 'NETFLIX.COM', 44.90, julho),
+          compra('n2', 'NETFLIX.COM', 59.90, agosto),
+          compra('c1', 'CLARO37', 100, agosto),
+          compra('m1', 'MERCADINHO DO TICO', 200, agosto),
+        ]);
+    });
+
+    test('gasto fixo do cartão vira assinatura; o variável fica de fora', () {
+      final assinaturas = state.subscriptions();
+      expect(assinaturas.map((s) => s.name),
+          containsAll(<String>['NETFLIX.COM', 'CLARO37']));
+      expect(assinaturas.map((s) => s.name), isNot(contains('MERCADINHO DO TICO')));
+    });
+
+    test('o valor por mês é o da cobrança mais recente', () {
+      final netflix =
+          state.subscriptions().firstWhere((s) => s.name == 'NETFLIX.COM');
+      // Assinou por 44,90 e o preço subiu: o que vale é o de agosto.
+      expect(netflix.monthlyBrl, 59.90);
+      expect(netflix.lastCharge, agosto);
+      expect(netflix.chargeCount, 2);
+    });
+
+    test('lista vem da mais cara para a mais barata', () {
+      expect(state.subscriptions().map((s) => s.name).toList(),
+          ['CLARO37', 'NETFLIX.COM']);
+    });
+
+    test('total mensal soma as ativas', () {
+      expect(state.subscriptionsMonthlyBrl, closeTo(159.90, 1e-9));
+      expect(state.activeSubscriptionCount, 2);
+    });
+
+    test('cancelada continua na lista, mas sai do total', () async {
+      final claro =
+          state.subscriptions().firstWhere((s) => s.name == 'CLARO37');
+      await state.setSubscriptionCancelled(claro.key, true);
+
+      final depois = state.subscriptions();
+      expect(depois.length, 2);
+      expect(depois.first.name, 'NETFLIX.COM'); // as canceladas vão para o fim
+      expect(depois.last.cancelled, isTrue);
+      expect(state.subscriptionsMonthlyBrl, closeTo(59.90, 1e-9));
+      expect(state.activeSubscriptionCount, 1);
+
+      await state.setSubscriptionCancelled(claro.key, false);
+      expect(state.subscriptionsMonthlyBrl, closeTo(159.90, 1e-9));
+    });
+
+    test('cadastro manual entra na lista e no total', () async {
+      await state.addManualSubscription(
+        name: 'Academia',
+        monthlyBrl: 149.90,
+        category: SpendCategories.saude,
+        dueDay: 5,
+      );
+
+      final academia =
+          state.subscriptions().firstWhere((s) => s.name == 'Academia');
+      expect(academia.manual, isTrue);
+      expect(academia.dueDay, 5);
+      expect(academia.lastCharge, isNull);
+      expect(state.subscriptionsMonthlyBrl, closeTo(309.80, 1e-9));
+    });
+
+    test('tirar da lista apaga o cadastro manual', () async {
+      await state.addManualSubscription(name: 'Academia', monthlyBrl: 149.90);
+      final academia =
+          state.subscriptions().firstWhere((s) => s.name == 'Academia');
+
+      await state.removeSubscription(academia);
+      expect(state.manualSubscriptions, isEmpty);
+      expect(state.subscriptions().map((s) => s.name),
+          isNot(contains('Academia')));
+    });
+
+    test('tirar da lista devolve a do cartão ao gasto variável', () async {
+      final netflix =
+          state.subscriptions().firstWhere((s) => s.name == 'NETFLIX.COM');
+
+      await state.removeSubscription(netflix);
+      expect(state.subscriptions().map((s) => s.name),
+          isNot(contains('NETFLIX.COM')));
+      // A compra segue no extrato, agora como gasto do dia a dia.
+      expect(state.fixedVsVariable(agosto).variavel, 200 + 59.90);
+    });
+
+    test('gasto oculto não sustenta uma assinatura sozinho', () async {
+      final state = AppState()
+        ..seedEntries([compra('n', 'NETFLIX.COM', 44.90, agosto)]);
+      expect(state.subscriptions(), hasLength(1));
+
+      await state.setHidden(state.cardEntries.first, true);
+      expect(state.subscriptions(), isEmpty);
+    });
+
+    test('assinatura manual sobrevive à ida e volta em JSON', () {
+      final original = ManualSubscription(
+        id: '1',
+        name: 'Academia',
+        monthlyBrl: 149.90,
+        category: SpendCategories.saude,
+        dueDay: 5,
+        lastCharge: agosto,
+      );
+      final copia = ManualSubscription.fromJson(original.toJson())!;
+
+      expect(copia.name, 'Academia');
+      expect(copia.monthlyBrl, 149.90);
+      expect(copia.category, SpendCategories.saude);
+      expect(copia.dueDay, 5);
+      expect(copia.lastCharge, agosto);
+    });
+
+    test('registro sem nome é descartado em vez de virar linha vazia', () {
+      expect(ManualSubscription.fromJson({'id': '1'}), isNull);
+      expect(ManualSubscription.fromJson({'name': 'X'}), isNull);
+    });
+  });
+
   group('Moeda padrão', () {
     test('o real é o padrão quando há cotação', () {
       final state = AppState()..usdBrl = 5.0;
@@ -1581,6 +1724,8 @@ void main() {
     expect(alocacao.length, 2);
   });
 
+  _telas();
+
   test('WalletSnapshot ordena moedas por valor em dólar', () {
     final snapshot = WalletSnapshot.fromJson({
       'accountType': 'UNIFIED',
@@ -1595,5 +1740,110 @@ void main() {
     });
     expect(snapshot.coins.first.coin, 'BTC');
     expect(snapshot.activeCoins.length, 2);
+  });
+}
+
+/// Telas montadas de verdade, para pegar estouro de layout — o tipo de erro
+/// que só aparece quando o widget é medido.
+void _telas() {
+  setUpAll(() => initializeDateFormatting('pt_BR', null));
+
+  LedgerEntry compra(String id, String merch, double valor, DateTime quando) =>
+      LedgerEntry.fromCardTransaction({
+        'transactionId': id,
+        'side': '1',
+        'transactionDate': '${quando.millisecondsSinceEpoch}',
+        'transactionAmount': '$valor',
+        'basicCurrency': 'BRL',
+        'merchName': merch,
+      });
+
+  final agosto = DateTime(2026, 8, 29);
+
+  AppState comAssinaturas() => AppState()
+    ..phase = LoadPhase.ready
+    ..preferBrl = false
+    ..seedEntries([
+      compra('n', 'NETFLIX.COM', 59.90, agosto),
+      compra('c', 'CLARO37', 149.90, agosto),
+      compra('m', 'MERCADINHO DO TICO', 200, agosto),
+    ]);
+
+  Future<void> montar(WidgetTester tester, Widget tela, Size tamanho) async {
+    tester.view.physicalSize = tamanho;
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.reset);
+    await tester.pumpWidget(
+      MaterialApp(theme: buildTheme(Brightness.dark), home: tela),
+    );
+    await tester.pump();
+  }
+
+  group('Página de assinaturas', () {
+    testWidgets('no computador mostra a tabela com as colunas', (tester) async {
+      final state = comAssinaturas();
+      await montar(
+        tester,
+        Scaffold(body: SubscriptionsPage(state: state)),
+        const Size(1100, 900),
+      );
+
+      expect(find.text('SUAS ASSINATURAS CUSTAM'), findsOneWidget);
+      expect(find.text('ASSINATURA'), findsOneWidget);
+      expect(find.text('NETFLIX.COM'), findsOneWidget);
+      expect(find.text('CLARO37'), findsOneWidget);
+      // Gasto do dia a dia não é assinatura.
+      expect(find.text('MERCADINHO DO TICO'), findsNothing);
+      expect(find.text('29 ago 2026'), findsNWidgets(2));
+      expect(find.text('Nova assinatura'), findsOneWidget);
+    });
+
+    testWidgets('no celular vira lista, sem as colunas', (tester) async {
+      final state = comAssinaturas();
+      await montar(
+        tester,
+        Scaffold(body: SubscriptionsPage(state: state)),
+        const Size(390, 844),
+      );
+
+      expect(find.text('NETFLIX.COM'), findsOneWidget);
+      expect(find.text('ASSINATURA'), findsNothing);
+      expect(tester.takeException(), isNull);
+    });
+
+    testWidgets('sem assinatura nenhuma, convida a cadastrar', (tester) async {
+      final state = AppState()..phase = LoadPhase.ready;
+      await montar(
+        tester,
+        Scaffold(body: SubscriptionsPage(state: state)),
+        const Size(390, 844),
+      );
+
+      expect(find.text('Nenhuma assinatura ainda'), findsOneWidget);
+      expect(find.text('0 ativas'), findsNothing); // o resumo mostra o total
+      expect(find.textContaining('ativas'), findsOneWidget);
+    });
+  });
+
+  group('Navegação', () {
+    testWidgets('a barra do celular cabe com as seis abas', (tester) async {
+      final state = comAssinaturas();
+      await montar(
+        tester,
+        AppShell(
+          state: state,
+          themeMode: ThemeMode.dark,
+          onThemeModeChanged: (_) {},
+        ),
+        const Size(360, 800),
+      );
+
+      expect(find.text('Assinaturas'), findsOneWidget);
+      expect(tester.takeException(), isNull);
+
+      await tester.tap(find.text('Assinaturas'));
+      await tester.pumpAndSettle();
+      expect(find.text('SUAS ASSINATURAS CUSTAM'), findsOneWidget);
+    });
   });
 }

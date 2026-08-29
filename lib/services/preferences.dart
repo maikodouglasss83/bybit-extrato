@@ -4,6 +4,7 @@ import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 
 import '../budget.dart';
 import '../models.dart';
+import '../subscriptions.dart';
 
 /// Ajustes do usuário que ficam guardados no dispositivo.
 ///
@@ -22,6 +23,8 @@ class PreferencesStore {
   static const _kCardGoal = 'card_goal_usd';
   static const _kBudgetTree = 'budget_tree';
   static const _kCachedEntries = 'cached_entries';
+  static const _kManualSubscriptions = 'manual_subscriptions';
+  static const _kCancelledSubscriptions = 'cancelled_subscriptions';
 
   Future<Map<String, String>> loadCategoryOverrides() =>
       _loadMap(_kCategoryOverrides);
@@ -213,6 +216,64 @@ class PreferencesStore {
       await _storage.write(key: _kCardGoal, value: '$value');
     } catch (_) {
       // Sem cofre disponível a meta volta ao padrão na próxima abertura.
+    }
+  }
+
+  /// Assinaturas cadastradas à mão, para o que não passa pelo cartão.
+  Future<List<ManualSubscription>> loadManualSubscriptions() async {
+    try {
+      final raw = await _storage.read(key: _kManualSubscriptions);
+      if (raw == null || raw.isEmpty) return const [];
+      final decoded = jsonDecode(raw) as List<dynamic>;
+      return decoded
+          .whereType<Map>()
+          .map((e) => ManualSubscription.fromJson(Map<String, dynamic>.from(e)))
+          .whereType<ManualSubscription>()
+          .toList();
+    } catch (_) {
+      return const [];
+    }
+  }
+
+  Future<void> saveManualSubscriptions(List<ManualSubscription> assinaturas) async {
+    try {
+      if (assinaturas.isEmpty) {
+        await _storage.delete(key: _kManualSubscriptions);
+        return;
+      }
+      await _storage.write(
+        key: _kManualSubscriptions,
+        value: jsonEncode(assinaturas.map((m) => m.toJson()).toList()),
+      );
+    } catch (_) {
+      // Sem cofre disponível o cadastro vale só na sessão atual.
+    }
+  }
+
+  /// Assinaturas marcadas como canceladas, pela chave.
+  Future<Set<String>> loadCancelledSubscriptions() async {
+    try {
+      final raw = await _storage.read(key: _kCancelledSubscriptions);
+      if (raw == null || raw.isEmpty) return {};
+      final decoded = jsonDecode(raw) as List<dynamic>;
+      return decoded.map((e) => e.toString()).toSet();
+    } catch (_) {
+      return {};
+    }
+  }
+
+  Future<void> saveCancelledSubscriptions(Set<String> chaves) async {
+    try {
+      if (chaves.isEmpty) {
+        await _storage.delete(key: _kCancelledSubscriptions);
+        return;
+      }
+      await _storage.write(
+        key: _kCancelledSubscriptions,
+        value: jsonEncode(chaves.toList()),
+      );
+    } catch (_) {
+      // Sem cofre disponível a marcação vale só na sessão atual.
     }
   }
 

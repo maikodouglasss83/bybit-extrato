@@ -9,6 +9,7 @@ final _dayMonthYear = DateFormat("d 'de' MMMM 'de' y", 'pt_BR');
 final _full = DateFormat("d MMM y 'às' HH:mm", 'pt_BR');
 final _monthYear = DateFormat('MMMM \'de\' y', 'pt_BR');
 final _monthShort = DateFormat('MMM/yy', 'pt_BR');
+final _shortDate = DateFormat('d MMM y', 'pt_BR');
 
 /// Valor monetário na moeda de exibição escolhida.
 String fmtFiat(double value, {bool brl = false}) =>
@@ -67,6 +68,10 @@ String fmtMonthYear(DateTime d) {
   final s = _monthYear.format(d);
   return s.isEmpty ? s : '${s[0].toUpperCase()}${s.substring(1)}';
 }
+
+/// "29 ago 2026", data curta para tabelas — sem o ponto da abreviação, que
+/// só faz sujeira quando a coluna já é estreita.
+String fmtShortDate(DateTime d) => _shortDate.format(d).replaceAll('.', '');
 
 /// "ago/26", para eixos e comparações curtas.
 String fmtMonthShort(DateTime d) => _monthShort.format(d);

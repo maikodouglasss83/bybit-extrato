@@ -4,6 +4,7 @@ import 'package:flutter/foundation.dart' show ChangeNotifier, visibleForTesting;
 
 import 'budget.dart';
 import 'models.dart';
+import 'subscriptions.dart';
 import 'services/bybit_client.dart';
 import 'services/cloud_sync.dart';
 import 'services/credentials.dart';
@@ -713,6 +714,190 @@ class AppState extends ChangeNotifier {
     return lista;
   }
 
+  // ---------------------------------------------------------------------
+  // Assinaturas
+  // ---------------------------------------------------------------------
+
+  /// Assinaturas cadastradas à mão, para o que não passa pelo cartão.
+  List<ManualSubscription> manualSubscriptions = const [];
+
+  /// Assinaturas que o usuário marcou como canceladas, pela chave.
+  /// Continuam na lista, riscadas, mas fora do total.
+  Set<String> _cancelledSubscriptions = {};
+
+  /// Chave de uma assinatura cadastrada à mão.
+  static String manualSubscriptionKey(String id) => 'manual:$id';
+
+  /// Valor de uma compra em reais — a moeda em que as assinaturas são
+  /// guardadas. Compra já em real dispensa cotação, que é o caso comum.
+  double brlValueOf(String coin, double amount) {
+    if (coin.toUpperCase() == 'BRL') return amount;
+    final taxa = usdBrl;
+    if (taxa == null) return 0;
+    return usdValueOf(coin, amount) * taxa;
+  }
+
+  /// Tudo o que se repete todo mês: os estabelecimentos marcados como gasto
+  /// fixo e as assinaturas cadastradas à mão.
+  ///
+  /// O valor mensal de quem vem do cartão é o da cobrança mais recente — é o
+  /// que a assinatura custa hoje, e não a média de um preço que já subiu.
+  List<Subscription> subscriptions() {
+    final porEstabelecimento = <String, List<LedgerEntry>>{};
+    for (final e in cardEntries) {
+      if (e.kind != LedgerKind.cardPurchase || isHidden(e)) continue;
+      if (!isFixed(e)) continue;
+      porEstabelecimento.putIfAbsent(_merchantKey(e), () => []).add(e);
+    }
+
+    final lista = <Subscription>[];
+
+    porEstabelecimento.forEach((chave, compras) {
+      compras.sort((a, b) => b.time.compareTo(a.time));
+      final ultima = compras.first;
+      lista.add(Subscription(
+        key: chave,
+        name: displayNameOf(ultima),
+        category: categoryOf(ultima),
+        monthlyBrl: brlValueOf(ultima.coin, ultima.change.abs()),
+        lastCharge: ultima.time,
+        dueDay: _dueDayOverrides[chave],
+        chargeCount: compras.length,
+        manual: false,
+        cancelled: _cancelledSubscriptions.contains(chave),
+        sample: ultima,
+      ));
+    });
+
+    for (final m in manualSubscriptions) {
+      final chave = manualSubscriptionKey(m.id);
+      lista.add(Subscription(
+        key: chave,
+        name: m.name,
+        category: m.category,
+        monthlyBrl: m.monthlyBrl,
+        lastCharge: m.lastCharge,
+        dueDay: m.dueDay,
+        manual: true,
+        cancelled: _cancelledSubscriptions.contains(chave),
+      ));
+    }
+
+    // O que está ativo vem primeiro, da assinatura mais cara para a mais
+    // barata: é a ordem em que se decide o que cortar.
+    lista.sort((a, b) {
+      if (a.cancelled != b.cancelled) return a.cancelled ? 1 : -1;
+      final peso = b.monthlyBrl.compareTo(a.monthlyBrl);
+      if (peso != 0) return peso;
+      return a.name.toLowerCase().compareTo(b.name.toLowerCase());
+    });
+    return lista;
+  }
+
+  /// Quanto as assinaturas ativas custam por mês, em reais.
+  double get subscriptionsMonthlyBrl => subscriptions()
+      .where((s) => s.active)
+      .fold<double>(0, (soma, s) => soma + s.monthlyBrl);
+
+  int get activeSubscriptionCount =>
+      subscriptions().where((s) => s.active).length;
+
+  /// Cadastra uma assinatura que não veio do cartão.
+  Future<void> addManualSubscription({
+    required String name,
+    required double monthlyBrl,
+    String category = '',
+    int? dueDay,
+    DateTime? lastCharge,
+  }) async {
+    final nome = name.trim();
+    if (nome.isEmpty) return;
+
+    final nova = ManualSubscription(
+      id: DateTime.now().microsecondsSinceEpoch.toString(),
+      name: nome,
+      monthlyBrl: monthlyBrl,
+      category: category,
+      dueDay: dueDay,
+      lastCharge: lastCharge,
+    );
+    manualSubscriptions = [...manualSubscriptions, nova];
+    await _persistSubscriptions();
+  }
+
+  Future<void> updateManualSubscription(
+    String id, {
+    String? name,
+    double? monthlyBrl,
+    String? category,
+    int? dueDay,
+    bool clearDueDay = false,
+  }) async {
+    manualSubscriptions = manualSubscriptions
+        .map((m) => m.id == id
+            ? m.copyWith(
+                name: name?.trim(),
+                monthlyBrl: monthlyBrl,
+                category: category,
+                dueDay: dueDay,
+                clearDueDay: clearDueDay,
+              )
+            : m)
+        .toList();
+    await _persistSubscriptions();
+  }
+
+  Future<void> removeManualSubscription(String id) async {
+    manualSubscriptions =
+        manualSubscriptions.where((m) => m.id != id).toList();
+    _cancelledSubscriptions = {..._cancelledSubscriptions}
+      ..remove(manualSubscriptionKey(id));
+    await _persistSubscriptions();
+  }
+
+  /// Marca a assinatura como cancelada, ou a traz de volta.
+  ///
+  /// Isto é anotação: quem cancela de verdade é o banco ou o serviço. Serve
+  /// para o total do mês parar de contar o que não vai mais ser cobrado.
+  Future<void> setSubscriptionCancelled(String key, bool cancelada) async {
+    if (key.isEmpty) return;
+    final novo = {..._cancelledSubscriptions};
+    if (cancelada) {
+      novo.add(key);
+    } else {
+      novo.remove(key);
+    }
+    _cancelledSubscriptions = novo;
+    await _persistSubscriptions();
+  }
+
+  bool isSubscriptionCancelled(String key) =>
+      _cancelledSubscriptions.contains(key);
+
+  /// Tira a assinatura da lista de vez.
+  ///
+  /// A cadastrada à mão é apagada; a que veio do cartão volta a ser gasto
+  /// variável, e as compras dela continuam no extrato.
+  Future<void> removeSubscription(Subscription s) async {
+    if (s.manual) {
+      await removeManualSubscription(s.key.replaceFirst('manual:', ''));
+      return;
+    }
+    final compra = s.sample;
+    if (compra != null) await setFixed(compra, false);
+  }
+
+  Future<void> _persistSubscriptions() async {
+    notifyListeners();
+    await _preferences.saveManualSubscriptions(manualSubscriptions);
+    await _preferences.saveCancelledSubscriptions(_cancelledSubscriptions);
+    _syncPreference(
+      _kSyncAssinaturas,
+      manualSubscriptions.map((m) => m.toJson()).toList(),
+    );
+    _syncPreference(_kSyncAssinaturasCanceladas, _cancelledSubscriptions.toList());
+  }
+
   /// Total gasto em uma categoria dentro de um período.
   /// Lançamentos ocultos nunca entram na conta.
   List<CategoryTotal> categoryBreakdown(DateTime month) {
@@ -1412,6 +1597,8 @@ class AppState extends ChangeNotifier {
     _showInBrl = await _preferences.loadShowInBrl();
     cardGoalUsd = await _preferences.loadCardGoal() ?? defaultCardGoalUsd;
     budgetNodes = await _preferences.loadBudgetTree() ?? defaultBudgetTree();
+    manualSubscriptions = await _preferences.loadManualSubscriptions();
+    _cancelledSubscriptions = await _preferences.loadCancelledSubscriptions();
 
     // O histórico guardado entra antes da rede: o app já abre com os meses
     // que a Bybit não devolve mais.
@@ -1628,6 +1815,8 @@ class AppState extends ChangeNotifier {
   static const _kSyncFixos = 'fixed_overrides';
   static const _kSyncMoeda = 'show_in_brl';
   static const _kSyncVencimentos = 'due_days';
+  static const _kSyncAssinaturas = 'manual_subscriptions';
+  static const _kSyncAssinaturasCanceladas = 'cancelled_subscriptions';
 
   /// Junta o que está na nuvem com o que está neste aparelho.
   ///
@@ -1698,6 +1887,18 @@ class AppState extends ChangeNotifier {
           .toList();
       if (nos.isNotEmpty) budgetNodes = nos;
     }
+    if (ajustes[_kSyncAssinaturas] is List) {
+      manualSubscriptions = (ajustes[_kSyncAssinaturas] as List)
+          .whereType<Map>()
+          .map((e) => ManualSubscription.fromJson(Map<String, dynamic>.from(e)))
+          .whereType<ManualSubscription>()
+          .toList();
+    }
+    if (ajustes[_kSyncAssinaturasCanceladas] is List) {
+      _cancelledSubscriptions = (ajustes[_kSyncAssinaturasCanceladas] as List)
+          .map((e) => e.toString())
+          .toSet();
+    }
     if (ajustes[_kSyncMetaCartao] is num) {
       cardGoalUsd = (ajustes[_kSyncMetaCartao] as num).toDouble();
     }
@@ -1714,6 +1915,8 @@ class AppState extends ChangeNotifier {
     _preferences.saveHiddenEntries(_hiddenIds);
     _preferences.saveBudgetTree(budgetNodes);
     _preferences.saveCardGoal(cardGoalUsd);
+    _preferences.saveManualSubscriptions(manualSubscriptions);
+    _preferences.saveCancelledSubscriptions(_cancelledSubscriptions);
   }
 
   Future<void> _pushAllPreferences() async {
@@ -1728,6 +1931,14 @@ class AppState extends ChangeNotifier {
     );
     await _cloud.pushPreference(_kSyncMetaCartao, cardGoalUsd);
     await _cloud.pushPreference(_kSyncMoeda, _showInBrl);
+    await _cloud.pushPreference(
+      _kSyncAssinaturas,
+      manualSubscriptions.map((m) => m.toJson()).toList(),
+    );
+    await _cloud.pushPreference(
+      _kSyncAssinaturasCanceladas,
+      _cancelledSubscriptions.toList(),
+    );
   }
 
   /// Manda um ajuste para a nuvem sem travar quem chamou.

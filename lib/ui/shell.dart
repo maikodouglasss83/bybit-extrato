@@ -9,6 +9,7 @@ import 'login_page.dart';
 import 'planning_page.dart';
 import 'settings_page.dart';
 import 'statement_page.dart';
+import 'subscriptions_page.dart';
 import 'widgets/common.dart';
 
 /// Estrutura de navegação: barra inferior no celular, lateral no computador.
@@ -34,11 +35,13 @@ class _AppShellState extends State<AppShell> {
   static const _titles = [
     'Visão geral',
     'Gastos',
+    'Assinaturas',
     'Planejamento',
     'Extrato',
     'Ajustes',
   ];
-  static const _settingsIndex = 4;
+  static const _settingsIndex = 5;
+  static const _statementIndex = 4;
 
   @override
   Widget build(BuildContext context) {
@@ -126,12 +129,17 @@ class _AppShellState extends State<AppShell> {
           NavigationDestination(
             icon: Icon(Icons.dashboard_outlined),
             selectedIcon: Icon(Icons.dashboard_rounded),
-            label: 'Visão geral',
+            label: 'Resumo',
           ),
           NavigationDestination(
             icon: Icon(Icons.pie_chart_outline_rounded),
             selectedIcon: Icon(Icons.pie_chart_rounded),
             label: 'Gastos',
+          ),
+          NavigationDestination(
+            icon: Icon(Icons.autorenew_outlined),
+            selectedIcon: Icon(Icons.autorenew_rounded),
+            label: 'Assinaturas',
           ),
           NavigationDestination(
             icon: Icon(Icons.flag_outlined),
@@ -176,14 +184,16 @@ class _AppShellState extends State<AppShell> {
       case 0:
         return DashboardPage(
           state: state,
-          onSeeStatement: () => setState(() => _index = 3),
+          onSeeStatement: () => setState(() => _index = _statementIndex),
           onSeeCategories: () => setState(() => _index = 1),
         );
       case 1:
         return CategoriesPage(state: state);
       case 2:
-        return PlanningPage(state: state);
+        return SubscriptionsPage(state: state);
       case 3:
+        return PlanningPage(state: state);
+      case 4:
         return StatementPage(state: state);
       default:
         return SettingsPage(
@@ -245,9 +255,10 @@ class _SideNav extends StatelessWidget {
           const SizedBox(height: 28),
           _navItem(context, 0, Icons.dashboard_rounded, 'Visão geral'),
           _navItem(context, 1, Icons.pie_chart_rounded, 'Gastos'),
-          _navItem(context, 2, Icons.flag_rounded, 'Planejamento'),
-          _navItem(context, 3, Icons.receipt_long_rounded, 'Extrato'),
-          _navItem(context, 4, Icons.settings_rounded, 'Ajustes'),
+          _navItem(context, 2, Icons.autorenew_rounded, 'Assinaturas'),
+          _navItem(context, 3, Icons.flag_rounded, 'Planejamento'),
+          _navItem(context, 4, Icons.receipt_long_rounded, 'Extrato'),
+          _navItem(context, 5, Icons.settings_rounded, 'Ajustes'),
           const Spacer(),
           if (state.credentials != null)
             Padding(

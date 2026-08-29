@@ -172,16 +172,24 @@ class _BalanceHero extends StatelessWidget {
             children: [
               Icon(Icons.sync_rounded, size: 14, color: tones.muted),
               const SizedBox(width: 6),
-              Text(
-                state.lastSync == null
-                    ? 'Nunca sincronizado'
-                    : 'Atualizado às ${fmtTime(state.lastSync!)}',
-                style: context.texts.bodySmall,
+              // Em celular estreito as duas legendas não cabem lado a lado:
+              // a da esquerda cede espaço em vez de a linha estourar.
+              Expanded(
+                child: Text(
+                  state.lastSync == null
+                      ? 'Nunca sincronizado'
+                      : 'Atualizado às ${fmtTime(state.lastSync!)}',
+                  style: context.texts.bodySmall,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                ),
               ),
-              const Spacer(),
+              const SizedBox(width: 12),
               Text(
                 'Conta ${state.snapshot.accountType}',
                 style: context.texts.bodySmall,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
               ),
             ],
           ),

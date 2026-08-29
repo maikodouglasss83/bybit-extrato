@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 
 import '../../app_state.dart';
 import '../../models.dart';
+import '../../theme.dart';
 import '../../util/brands.dart';
 import 'common.dart';
 
@@ -38,10 +39,74 @@ class MerchantAvatar extends StatelessWidget {
       );
     }
 
+    return _BrandBadge(
+      brand: brand,
+      size: size,
+      useOnlineLogos: state.useOnlineLogos,
+    );
+  }
+}
+
+/// Selo de uma marca reconhecida pelo nome.
+///
+/// Serve para o que não tem uma compra por trás — uma assinatura cadastrada à
+/// mão, por exemplo — e cai num ícone quando a marca é desconhecida.
+class BrandAvatar extends StatelessWidget {
+  const BrandAvatar({
+    super.key,
+    required this.name,
+    required this.state,
+    this.fallbackIcon = Icons.autorenew_rounded,
+    this.size = 42,
+  });
+
+  final String name;
+  final AppState state;
+  final IconData fallbackIcon;
+  final double size;
+
+  @override
+  Widget build(BuildContext context) {
+    final brand = brandFor(name);
+    if (brand != null) {
+      return _BrandBadge(
+        brand: brand,
+        size: size,
+        useOnlineLogos: state.useOnlineLogos,
+      );
+    }
+
+    final cor = context.tones.muted;
+    return Container(
+      width: size,
+      height: size,
+      alignment: Alignment.center,
+      decoration: BoxDecoration(
+        color: cor.withValues(alpha: 0.14),
+        borderRadius: BorderRadius.circular(size / 3),
+      ),
+      child: Icon(fallbackIcon, size: size * 0.5, color: cor),
+    );
+  }
+}
+
+class _BrandBadge extends StatelessWidget {
+  const _BrandBadge({
+    required this.brand,
+    required this.size,
+    required this.useOnlineLogos,
+  });
+
+  final Brand brand;
+  final double size;
+  final bool useOnlineLogos;
+
+  @override
+  Widget build(BuildContext context) {
     final radius = BorderRadius.circular(size / 3);
     final monograma = _Monogram(brand: brand, size: size, radius: radius);
 
-    if (!state.useOnlineLogos || brand.domain == null) return monograma;
+    if (!useOnlineLogos || brand.domain == null) return monograma;
 
     return ClipRRect(
       borderRadius: radius,
