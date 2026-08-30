@@ -85,7 +85,17 @@ class CategoryTotal {
 }
 
 /// Filtros disponíveis no extrato.
-enum LedgerFilter { all, card, incoming, outgoing, transfers, deposits, withdrawals, trades }
+enum LedgerFilter {
+  all,
+  card,
+  uncategorized,
+  incoming,
+  outgoing,
+  transfers,
+  deposits,
+  withdrawals,
+  trades,
+}
 
 String ledgerFilterLabel(LedgerFilter f) {
   switch (f) {
@@ -93,6 +103,8 @@ String ledgerFilterLabel(LedgerFilter f) {
       return 'Tudo';
     case LedgerFilter.card:
       return 'Cartão';
+    case LedgerFilter.uncategorized:
+      return 'Sem categoria';
     case LedgerFilter.incoming:
       return 'Entradas';
     case LedgerFilter.outgoing:
@@ -252,6 +264,7 @@ class AppState extends ChangeNotifier {
   bool _matchesFilter(LedgerEntry e) {
     if (filter == LedgerFilter.all) return true;
     if (filter == LedgerFilter.card) return e.isCard;
+    if (filter == LedgerFilter.uncategorized) return isUncategorized(e);
     if (filter == LedgerFilter.transfers) {
       return e.kind == LedgerKind.internalTransfer;
     }
@@ -453,6 +466,17 @@ class AppState extends ChangeNotifier {
 
   /// Nome original, como veio da Bybit.
   String? originalNameOf(LedgerEntry e) => e.note;
+
+  /// Compra que o app não conseguiu classificar e que o usuário ainda não
+  /// corrigiu. "Outros" escolhido à mão é uma decisão, não uma pendência.
+  bool isUncategorized(LedgerEntry e) =>
+      e.kind == LedgerKind.cardPurchase &&
+      !hasCustomCategory(e) &&
+      categoryOf(e) == SpendCategories.outros;
+
+  /// Quantas compras estão esperando uma categoria.
+  int get uncategorizedCount =>
+      cardEntries.where(isUncategorized).length;
 
   bool hasCustomCategory(LedgerEntry e) =>
       _categoryOverrides.containsKey(_merchantKey(e));

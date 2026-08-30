@@ -73,6 +73,21 @@ String fmtMonthYear(DateTime d) {
 /// só faz sujeira quando a coluna já é estreita.
 String fmtShortDate(DateTime d) => _shortDate.format(d).replaceAll('.', '');
 
+/// Data curta para a coluna de uma tabela: "hoje", "ontem", "29 ago" — e com
+/// o ano só quando não é o corrente, que é quando ele informa alguma coisa.
+String fmtCompactDate(DateTime d) {
+  final agora = DateTime.now();
+  final dia = DateTime(d.year, d.month, d.day);
+  final hoje = DateTime(agora.year, agora.month, agora.day);
+  final diferenca = hoje.difference(dia).inDays;
+  if (diferenca == 0) return 'hoje';
+  if (diferenca == 1) return 'ontem';
+  final texto = fmtShortDate(d);
+  return d.year == agora.year
+      ? texto.substring(0, texto.lastIndexOf(' '))
+      : texto;
+}
+
 /// "ago/26", para eixos e comparações curtas.
 String fmtMonthShort(DateTime d) => _monthShort.format(d);
 

@@ -189,27 +189,37 @@ class LedgerTile extends StatelessWidget {
     );
   }
 
-  void _showDetails(BuildContext context) {
-    showModalBottomSheet<void>(
-      context: context,
-      backgroundColor: context.colors.surface,
-      showDragHandle: true,
-      isScrollControlled: true,
-      shape: const RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
-      ),
-      // Folhas modais vivem fora da árvore que escuta o estado, então
-      // precisam observar o AppState para refletir renomeações na hora.
-      builder: (sheetContext) => AnimatedBuilder(
-        animation: state,
-        builder: (_, __) => _LedgerDetails(entry: entry, state: state),
-      ),
-    );
-  }
+  void _showDetails(BuildContext context) =>
+      showLedgerDetails(context, state: state, entry: entry);
 }
 
-class _LedgerDetails extends StatelessWidget {
-  const _LedgerDetails({required this.entry, required this.state});
+/// Abre os detalhes de um lançamento como folha.
+void showLedgerDetails(
+  BuildContext context, {
+  required AppState state,
+  required LedgerEntry entry,
+}) {
+  showModalBottomSheet<void>(
+    context: context,
+    backgroundColor: context.colors.surface,
+    showDragHandle: true,
+    isScrollControlled: true,
+    shape: const RoundedRectangleBorder(
+      borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+    ),
+    // Folhas modais vivem fora da árvore que escuta o estado, então
+    // precisam observar o AppState para refletir renomeações na hora.
+    builder: (sheetContext) => AnimatedBuilder(
+      animation: state,
+      builder: (_, __) => LedgerDetails(entry: entry, state: state),
+    ),
+  );
+}
+
+/// Detalhes de um lançamento: serve tanto na folha do celular quanto no
+/// painel lateral do computador.
+class LedgerDetails extends StatelessWidget {
+  const LedgerDetails({super.key, required this.entry, required this.state});
 
   final LedgerEntry entry;
   final AppState state;

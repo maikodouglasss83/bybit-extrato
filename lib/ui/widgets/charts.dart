@@ -220,26 +220,27 @@ class MonthlyBars extends StatelessWidget {
   Widget build(BuildContext context) {
     final maior = values.isEmpty ? 0.0 : values.reduce(math.max);
 
-    return LayoutBuilder(
-      builder: (context, constraints) {
-        final cabem = constraints.maxWidth / math.max(values.length, 1);
-        // Com muitos meses o gráfico rola na horizontal em vez de espremer.
-        if (cabem >= _minBarWidth) {
-          return SizedBox(
-            height: height,
-            child: Row(
+    // A altura fica no lado de fora do LayoutBuilder de propósito: quem
+    // pergunta a altura deste gráfico — o Row de cartões lado a lado no
+    // computador, por exemplo — recebe a resposta sem precisar rodar o
+    // cálculo de largura, que não pode ser executado especulativamente.
+    return SizedBox(
+      height: height,
+      child: LayoutBuilder(
+        builder: (context, constraints) {
+          final cabem = constraints.maxWidth / math.max(values.length, 1);
+          // Com muitos meses o gráfico rola na horizontal em vez de espremer.
+          if (cabem >= _minBarWidth) {
+            return Row(
               crossAxisAlignment: CrossAxisAlignment.end,
               children: [
                 for (var i = 0; i < values.length; i++)
                   Expanded(child: _bar(context, i, maior)),
               ],
-            ),
-          );
-        }
+            );
+          }
 
-        return SizedBox(
-          height: height,
-          child: ListView.builder(
+          return ListView.builder(
             scrollDirection: Axis.horizontal,
             reverse: true,
             itemCount: values.length,
@@ -251,9 +252,9 @@ class MonthlyBars extends StatelessWidget {
                 child: _bar(context, i, maior),
               );
             },
-          ),
-        );
-      },
+          );
+        },
+      ),
     );
   }
 

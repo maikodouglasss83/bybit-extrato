@@ -1769,6 +1769,17 @@ void _telas() {
       compra('m', 'MERCADINHO DO TICO', 200, agosto),
     ]);
 
+  /// O app de verdade escuta o estado por fora do shell; os testes precisam
+  /// da mesma amarração para ver a tela reagir a um filtro ou a uma edição.
+  Widget shellDe(AppState state) => AnimatedBuilder(
+        animation: state,
+        builder: (_, __) => AppShell(
+          state: state,
+          themeMode: ThemeMode.dark,
+          onThemeModeChanged: (_) {},
+        ),
+      );
+
   Future<void> montar(WidgetTester tester, Widget tela, Size tamanho) async {
     tester.view.physicalSize = tamanho;
     tester.view.devicePixelRatio = 1;
@@ -1825,16 +1836,115 @@ void _telas() {
     });
   });
 
+  group('Extrato no computador', () {
+    AppState comLancamentos() => AppState()
+      ..phase = LoadPhase.ready
+      ..preferBrl = false
+      ..seedEntries([
+        compra('n', 'NETFLIX.COM', 59.90, agosto),
+        compra('m', 'MERCADINHO DO TICO', 200, agosto),
+        compra('x', 'PAGAMENTO 77231', 35, agosto),
+      ]);
+
+    testWidgets('vira tabela com as colunas', (tester) async {
+      final state = comLancamentos();
+      await montar(
+        tester,
+        shellDe(state),
+        const Size(1440, 900),
+      );
+
+      await tester.tap(find.text('Extrato'));
+      await tester.pumpAndSettle();
+
+      expect(find.text('DESCRIÇÃO'), findsOneWidget);
+      expect(find.text('CATEGORIA'), findsOneWidget);
+      expect(find.text('STATUS'), findsOneWidget);
+      expect(find.text('NETFLIX.COM'), findsOneWidget);
+      expect(tester.takeException(), isNull);
+    });
+
+    testWidgets('clicar numa linha abre o painel ao lado', (tester) async {
+      final state = comLancamentos();
+      await montar(
+        tester,
+        shellDe(state),
+        const Size(1440, 900),
+      );
+
+      await tester.tap(find.text('Extrato'));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('NETFLIX.COM'));
+      await tester.pumpAndSettle();
+
+      expect(find.text('Detalhes'), findsOneWidget);
+      // Com o painel aberto a coluna de situação sai para a descrição caber.
+      expect(find.text('STATUS'), findsNothing);
+      expect(tester.takeException(), isNull);
+    });
+
+    testWidgets('no celular continua a lista agrupada por dia', (tester) async {
+      final state = comLancamentos();
+      await montar(tester, shellDe(state), const Size(390, 844));
+
+      await tester.tap(find.text('Extrato'));
+      await tester.pumpAndSettle();
+
+      expect(find.text('DESCRIÇÃO'), findsNothing);
+      expect(find.text('ONTEM'), findsOneWidget);
+      expect(find.text('NETFLIX.COM'), findsOneWidget);
+      expect(tester.takeException(), isNull);
+    });
+
+    testWidgets('a compra sem categoria pede uma', (tester) async {
+      final state = comLancamentos();
+      expect(state.uncategorizedCount, 1);
+
+      await montar(
+        tester,
+        shellDe(state),
+        const Size(1440, 900),
+      );
+
+      await tester.tap(find.text('Extrato'));
+      await tester.pumpAndSettle();
+
+      expect(
+        find.textContaining('1 sem categoria', findRichText: true),
+        findsOneWidget,
+      );
+      expect(find.text('categorizar'), findsOneWidget);
+
+      // O aviso filtra a lista para as pendências.
+      await tester.tap(find.text('Resolver agora →'));
+      await tester.pumpAndSettle();
+      expect(state.filter, LedgerFilter.uncategorized);
+      expect(find.text('NETFLIX.COM'), findsNothing);
+      expect(tester.takeException(), isNull);
+    });
+  });
+
   group('Navegação', () {
+    testWidgets('a barra lateral do computador vem por seções', (tester) async {
+      final state = comAssinaturas();
+      await montar(
+        tester,
+        shellDe(state),
+        const Size(1440, 900),
+      );
+
+      expect(find.text('GERAL'), findsOneWidget);
+      expect(find.text('PLANEJAMENTO'), findsOneWidget);
+      expect(find.text('ANÁLISE'), findsOneWidget);
+      expect(find.text('Gastos por categoria'), findsOneWidget);
+      expect(tester.takeException(), isNull);
+    });
+
     testWidgets('a barra do celular cabe com as seis abas', (tester) async {
       final state = comAssinaturas();
       await montar(
         tester,
-        AppShell(
-          state: state,
-          themeMode: ThemeMode.dark,
-          onThemeModeChanged: (_) {},
-        ),
+        shellDe(state),
         const Size(360, 800),
       );
 

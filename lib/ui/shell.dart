@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 
 import '../app_state.dart';
 import '../theme.dart';
+import '../util/format.dart';
 import 'categories_page.dart';
 import 'connect_page.dart';
 import 'dashboard_page.dart';
@@ -84,11 +85,13 @@ class _AppShellState extends State<AppShell> {
                       title: _titles[_index],
                       state: state,
                       showRefresh: _index != _settingsIndex,
+                      themeMode: widget.themeMode,
+                      onThemeModeChanged: widget.onThemeModeChanged,
                     ),
                     Expanded(
                       child: Center(
                         child: ConstrainedBox(
-                          constraints: const BoxConstraints(maxWidth: 1100),
+                          constraints: const BoxConstraints(maxWidth: 1440),
                           child: body,
                         ),
                       ),
@@ -206,6 +209,10 @@ class _AppShellState extends State<AppShell> {
 }
 
 /// Navegação lateral usada nas telas largas.
+///
+/// Os itens vêm agrupados por assunto: numa tela grande a lista corrida de
+/// seis nomes não diz o que é consulta, o que é planejamento e o que é
+/// ajuste — os títulos das seções fazem esse trabalho.
 class _SideNav extends StatelessWidget {
   const _SideNav({
     required this.index,
@@ -217,10 +224,27 @@ class _SideNav extends StatelessWidget {
   final ValueChanged<int> onSelect;
   final AppState state;
 
+  static const _secoes = <String, List<(int, IconData, String)>>{
+    'GERAL': [
+      (0, Icons.dashboard_rounded, 'Visão geral'),
+      (4, Icons.receipt_long_rounded, 'Extrato'),
+    ],
+    'PLANEJAMENTO': [
+      (2, Icons.autorenew_rounded, 'Assinaturas'),
+      (3, Icons.flag_rounded, 'Planejamento'),
+    ],
+    'ANÁLISE': [
+      (1, Icons.pie_chart_rounded, 'Gastos por categoria'),
+    ],
+    'CONTA': [
+      (5, Icons.settings_rounded, 'Ajustes'),
+    ],
+  };
+
   @override
   Widget build(BuildContext context) {
     return Container(
-      width: 232,
+      width: 244,
       color: context.colors.surface,
       padding: const EdgeInsets.symmetric(vertical: 20, horizontal: 14),
       child: Column(
@@ -252,22 +276,26 @@ class _SideNav extends StatelessWidget {
               ],
             ),
           ),
-          const SizedBox(height: 28),
-          _navItem(context, 0, Icons.dashboard_rounded, 'Visão geral'),
-          _navItem(context, 1, Icons.pie_chart_rounded, 'Gastos'),
-          _navItem(context, 2, Icons.autorenew_rounded, 'Assinaturas'),
-          _navItem(context, 3, Icons.flag_rounded, 'Planejamento'),
-          _navItem(context, 4, Icons.receipt_long_rounded, 'Extrato'),
-          _navItem(context, 5, Icons.settings_rounded, 'Ajustes'),
-          const Spacer(),
-          if (state.credentials != null)
-            Padding(
-              padding: const EdgeInsets.all(8),
-              child: Text(
-                'Chave ${state.credentials!.maskedKey}',
-                style: context.texts.bodySmall,
+          const SizedBox(height: 22),
+          Expanded(
+            child: SingleChildScrollView(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  for (final secao in _secoes.entries) ...[
+                    Padding(
+                      padding: const EdgeInsets.fromLTRB(12, 10, 12, 8),
+                      child: Text(secao.key, style: context.texts.labelSmall),
+                    ),
+                    for (final (i, icone, rotulo) in secao.value)
+                      _navItem(context, i, icone, rotulo),
+                  ],
+                ],
               ),
             ),
+          ),
+          const Divider(height: 24),
+          _Assinante(state: state),
         ],
       ),
     );
@@ -276,12 +304,12 @@ class _SideNav extends StatelessWidget {
   Widget _navItem(BuildContext context, int i, IconData icon, String label) {
     final selected = index == i;
     return Padding(
-      padding: const EdgeInsets.only(bottom: 6),
+      padding: const EdgeInsets.only(bottom: 4),
       child: InkWell(
         borderRadius: BorderRadius.circular(12),
         onTap: () => onSelect(i),
         child: Container(
-          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
+          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 11),
           decoration: BoxDecoration(
             color: selected
                 ? AppColors.accent.withValues(alpha: 0.14)
@@ -291,14 +319,20 @@ class _SideNav extends StatelessWidget {
           child: Row(
             children: [
               Icon(icon,
-                  size: 20,
+                  size: 19,
                   color: selected ? AppColors.accent : context.tones.muted),
               const SizedBox(width: 12),
-              Text(
-                label,
-                style: context.texts.bodyMedium?.copyWith(
-                  fontWeight: selected ? FontWeight.w600 : FontWeight.w400,
-                  color: selected ? context.colors.onSurface : context.tones.muted,
+              Expanded(
+                child: Text(
+                  label,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: context.texts.bodyMedium?.copyWith(
+                    fontWeight: selected ? FontWeight.w600 : FontWeight.w400,
+                    color: selected
+                        ? context.colors.onSurface
+                        : context.tones.muted,
+                  ),
                 ),
               ),
             ],
@@ -309,39 +343,194 @@ class _SideNav extends StatelessWidget {
   }
 }
 
+/// Quem está usando o app, no pé da barra lateral.
+class _Assinante extends StatelessWidget {
+  const _Assinante({required this.state});
+
+  final AppState state;
+
+  @override
+  Widget build(BuildContext context) {
+    final nome = state.cloudName ?? state.cloudEmail;
+    final chave = state.credentials?.maskedKey;
+
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+      child: Row(
+        children: [
+          CircleAvatar(
+            radius: 15,
+            backgroundColor: AppColors.accent.withValues(alpha: 0.18),
+            backgroundImage: state.cloudAvatar == null
+                ? null
+                : NetworkImage(state.cloudAvatar!),
+            child: state.cloudAvatar != null
+                ? null
+                : Icon(
+                    nome == null ? Icons.vpn_key_rounded : Icons.person_rounded,
+                    size: 16,
+                    color: AppColors.accent,
+                  ),
+          ),
+          const SizedBox(width: 10),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  nome ?? 'Sem conta',
+                  style: context.texts.bodyMedium,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                ),
+                if (chave != null)
+                  Text(
+                    'Chave $chave',
+                    style: context.texts.bodySmall,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                  ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+/// Faixa superior das telas largas: título à esquerda, ações à direita.
 class _TopBar extends StatelessWidget {
   const _TopBar({
     required this.title,
     required this.state,
     required this.showRefresh,
+    required this.themeMode,
+    required this.onThemeModeChanged,
   });
 
   final String title;
   final AppState state;
   final bool showRefresh;
+  final ThemeMode themeMode;
+  final ValueChanged<ThemeMode> onThemeModeChanged;
 
   @override
   Widget build(BuildContext context) {
+    final escuro = Theme.of(context).brightness == Brightness.dark;
+
     return Padding(
-      padding: const EdgeInsets.fromLTRB(24, 20, 24, 8),
+      padding: const EdgeInsets.fromLTRB(24, 18, 24, 10),
       child: Row(
         children: [
-          Text(title, style: context.texts.headlineSmall),
+          Flexible(
+            child: Text(
+              title,
+              style: context.texts.headlineSmall,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+            ),
+          ),
           const Spacer(),
-          if (showRefresh)
-            OutlinedButton.icon(
+          if (showRefresh) ...[
+            Text(_desdeASincronizacao(state), style: context.texts.bodySmall),
+            const SizedBox(width: 6),
+            IconButton(
+              tooltip: 'Atualizar',
               onPressed: state.refresh,
               icon: state.phase == LoadPhase.loading
                   ? const SizedBox(
-                      width: 15,
-                      height: 15,
+                      width: 16,
+                      height: 16,
                       child: CircularProgressIndicator(strokeWidth: 2.2),
                     )
-                  : const Icon(Icons.refresh_rounded, size: 18),
-              label: const Text('Atualizar'),
-              style: OutlinedButton.styleFrom(minimumSize: const Size(0, 42)),
+                  : const Icon(Icons.refresh_rounded, size: 20),
             ),
+          ],
+          IconButton(
+            tooltip: state.hideBalances ? 'Mostrar valores' : 'Ocultar valores',
+            onPressed: state.toggleHideBalances,
+            icon: Icon(
+              state.hideBalances
+                  ? Icons.visibility_off_outlined
+                  : Icons.visibility_outlined,
+              size: 20,
+            ),
+          ),
+          IconButton(
+            tooltip: escuro ? 'Tema claro' : 'Tema escuro',
+            onPressed: () => onThemeModeChanged(
+              escuro ? ThemeMode.light : ThemeMode.dark,
+            ),
+            icon: Icon(
+              escuro ? Icons.light_mode_outlined : Icons.dark_mode_outlined,
+              size: 20,
+            ),
+          ),
+          const SizedBox(width: 8),
+          _MoedaDoTopo(state: state),
         ],
+      ),
+    );
+  }
+
+  /// "agora", "há 5 min" ou o horário — o que for mais informativo.
+  static String _desdeASincronizacao(AppState state) {
+    final quando = state.lastSync;
+    if (quando == null) return 'nunca sincronizado';
+    final minutos = DateTime.now().difference(quando).inMinutes;
+    if (minutos < 1) return 'agora';
+    if (minutos < 60) return 'há $minutos min';
+    return 'às ${fmtTime(quando)}';
+  }
+}
+
+/// Troca a moeda de exibição sem sair da página.
+class _MoedaDoTopo extends StatelessWidget {
+  const _MoedaDoTopo({required this.state});
+
+  final AppState state;
+
+  @override
+  Widget build(BuildContext context) {
+    if (state.usdBrl == null) return const SizedBox.shrink();
+
+    return Container(
+      decoration: BoxDecoration(
+        color: context.tones.surfaceAlt,
+        borderRadius: BorderRadius.circular(10),
+        border: Border.all(color: context.tones.border),
+      ),
+      padding: const EdgeInsets.all(3),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          _opcao(context, r'R$', state.showInBrl),
+          _opcao(context, r'US$', !state.showInBrl),
+        ],
+      ),
+    );
+  }
+
+  Widget _opcao(BuildContext context, String rotulo, bool ativa) {
+    return InkWell(
+      borderRadius: BorderRadius.circular(8),
+      onTap: ativa ? null : state.toggleCurrency,
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+        decoration: BoxDecoration(
+          color: ativa
+              ? AppColors.accent.withValues(alpha: 0.18)
+              : Colors.transparent,
+          borderRadius: BorderRadius.circular(8),
+        ),
+        child: Text(
+          rotulo,
+          style: context.texts.bodySmall?.copyWith(
+            fontWeight: FontWeight.w700,
+            color: ativa ? AppColors.accent : context.tones.muted,
+          ),
+        ),
       ),
     );
   }
