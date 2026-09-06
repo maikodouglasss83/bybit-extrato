@@ -454,8 +454,29 @@ class AppState extends ChangeNotifier {
     return e.category ?? SpendCategories.outros;
   }
 
+  /// Apelidos dados a uma compra específica, pelo identificador dela.
+  ///
+  /// Duas compras no mesmo lugar podem ser coisas diferentes — o nome do
+  /// estabelecimento não diz o que foi comprado. Por isso este apelido vence
+  /// o do estabelecimento: ele é a escolha mais específica.
+  Map<String, String> _entryNameOverrides = {};
+
   /// Nome a exibir: o apelido dado pelo usuário vence o que a Bybit mandou.
   String displayNameOf(LedgerEntry e) {
+    final soDesta = _entryNameOverrides[e.id];
+    if (soDesta != null && soDesta.isNotEmpty) return soDesta;
+
+    final key = _merchantKey(e);
+    if (key.isNotEmpty) {
+      final override = _nameOverrides[key];
+      if (override != null && override.isNotEmpty) return override;
+    }
+    return e.note ?? kindLabel(e.kind, e.rawType);
+  }
+
+  /// Nome que valeria sem o apelido desta compra — o do estabelecimento, ou
+  /// o que veio da Bybit.
+  String merchantNameOf(LedgerEntry e) {
     final key = _merchantKey(e);
     if (key.isNotEmpty) {
       final override = _nameOverrides[key];
@@ -482,19 +503,35 @@ class AppState extends ChangeNotifier {
       _categoryOverrides.containsKey(_merchantKey(e));
 
   bool hasCustomName(LedgerEntry e) =>
+      _entryNameOverrides.containsKey(e.id) ||
       _nameOverrides.containsKey(_merchantKey(e));
+
+  /// O apelido vale só para esta compra, e não para o estabelecimento todo.
+  bool hasEntryName(LedgerEntry e) => _entryNameOverrides.containsKey(e.id);
 
   bool hasCustomizations(LedgerEntry e) =>
       hasCustomCategory(e) || hasCustomName(e);
 
-  /// Grava nome e categoria de um estabelecimento de uma vez. Ambos valem
-  /// para todas as compras do mesmo lugar, inclusive as futuras.
+  /// Quantas compras existem no mesmo estabelecimento — é o que decide se
+  /// vale perguntar ao usuário onde o apelido deve valer.
+  int merchantEntryCount(LedgerEntry e) {
+    final key = _merchantKey(e);
+    if (key.isEmpty) return 1;
+    return _entries.where((o) => _merchantKey(o) == key).length;
+  }
+
+  /// Grava nome e categoria de uma compra.
+  ///
+  /// A categoria sempre vale para o estabelecimento inteiro: classificar é
+  /// dizer que tipo de lugar é aquele. Já o nome pode valer só para aquela
+  /// compra, quando `nameOnlyThis` for verdadeiro.
   ///
   /// Passar `null` mantém o valor atual; passar vazio no nome remove o apelido.
   Future<void> setEntryOverrides(
     LedgerEntry e, {
     String? name,
     String? category,
+    bool nameOnlyThis = false,
   }) async {
     final key = _merchantKey(e);
     if (key.isEmpty) return;
@@ -505,36 +542,60 @@ class AppState extends ChangeNotifier {
 
     if (name != null) {
       final limpo = name.trim();
-      final novo = Map<String, String>.from(_nameOverrides);
-      // Apelido igual ao original não é personalização.
-      if (limpo.isEmpty || limpo == (e.note ?? '').trim()) {
-        novo.remove(key);
+      final porCompra = Map<String, String>.from(_entryNameOverrides);
+      final porEstabelecimento = Map<String, String>.from(_nameOverrides);
+
+      if (nameOnlyThis) {
+        // Apelido igual ao que já apareceria não é personalização.
+        if (limpo.isEmpty || limpo == merchantNameOf(e).trim()) {
+          porCompra.remove(e.id);
+        } else {
+          porCompra[e.id] = limpo;
+        }
       } else {
-        novo[key] = limpo;
+        if (limpo.isEmpty || limpo == (e.note ?? '').trim()) {
+          porEstabelecimento.remove(key);
+        } else {
+          porEstabelecimento[key] = limpo;
+        }
+        // Sem isto o apelido desta compra continuaria vencendo, e a mudança
+        // pareceria não ter surtido efeito justo na linha que foi editada.
+        porCompra.remove(e.id);
       }
-      _nameOverrides = novo;
+
+      _entryNameOverrides = porCompra;
+      _nameOverrides = porEstabelecimento;
     }
 
     notifyListeners();
     await _preferences.saveCategoryOverrides(_categoryOverrides);
     await _preferences.saveNameOverrides(_nameOverrides);
+    await _preferences.saveEntryNameOverrides(_entryNameOverrides);
     _syncPreference(_kSyncCategorias, _categoryOverrides);
     _syncPreference(_kSyncNomes, _nameOverrides);
+    _syncPreference(_kSyncNomesPorCompra, _entryNameOverrides);
   }
 
-  /// Devolve o estabelecimento ao nome e à categoria automáticos.
+  /// Devolve o estabelecimento ao nome e à categoria automáticos, junto com
+  /// o apelido que valia só para esta compra.
   Future<void> clearOverridesFor(LedgerEntry e) async {
     final key = _merchantKey(e);
-    if (!_categoryOverrides.containsKey(key) && !_nameOverrides.containsKey(key)) {
+    if (!_categoryOverrides.containsKey(key) &&
+        !_nameOverrides.containsKey(key) &&
+        !_entryNameOverrides.containsKey(e.id)) {
       return;
     }
     _categoryOverrides = Map<String, String>.from(_categoryOverrides)..remove(key);
     _nameOverrides = Map<String, String>.from(_nameOverrides)..remove(key);
+    _entryNameOverrides = Map<String, String>.from(_entryNameOverrides)
+      ..remove(e.id);
     notifyListeners();
     await _preferences.saveCategoryOverrides(_categoryOverrides);
     await _preferences.saveNameOverrides(_nameOverrides);
+    await _preferences.saveEntryNameOverrides(_entryNameOverrides);
     _syncPreference(_kSyncCategorias, _categoryOverrides);
     _syncPreference(_kSyncNomes, _nameOverrides);
+    _syncPreference(_kSyncNomesPorCompra, _entryNameOverrides);
   }
 
   /// Quantos estabelecimentos foram ajustados à mão, por nome ou categoria.
@@ -685,7 +746,7 @@ class AppState extends ChangeNotifier {
 
       previsoes.add(FixedForecast(
         merchantKey: chave,
-        merchant: displayNameOf(compras.first),
+        merchant: merchantNameOf(compras.first),
         expectedDay: diaPrevisto,
         expectedDate: dataPrevista,
         expectedAmount: valorPrevisto,
@@ -730,7 +791,7 @@ class AppState extends ChangeNotifier {
       if (e.kind != LedgerKind.cardPurchase || isHidden(e)) continue;
       if (e.time.year != month.year || e.time.month != month.month) continue;
       if (!isFixed(e)) continue;
-      final nome = displayNameOf(e);
+      final nome = merchantNameOf(e);
       totais[nome] = (totais[nome] ?? 0) + e.change.abs();
     }
     final lista = totais.entries.toList()
@@ -781,7 +842,7 @@ class AppState extends ChangeNotifier {
       final ultima = compras.first;
       lista.add(Subscription(
         key: chave,
-        name: displayNameOf(ultima),
+        name: merchantNameOf(ultima),
         category: categoryOf(ultima),
         monthlyBrl: brlValueOf(ultima.coin, ultima.change.abs()),
         lastCharge: ultima.time,
@@ -1614,6 +1675,7 @@ class AppState extends ChangeNotifier {
     // Os ajustes antigos foram gravados por grafia; passam a valer por marca.
     _categoryOverrides = _migrateKeys(await _preferences.loadCategoryOverrides());
     _nameOverrides = _migrateKeys(await _preferences.loadNameOverrides());
+    _entryNameOverrides = await _preferences.loadEntryNameOverrides();
     _fixedOverrides = _migrateKeys(await _preferences.loadFixedOverrides());
     _dueDayOverrides = _migrateKeys(await _preferences.loadDueDays());
     _hiddenIds = await _preferences.loadHiddenEntries();
@@ -1839,6 +1901,7 @@ class AppState extends ChangeNotifier {
   static const _kSyncFixos = 'fixed_overrides';
   static const _kSyncMoeda = 'show_in_brl';
   static const _kSyncVencimentos = 'due_days';
+  static const _kSyncNomesPorCompra = 'entry_name_overrides';
   static const _kSyncAssinaturas = 'manual_subscriptions';
   static const _kSyncAssinaturasCanceladas = 'cancelled_subscriptions';
 
@@ -1890,6 +1953,11 @@ class AppState extends ChangeNotifier {
     if (ajustes.containsKey(_kSyncNomes)) {
       _nameOverrides = _migrateKeys(comoMapa(ajustes[_kSyncNomes]));
     }
+    // Estes são por transação: a chave é o identificador do lançamento, que
+    // não muda de aparelho para aparelho.
+    if (ajustes.containsKey(_kSyncNomesPorCompra)) {
+      _entryNameOverrides = comoMapa(ajustes[_kSyncNomesPorCompra]);
+    }
     if (ajustes[_kSyncFixos] is Map) {
       _fixedOverrides = _migrateKeys((ajustes[_kSyncFixos] as Map)
           .map((k, v) => MapEntry(k.toString(), v == true)));
@@ -1934,6 +2002,7 @@ class AppState extends ChangeNotifier {
     // O que veio da nuvem passa a valer também neste aparelho.
     _preferences.saveCategoryOverrides(_categoryOverrides);
     _preferences.saveNameOverrides(_nameOverrides);
+    _preferences.saveEntryNameOverrides(_entryNameOverrides);
     _preferences.saveFixedOverrides(_fixedOverrides);
     _preferences.saveDueDays(_dueDayOverrides);
     _preferences.saveHiddenEntries(_hiddenIds);
@@ -1946,6 +2015,7 @@ class AppState extends ChangeNotifier {
   Future<void> _pushAllPreferences() async {
     await _cloud.pushPreference(_kSyncCategorias, _categoryOverrides);
     await _cloud.pushPreference(_kSyncNomes, _nameOverrides);
+    await _cloud.pushPreference(_kSyncNomesPorCompra, _entryNameOverrides);
     await _cloud.pushPreference(_kSyncFixos, _fixedOverrides);
     await _cloud.pushPreference(_kSyncVencimentos, _dueDayOverrides);
     await _cloud.pushPreference(_kSyncOcultos, _hiddenIds.toList());

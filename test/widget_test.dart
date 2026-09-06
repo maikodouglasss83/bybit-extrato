@@ -947,6 +947,75 @@ void main() {
       expect(state.originalNameOf(meli), 'MERCADOLIVRE*MERCADOLI');
     });
 
+    test('renomear só esta compra não mexe na outra do mesmo lugar', () async {
+      await state.setEntryOverrides(meli,
+          name: 'Presente da Ana', nameOnlyThis: true);
+
+      expect(state.displayNameOf(meli), 'Presente da Ana');
+      expect(state.displayNameOf(meliOutraCompra), 'MERCADOLIVRE*MERCADOLI');
+      expect(state.hasEntryName(meli), isTrue);
+      expect(state.hasEntryName(meliOutraCompra), isFalse);
+      // A categoria continua valendo para o estabelecimento inteiro.
+      expect(state.categoryOf(meliOutraCompra), state.categoryOf(meli));
+    });
+
+    test('cada compra pode ter o seu próprio nome', () async {
+      await state.setEntryOverrides(meli,
+          name: 'Presente da Ana', nameOnlyThis: true);
+      await state.setEntryOverrides(meliOutraCompra,
+          name: 'Cabo do notebook', nameOnlyThis: true);
+
+      expect(state.displayNameOf(meli), 'Presente da Ana');
+      expect(state.displayNameOf(meliOutraCompra), 'Cabo do notebook');
+    });
+
+    test('o apelido da compra vence o do estabelecimento', () async {
+      await state.setEntryOverrides(meli, name: 'Mercado Livre');
+      await state.setEntryOverrides(meli,
+          name: 'Presente da Ana', nameOnlyThis: true);
+
+      expect(state.displayNameOf(meli), 'Presente da Ana');
+      expect(state.displayNameOf(meliOutraCompra), 'Mercado Livre');
+      // E o do estabelecimento continua guardado por baixo.
+      expect(state.merchantNameOf(meli), 'Mercado Livre');
+    });
+
+    test('renomear o lugar todo desfaz o apelido individual', () async {
+      await state.setEntryOverrides(meli,
+          name: 'Presente da Ana', nameOnlyThis: true);
+      // Sem isto a linha editada seria a única a não mudar.
+      await state.setEntryOverrides(meli, name: 'Mercado Livre');
+
+      expect(state.displayNameOf(meli), 'Mercado Livre');
+      expect(state.displayNameOf(meliOutraCompra), 'Mercado Livre');
+      expect(state.hasEntryName(meli), isFalse);
+    });
+
+    test('apelido igual ao nome do lugar não conta como personalização',
+        () async {
+      await state.setEntryOverrides(meli, name: 'Mercado Livre');
+      await state.setEntryOverrides(meli,
+          name: 'Mercado Livre', nameOnlyThis: true);
+
+      expect(state.hasEntryName(meli), isFalse);
+      expect(state.displayNameOf(meli), 'Mercado Livre');
+    });
+
+    test('restaurar limpa o apelido da compra junto', () async {
+      await state.setEntryOverrides(meli,
+          name: 'Presente da Ana', nameOnlyThis: true);
+      await state.clearOverridesFor(meli);
+
+      expect(state.displayNameOf(meli), 'MERCADOLIVRE*MERCADOLI');
+      expect(state.hasCustomizations(meli), isFalse);
+    });
+
+    test('conta as compras do mesmo lugar, para saber se vale perguntar', () {
+      expect(state.merchantEntryCount(meli), 2);
+      final netflix = state.cardEntries.firstWhere((e) => e.note == 'NETFLIX.COM');
+      expect(state.merchantEntryCount(netflix), 1);
+    });
+
     test('ajuste não vaza para outro estabelecimento', () async {
       await state.setEntryOverrides(meli, name: 'Mercado Livre');
       final netflix = state.cardEntries.firstWhere((e) => e.note == 'NETFLIX.COM');
@@ -1884,7 +1953,14 @@ void _telas() {
     });
 
     testWidgets('no celular continua a lista agrupada por dia', (tester) async {
-      final state = comLancamentos();
+      // A data é relativa ao dia de hoje: é o cabeçalho "ONTEM" que se quer
+      // ver, e ele só aparece para a véspera de verdade.
+      final ontem = DateTime.now().subtract(const Duration(days: 1));
+      final state = AppState()
+        ..phase = LoadPhase.ready
+        ..preferBrl = false
+        ..seedEntries([compra('n', 'NETFLIX.COM', 59.90, ontem)]);
+
       await montar(tester, shellDe(state), const Size(390, 844));
 
       await tester.tap(find.text('Extrato'));

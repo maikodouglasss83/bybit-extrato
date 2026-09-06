@@ -45,6 +45,13 @@ class _EntryEditorState extends State<_EntryEditor> {
   late bool _fixo = widget.state.isFixed(widget.entry);
   late int? _diaVencimento = widget.state.dueDayOf(widget.entry);
 
+  /// Onde o novo nome vale. O padrão é só nesta compra: duas compras no mesmo
+  /// lugar costumam ser coisas diferentes, e mexer nas duas de uma vez é a
+  /// exceção — que fica a um toque de distância.
+  late bool _soEstaCompra =
+      widget.state.hasEntryName(widget.entry) ||
+          !widget.state.hasCustomName(widget.entry);
+
   @override
   void dispose() {
     _nameController.dispose();
@@ -63,6 +70,7 @@ class _EntryEditorState extends State<_EntryEditor> {
       widget.entry,
       name: _nameController.text,
       category: _category,
+      nameOnlyThis: _soEstaCompra,
     );
     await widget.state.setFixed(widget.entry, _fixo);
     // O dia só faz sentido em compromisso mensal.
@@ -81,6 +89,7 @@ class _EntryEditorState extends State<_EntryEditor> {
   Widget build(BuildContext context) {
     final original = widget.state.originalNameOf(widget.entry);
     final ajustado = widget.state.hasCustomizations(widget.entry);
+    final irmas = widget.state.merchantEntryCount(widget.entry);
 
     return DraggableScrollableSheet(
       expand: false,
@@ -138,6 +147,34 @@ class _EntryEditorState extends State<_EntryEditor> {
                           style: context.texts.bodySmall,
                           maxLines: 1,
                           overflow: TextOverflow.ellipsis,
+                        ),
+                      ),
+                    ],
+                  ),
+                ],
+                if (irmas > 1) ...[
+                  const SizedBox(height: 22),
+                  Text('Este nome vale para', style: context.texts.titleSmall),
+                  const SizedBox(height: 10),
+                  Row(
+                    children: [
+                      Expanded(
+                        child: _Opcao(
+                          selecionada: _soEstaCompra,
+                          icone: Icons.receipt_long_rounded,
+                          titulo: 'Só esta compra',
+                          descricao: 'As outras não mudam',
+                          onTap: () => setState(() => _soEstaCompra = true),
+                        ),
+                      ),
+                      const SizedBox(width: 10),
+                      Expanded(
+                        child: _Opcao(
+                          selecionada: !_soEstaCompra,
+                          icone: Icons.storefront_rounded,
+                          titulo: 'O lugar todo',
+                          descricao: '$irmas compras aqui',
+                          onTap: () => setState(() => _soEstaCompra = false),
                         ),
                       ),
                     ],

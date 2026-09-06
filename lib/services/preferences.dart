@@ -14,6 +14,7 @@ class PreferencesStore {
   static const _storage = FlutterSecureStorage();
   static const _kCategoryOverrides = 'category_overrides';
   static const _kNameOverrides = 'name_overrides';
+  static const _kEntryNameOverrides = 'entry_name_overrides';
   static const _kFixedOverrides = 'fixed_overrides';
   static const _kDueDays = 'due_days';
   static const _kHiddenEntries = 'hidden_entries';
@@ -36,6 +37,13 @@ class PreferencesStore {
 
   Future<void> saveNameOverrides(Map<String, String> overrides) =>
       _saveMap(_kNameOverrides, overrides);
+
+  /// Apelidos que valem para uma compra só, pelo identificador dela.
+  Future<Map<String, String>> loadEntryNameOverrides() =>
+      _loadMap(_kEntryNameOverrides);
+
+  Future<void> saveEntryNameOverrides(Map<String, String> overrides) =>
+      _saveMap(_kEntryNameOverrides, overrides);
 
   /// Estabelecimentos marcados à mão como gasto fixo ou variável.
   Future<Map<String, bool>> loadFixedOverrides() async {
