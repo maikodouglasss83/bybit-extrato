@@ -441,7 +441,7 @@ class _SeletorDeCategoriaState extends State<_SeletorDeCategoria> {
     if (node.sources.isEmpty) return Icons.folder_outlined;
     final valor = node.sources.first;
     return state.isCustomCategory(valor)
-        ? Icons.bookmark_outline_rounded
+        ? iconForCategoryName(node.name)
         : categoryIcon(valor);
   }
 }

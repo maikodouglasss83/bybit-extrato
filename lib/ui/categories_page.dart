@@ -57,7 +57,7 @@ class CategoriesPage extends StatelessWidget {
       child: ListView(
         padding: const EdgeInsets.fromLTRB(16, 8, 16, 32),
         children: [
-          _MonthPicker(state: state),
+          MonthPicker(state: state),
           const SizedBox(height: 16),
           _TotalCard(
             state: state,
@@ -96,38 +96,6 @@ class CategoriesPage extends StatelessWidget {
           ],
         ],
       ),
-    );
-  }
-}
-
-/// Navegação entre os meses.
-class _MonthPicker extends StatelessWidget {
-  const _MonthPicker({required this.state});
-
-  final AppState state;
-
-  @override
-  Widget build(BuildContext context) {
-    return Row(
-      children: [
-        IconButton(
-          onPressed: () => state.shiftMonth(-1),
-          icon: const Icon(Icons.chevron_left_rounded),
-          tooltip: 'Mês anterior',
-        ),
-        Expanded(
-          child: Text(
-            fmtMonthYear(state.selectedMonth),
-            textAlign: TextAlign.center,
-            style: context.texts.titleMedium,
-          ),
-        ),
-        IconButton(
-          onPressed: state.canGoToNextMonth ? () => state.shiftMonth(1) : null,
-          icon: const Icon(Icons.chevron_right_rounded),
-          tooltip: 'Próximo mês',
-        ),
-      ],
     );
   }
 }
@@ -611,10 +579,11 @@ class _SubcategoriaExpansivel extends StatelessWidget {
             borderRadius: BorderRadius.circular(11),
           ),
           child: Icon(
-            // Categoria criada pelo usuário não tem ícone próprio: ganha o
-            // marcador, em vez do genérico de "outros".
+            // Categoria criada pelo usuário não tem ícone próprio: o desenho
+            // sai do nome que ela recebeu — "Cursos" vira o chapéu de
+            // formatura, e não o "..." de genérico.
             origem == null || state.isCustomCategory(origem)
-                ? Icons.bookmark_outline_rounded
+                ? iconForCategoryName(subcategoria.label)
                 : categoryIcon(origem),
             size: 17,
             color: color,

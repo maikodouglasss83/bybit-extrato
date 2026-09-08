@@ -39,6 +39,12 @@ class _StatementPageState extends State<StatementPage> {
   /// Lançamento aberto no painel lateral.
   String? _selecionado;
 
+  /// Mostra o mês escolhido, ou o extrato inteiro.
+  ///
+  /// Começa no mês, como as outras páginas; procurar uma compra antiga é o
+  /// caso em que se abre tudo, e o botão para isso fica ao lado do mês.
+  bool _apenasDoMes = true;
+
   /// Marcados pelas caixinhas, para as ações em massa.
   final _marcados = <String>{};
 
@@ -69,7 +75,12 @@ class _StatementPageState extends State<StatementPage> {
   @override
   Widget build(BuildContext context) {
     final state = widget.state;
-    final entries = state.entries;
+    final mes = state.selectedMonth;
+    final entries = _apenasDoMes
+        ? state.entries
+            .where((e) => e.time.year == mes.year && e.time.month == mes.month)
+            .toList()
+        : state.entries;
 
     return LayoutBuilder(
       builder: (context, constraints) {
@@ -83,6 +94,17 @@ class _StatementPageState extends State<StatementPage> {
 
         final lista = Column(
           children: [
+            Padding(
+              padding: const EdgeInsets.fromLTRB(8, 4, 8, 0),
+              child: MonthPicker(
+                state: state,
+                enabled: _apenasDoMes,
+                trailing: _BotaoTudo(
+                  ativo: !_apenasDoMes,
+                  onTap: () => setState(() => _apenasDoMes = !_apenasDoMes),
+                ),
+              ),
+            ),
             _Ferramentas(
               state: state,
               controller: _searchController,
@@ -139,17 +161,37 @@ class _StatementPageState extends State<StatementPage> {
     );
   }
 
-  Widget _vazio(AppState state) => EmptyState(
-        icon: Icons.receipt_long_rounded,
-        title: 'Nada por aqui',
+  Widget _vazio(AppState state) {
+    // Com o mês ligado, o vazio quase sempre é o mês errado — e não a falta
+    // de dados. O caminho de saída é ver tudo, não atualizar.
+    if (_apenasDoMes) {
+      return EmptyState(
+        icon: Icons.event_busy_rounded,
+        title: 'Nada em ${fmtMonthYear(state.selectedMonth)}',
         message: state.search.isNotEmpty || state.filter != LedgerFilter.all
-            ? 'Nenhum lançamento corresponde à busca ou ao filtro selecionado.'
-            : 'Ainda não há movimentações nesta conta da Bybit.',
-        action: FilledButton(
-          onPressed: state.refresh,
-          child: const Text('Atualizar'),
+            ? 'Nenhum lançamento deste mês corresponde à busca ou ao filtro.'
+            : 'Nenhuma movimentação neste mês. Veja outro mês ou o extrato '
+                'inteiro.',
+        action: FilledButton.icon(
+          onPressed: () => setState(() => _apenasDoMes = false),
+          icon: const Icon(Icons.all_inclusive_rounded, size: 18),
+          label: const Text('Ver todos os meses'),
         ),
       );
+    }
+
+    return EmptyState(
+      icon: Icons.receipt_long_rounded,
+      title: 'Nada por aqui',
+      message: state.search.isNotEmpty || state.filter != LedgerFilter.all
+          ? 'Nenhum lançamento corresponde à busca ou ao filtro selecionado.'
+          : 'Ainda não há movimentações nesta conta da Bybit.',
+      action: FilledButton(
+        onPressed: state.refresh,
+        child: const Text('Atualizar'),
+      ),
+    );
+  }
 
   // ---------------------------------------------------------------------
   // Computador: tabela
@@ -303,6 +345,43 @@ class _StatementPageState extends State<StatementPage> {
       rows.add(_Row.entry(entry));
     }
     return rows;
+  }
+}
+
+/// Solta o extrato do mês escolhido e mostra tudo o que já foi carregado.
+class _BotaoTudo extends StatelessWidget {
+  const _BotaoTudo({required this.ativo, required this.onTap});
+
+  final bool ativo;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    return Tooltip(
+      message: ativo ? 'Voltar a filtrar por mês' : 'Ver todos os meses',
+      child: InkWell(
+        onTap: onTap,
+        borderRadius: BorderRadius.circular(10),
+        // Só o ícone: a faixa de filtros logo abaixo já tem um "Tudo", que é
+        // dos tipos de lançamento. Dois botões com o mesmo nome e sentidos
+        // diferentes na mesma tela seria pedir para errar.
+        child: Container(
+          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+          decoration: BoxDecoration(
+            color: ativo ? AppColors.accent.withValues(alpha: 0.16) : null,
+            borderRadius: BorderRadius.circular(10),
+            border: Border.all(
+              color: ativo ? AppColors.accent : context.tones.border,
+            ),
+          ),
+          child: Icon(
+            Icons.all_inclusive_rounded,
+            size: 18,
+            color: ativo ? AppColors.accent : context.tones.muted,
+          ),
+        ),
+      ),
+    );
   }
 }
 

@@ -35,7 +35,7 @@ class PlanningPage extends StatelessWidget {
       child: ListView(
         padding: const EdgeInsets.fromLTRB(16, 8, 16, 32),
         children: [
-          _MonthPicker(state: state),
+          MonthPicker(state: state),
           const SizedBox(height: 16),
           _Summary(state: state, month: mes),
           const SizedBox(height: 16),
@@ -60,38 +60,6 @@ class PlanningPage extends StatelessWidget {
   }
 
   static Color colorFor(int i) => _cores[i % _cores.length];
-}
-
-/// Navegação entre meses, a mesma da tela de gastos.
-class _MonthPicker extends StatelessWidget {
-  const _MonthPicker({required this.state});
-
-  final AppState state;
-
-  @override
-  Widget build(BuildContext context) {
-    return Row(
-      children: [
-        IconButton(
-          onPressed: () => state.shiftMonth(-1),
-          icon: const Icon(Icons.chevron_left_rounded),
-          tooltip: 'Mês anterior',
-        ),
-        Expanded(
-          child: Text(
-            fmtMonthYear(state.selectedMonth),
-            textAlign: TextAlign.center,
-            style: context.texts.titleMedium,
-          ),
-        ),
-        IconButton(
-          onPressed: state.canGoToNextMonth ? () => state.shiftMonth(1) : null,
-          icon: const Icon(Icons.chevron_right_rounded),
-          tooltip: 'Próximo mês',
-        ),
-      ],
-    );
-  }
 }
 
 /// Cartão do topo: gasto, meta e quanto resta.
@@ -446,12 +414,12 @@ class _CategoryTile extends StatelessWidget {
   /// gasto que elas representam.
   static IconData _iconFor(BudgetNode node) {
     if (node.isMain) return mainCategoryIcon(node.id);
-    if (node.sources.isEmpty) return Icons.bookmark_outline_rounded;
+    if (node.sources.isEmpty) return iconForCategoryName(node.name);
 
     final valor = node.sources.first;
     return SpendCategories.all.contains(valor)
         ? categoryIcon(valor)
-        : Icons.bookmark_outline_rounded;
+        : iconForCategoryName(node.name);
   }
 }
 

@@ -26,25 +26,91 @@ class MerchantAvatar extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final brand = brandFor(entry.note);
-
-    // Sem marca conhecida, o ícone da categoria já diz do que se trata.
-    if (brand == null) {
-      return KindAvatar(
-        kind: entry.kind,
-        isIn: entry.isIn,
+    if (brand != null) {
+      return _BrandBadge(
+        brand: brand,
         size: size,
-        overrideIcon: entry.kind == LedgerKind.cardPurchase
-            ? categoryIcon(state.categoryOf(entry))
-            : null,
+        useOnlineLogos: state.useOnlineLogos,
       );
     }
 
-    return _BrandBadge(
-      brand: brand,
+    // Numa compra, o que identifica a linha é o lugar onde ela aconteceu.
+    // Sem marca conhecida, as iniciais do estabelecimento distinguem uma da
+    // outra muito melhor do que o mesmo ícone repetido em todas.
+    if (entry.kind == LedgerKind.cardPurchase) {
+      final nome = state.displayNameOf(entry);
+      final iniciais = initialsFor(nome);
+      if (iniciais.isNotEmpty) {
+        return _Monogram(
+          label: iniciais,
+          color: colorForMerchant(AppState.merchantKeyFor(entry.note)),
+          size: size,
+          radius: BorderRadius.circular(size / 3),
+        );
+      }
+    }
+
+    return KindAvatar(
+      kind: entry.kind,
+      isIn: entry.isIn,
       size: size,
-      useOnlineLogos: state.useOnlineLogos,
+      overrideIcon: entry.kind == LedgerKind.cardPurchase
+          ? categoryIcon(state.categoryOf(entry))
+          : null,
     );
   }
+}
+
+/// Iniciais de um estabelecimento, para o selo de quem não tem marca
+/// conhecida: "Hashtag Treinamentos" vira HT, "Bumper" vira BU.
+///
+/// Os pedaços que a maquininha acrescenta — PAG, LTDA, a cidade, o número do
+/// terminal — não identificam nada e ficam de fora.
+String initialsFor(String nome) {
+  const ruido = {
+    'pag', 'pagto', 'pgto', 'pagamento', 'compra', 'cartao', 'cartão',
+    'ltda', 'me', 'mei', 'eireli', 'sa', 'br', 'bra', 'com', 'www',
+    'do', 'da', 'de', 'dos', 'das', 'e',
+  };
+
+  final limpo = nome.replaceAll(RegExp(r'[^\p{L}\p{N} ]', unicode: true), ' ');
+  final palavras = limpo
+      .split(RegExp(r'\s+'))
+      .where((p) => p.isNotEmpty)
+      .where((p) => !ruido.contains(p.toLowerCase()))
+      .where((p) => !RegExp(r'^\d+$').hasMatch(p))
+      .toList();
+
+  if (palavras.isEmpty) {
+    final letra = nome.replaceAll(RegExp(r'\s'), '');
+    return letra.isEmpty ? '' : letra.substring(0, 1).toUpperCase();
+  }
+  if (palavras.length == 1) {
+    final unica = palavras.first;
+    return (unica.length == 1 ? unica : unica.substring(0, 2)).toUpperCase();
+  }
+  return (palavras[0][0] + palavras[1][0]).toUpperCase();
+}
+
+/// Cor do selo de um estabelecimento sem marca conhecida.
+///
+/// Sai da chave do estabelecimento, e não do nome exibido: renomear a compra
+/// não muda a cor com que você já se acostumou.
+Color colorForMerchant(String chave) {
+  const paleta = [
+    Color(0xFF22D3A6),
+    Color(0xFF6C8CFF),
+    Color(0xFFF5A524),
+    Color(0xFFA78BFA),
+    Color(0xFF38BDF8),
+    Color(0xFFF4436B),
+    Color(0xFF2DD4BF),
+    Color(0xFFFB923C),
+    Color(0xFF818CF8),
+    Color(0xFF4ADE80),
+  ];
+  if (chave.isEmpty) return paleta.first;
+  return paleta[chave.hashCode.abs() % paleta.length];
 }
 
 /// Selo de uma marca reconhecida pelo nome.
@@ -104,7 +170,12 @@ class _BrandBadge extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final radius = BorderRadius.circular(size / 3);
-    final monograma = _Monogram(brand: brand, size: size, radius: radius);
+    final monograma = _Monogram(
+      label: brand.label,
+      color: brand.color,
+      size: size,
+      radius: radius,
+    );
 
     if (!useOnlineLogos || brand.domain == null) return monograma;
 
@@ -124,10 +195,17 @@ class _BrandBadge extends StatelessWidget {
   }
 }
 
+/// Selo com uma ou duas letras sobre a cor de quem ele representa.
 class _Monogram extends StatelessWidget {
-  const _Monogram({required this.brand, required this.size, required this.radius});
+  const _Monogram({
+    required this.label,
+    required this.color,
+    required this.size,
+    required this.radius,
+  });
 
-  final Brand brand;
+  final String label;
+  final Color color;
   final double size;
   final BorderRadius radius;
 
@@ -138,16 +216,16 @@ class _Monogram extends StatelessWidget {
       height: size,
       alignment: Alignment.center,
       decoration: BoxDecoration(
-        color: brand.color.withValues(alpha: 0.16),
+        color: color.withValues(alpha: 0.16),
         borderRadius: radius,
-        border: Border.all(color: brand.color.withValues(alpha: 0.35)),
+        border: Border.all(color: color.withValues(alpha: 0.35)),
       ),
       child: Text(
-        brand.label,
+        label,
         style: TextStyle(
-          color: brand.color,
+          color: color,
           fontWeight: FontWeight.w800,
-          fontSize: brand.label.length >= 2 ? size * 0.34 : size * 0.44,
+          fontSize: label.length >= 2 ? size * 0.34 : size * 0.44,
           letterSpacing: -0.5,
         ),
       ),

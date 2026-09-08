@@ -1,9 +1,11 @@
 import 'package:flutter/material.dart';
 
+import '../../app_state.dart';
 import '../../budget.dart';
 import '../../models.dart';
 import '../../theme.dart';
 import '../../util/categorizer.dart';
+import '../../util/format.dart';
 
 /// Ícone de uma categoria principal do planejamento.
 ///
@@ -72,7 +74,118 @@ IconData categoryIcon(String category) {
     case SpendCategories.transferencias:
       return Icons.swap_horiz_rounded;
     default:
-      return Icons.more_horiz_rounded;
+      return iconForCategoryName(category);
+  }
+}
+
+/// Ícone deduzido do nome da categoria.
+///
+/// As categorias criadas pelo usuário não estão em lista nenhuma, e um
+/// "..." para todas elas não diz nada. O nome que a pessoa escolheu quase
+/// sempre diz do que se trata — "Cursos", "Academia", "Pet" —, então é dele
+/// que sai o desenho.
+IconData iconForCategoryName(String nome) {
+  final n = nome.toLowerCase();
+  bool tem(List<String> chaves) => chaves.any(n.contains);
+
+  if (tem(['curso', 'aula', 'escol', 'facul', 'estud', 'livr', 'ensino'])) {
+    return Icons.school_outlined;
+  }
+  if (tem(['stream', 'assinat', 'filme', 'série', 'serie', 'tv'])) {
+    return Icons.play_circle_outline_rounded;
+  }
+  if (tem(['academ', 'treino', 'fitness', 'gym', 'esporte'])) {
+    return Icons.fitness_center_rounded;
+  }
+  if (tem(['pet', 'veterin', 'animal'])) return Icons.pets_rounded;
+  if (tem(['farm', 'remédio', 'remedio', 'médic', 'medic', 'dentist'])) {
+    return Icons.medical_services_outlined;
+  }
+  if (tem(['combust', 'gasolin', 'posto', 'etanol', 'diesel'])) {
+    return Icons.local_gas_station_rounded;
+  }
+  if (tem(['viagem', 'hotel', 'passag', 'voo', 'hosped'])) {
+    return Icons.flight_takeoff_rounded;
+  }
+  if (tem(['café', 'cafe', 'padaria', 'lanche'])) return Icons.coffee_rounded;
+  if (tem(['bar', 'cerveja', 'bebida'])) return Icons.local_bar_rounded;
+  if (tem(['delivery', 'ifood', 'pedido'])) return Icons.delivery_dining_rounded;
+  if (tem(['presente', 'aniversár', 'aniversar'])) {
+    return Icons.card_giftcard_rounded;
+  }
+  if (tem(['beleza', 'salão', 'salao', 'cabelo', 'barbe'])) {
+    return Icons.content_cut_rounded;
+  }
+  if (tem(['jogo', 'game'])) return Icons.sports_esports_outlined;
+  if (tem(['invest', 'poupan', 'aport'])) return Icons.trending_up_rounded;
+  if (tem(['doaç', 'doac', 'igreja', 'dízimo', 'dizimo'])) {
+    return Icons.volunteer_activism_outlined;
+  }
+  if (tem(['alugu', 'condom', 'casa', 'moradia'])) return Icons.home_outlined;
+  if (tem(['internet', 'telefon', 'celular', 'wifi'])) return Icons.wifi_rounded;
+  if (tem(['imposto', 'tarifa', 'taxa', 'juros'])) {
+    return Icons.receipt_long_outlined;
+  }
+  if (tem(['criança', 'crianca', 'filho', 'bebê', 'bebe'])) {
+    return Icons.child_care_rounded;
+  }
+  if (tem(['carro', 'moto', 'transport', 'ônibus', 'onibus'])) {
+    return Icons.directions_car_filled_outlined;
+  }
+
+  // Nada reconhecido: a marcação neutra de categoria criada à mão.
+  return Icons.bookmark_outline_rounded;
+}
+
+/// Barra de mês: setas para os lados e o mês escolhido no meio.
+///
+/// O mês é o mesmo em todas as páginas — trocar aqui troca no resto do app,
+/// que é o que se espera de um período escolhido uma vez.
+class MonthPicker extends StatelessWidget {
+  const MonthPicker({
+    super.key,
+    required this.state,
+    this.trailing,
+    this.enabled = true,
+  });
+
+  final AppState state;
+
+  /// Controle extra no canto direito, quando a página precisa de um.
+  final Widget? trailing;
+
+  /// Falso quando a página está mostrando tudo: o mês continua à vista, mas
+  /// não manda em nada enquanto o filtro estiver desligado.
+  final bool enabled;
+
+  @override
+  Widget build(BuildContext context) {
+    return Row(
+      children: [
+        IconButton(
+          onPressed: enabled ? () => state.shiftMonth(-1) : null,
+          icon: const Icon(Icons.chevron_left_rounded),
+          tooltip: 'Mês anterior',
+        ),
+        Expanded(
+          child: Text(
+            fmtMonthYear(state.selectedMonth),
+            textAlign: TextAlign.center,
+            style: context.texts.titleMedium?.copyWith(
+              color: enabled ? null : context.tones.muted,
+            ),
+          ),
+        ),
+        IconButton(
+          onPressed: enabled && state.canGoToNextMonth
+              ? () => state.shiftMonth(1)
+              : null,
+          icon: const Icon(Icons.chevron_right_rounded),
+          tooltip: 'Próximo mês',
+        ),
+        if (trailing != null) trailing!,
+      ],
+    );
   }
 }
 

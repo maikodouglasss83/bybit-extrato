@@ -10,6 +10,8 @@ import 'package:bybit_extrato/util/categorizer.dart';
 import 'package:bybit_extrato/theme.dart';
 import 'package:bybit_extrato/ui/shell.dart';
 import 'package:bybit_extrato/ui/widgets/charts.dart';
+import 'package:bybit_extrato/ui/widgets/common.dart';
+import 'package:bybit_extrato/ui/widgets/merchant_avatar.dart';
 import 'package:bybit_extrato/ui/subscriptions_page.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -1643,6 +1645,36 @@ void main() {
     });
   });
 
+  group('Desenho de cada gasto', () {
+    test('as iniciais saem do nome, sem o ruído da maquininha', () {
+      expect(initialsFor('Hashtag Treinamentos'), 'HT');
+      expect(initialsFor('Bumper'), 'BU');
+      expect(initialsFor('MERCADINHO DO TICO'), 'MT'); // "do" não conta
+      expect(initialsFor('PAG*77231 SAO PAULO'), 'SP'); // nem "PAG" nem o número
+      expect(initialsFor('X'), 'X');
+      expect(initialsFor('   '), '');
+    });
+
+    test('a cor do selo é estável e vem da chave do estabelecimento', () {
+      final cor = colorForMerchant('bumper');
+      expect(colorForMerchant('bumper'), cor);
+      expect(colorForMerchant(''), isNotNull);
+    });
+
+    test('o ícone da categoria criada à mão vem do nome dela', () {
+      expect(iconForCategoryName('Cursos'), Icons.school_outlined);
+      expect(iconForCategoryName('Academia'), Icons.fitness_center_rounded);
+      expect(iconForCategoryName('Streaming'), Icons.play_circle_outline_rounded);
+      expect(iconForCategoryName('Pet'), Icons.pets_rounded);
+      // Sem palavra reconhecida, sobra o marcador — nunca o "..." de genérico.
+      expect(iconForCategoryName('Zzz'), Icons.bookmark_outline_rounded);
+    });
+
+    test('categoria conhecida continua com o ícone dela', () {
+      expect(categoryIcon(SpendCategories.mercado), Icons.shopping_cart_outlined);
+    });
+  });
+
   group('Moeda padrão', () {
     test('o real é o padrão quando há cotação', () {
       final state = AppState()..usdBrl = 5.0;
@@ -1978,6 +2010,7 @@ void _telas() {
   });
 
   group('Extrato no computador', () {
+    // O extrato abre no mês escolhido, então o mês precisa ser o das compras.
     AppState comLancamentos() => AppState()
       ..phase = LoadPhase.ready
       ..preferBrl = false
@@ -1985,7 +2018,8 @@ void _telas() {
         compra('n', 'NETFLIX.COM', 59.90, agosto),
         compra('m', 'MERCADINHO DO TICO', 200, agosto),
         compra('x', 'PAGAMENTO 77231', 35, agosto),
-      ]);
+      ])
+      ..selectMonth(agosto);
 
     testWidgets('vira tabela com as colunas', (tester) async {
       final state = comLancamentos();
@@ -2021,6 +2055,33 @@ void _telas() {
       expect(find.text('Detalhes'), findsOneWidget);
       // Com o painel aberto a coluna de situação sai para a descrição caber.
       expect(find.text('STATUS'), findsNothing);
+      expect(tester.takeException(), isNull);
+    });
+
+    testWidgets('mostra só o mês escolhido, e "Tudo" solta o filtro',
+        (tester) async {
+      final julho = DateTime(2026, 7, 12);
+      final state = AppState()
+        ..phase = LoadPhase.ready
+        ..preferBrl = false
+        ..seedEntries([
+          compra('n', 'NETFLIX.COM', 59.90, agosto),
+          compra('a', 'PADARIA DA ESQUINA', 18, julho),
+        ])
+        ..selectMonth(agosto);
+
+      await montar(tester, shellDe(state), const Size(1440, 900));
+      await tester.tap(find.text('Extrato'));
+      await tester.pumpAndSettle();
+
+      expect(find.text('NETFLIX.COM'), findsOneWidget);
+      expect(find.text('PADARIA DA ESQUINA'), findsNothing);
+
+      await tester.tap(find.byIcon(Icons.all_inclusive_rounded));
+      await tester.pumpAndSettle();
+
+      expect(find.text('NETFLIX.COM'), findsOneWidget);
+      expect(find.text('PADARIA DA ESQUINA'), findsOneWidget);
       expect(tester.takeException(), isNull);
     });
 
