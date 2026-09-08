@@ -13,7 +13,12 @@ class Slice {
 }
 
 /// Rosca com a distribuição do patrimônio por moeda.
-class DonutChart extends StatelessWidget {
+///
+/// O anel é desenhado ao aparecer, girando do topo no sentido do relógio, e
+/// refaz o traço sempre que a distribuição muda — trocar de mês ou de
+/// categoria mostra o novo desenho sendo construído, em vez de trocar a
+/// figura num piscar.
+class DonutChart extends StatefulWidget {
   const DonutChart({
     super.key,
     required this.slices,
@@ -28,43 +33,104 @@ class DonutChart extends StatelessWidget {
   final String? centerBottom;
 
   @override
+  State<DonutChart> createState() => _DonutChartState();
+}
+
+class _DonutChartState extends State<DonutChart>
+    with SingleTickerProviderStateMixin {
+  late final AnimationController _controller = AnimationController(
+    vsync: this,
+    duration: const Duration(milliseconds: 900),
+  )..forward();
+
+  /// O anel desacelera no fim, como um traço que chega ao ponto de partida.
+  late final Animation<double> _traco = CurvedAnimation(
+    parent: _controller,
+    curve: Curves.easeOutCubic,
+  );
+
+  /// O texto do meio entra depois, quando já há anel em volta dele.
+  late final Animation<double> _centro = CurvedAnimation(
+    parent: _controller,
+    curve: const Interval(0.35, 1, curve: Curves.easeOut),
+  );
+
+  /// Identifica a distribuição atual: mudou, o desenho recomeça.
+  static String _assinatura(List<Slice> slices) =>
+      slices.map((s) => '${s.label}:${s.value}').join('|');
+
+  @override
+  void didUpdateWidget(DonutChart old) {
+    super.didUpdateWidget(old);
+    if (_assinatura(old.slices) != _assinatura(widget.slices)) {
+      _controller.forward(from: 0);
+    }
+  }
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
+
+  @override
   Widget build(BuildContext context) {
-    final total = slices.fold<double>(0, (sum, s) => sum + s.value);
+    final total = widget.slices.fold<double>(0, (sum, s) => sum + s.value);
+    // Quem pediu menos animação no sistema recebe o gráfico já pronto.
+    final semAnimacao = MediaQuery.disableAnimationsOf(context);
+
+    final miolo = Center(
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          if (widget.centerTop != null)
+            Text(widget.centerTop!, style: context.texts.labelSmall),
+          if (widget.centerBottom != null)
+            Padding(
+              padding: const EdgeInsets.only(top: 2),
+              child: Text(
+                widget.centerBottom!,
+                style: context.texts.titleMedium?.copyWith(fontSize: 15),
+              ),
+            ),
+        ],
+      ),
+    );
+
     return SizedBox(
-      width: size,
-      height: size,
-      child: CustomPaint(
-        painter: _DonutPainter(
-          slices: total > 0 ? slices : const [],
-          emptyColor: context.tones.surfaceAlt,
-        ),
-        child: Center(
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              if (centerTop != null)
-                Text(centerTop!, style: context.texts.labelSmall),
-              if (centerBottom != null)
-                Padding(
-                  padding: const EdgeInsets.only(top: 2),
-                  child: Text(
-                    centerBottom!,
-                    style: context.texts.titleMedium?.copyWith(fontSize: 15),
-                  ),
-                ),
-            ],
+      width: widget.size,
+      height: widget.size,
+      child: AnimatedBuilder(
+        animation: _controller,
+        builder: (context, child) => CustomPaint(
+          painter: _DonutPainter(
+            slices: total > 0 ? widget.slices : const [],
+            emptyColor: context.tones.surfaceAlt,
+            progress: semAnimacao ? 1 : _traco.value,
+          ),
+          child: Opacity(
+            opacity: semAnimacao ? 1 : _centro.value,
+            child: child,
           ),
         ),
+        child: miolo,
       ),
     );
   }
 }
 
 class _DonutPainter extends CustomPainter {
-  _DonutPainter({required this.slices, required this.emptyColor});
+  _DonutPainter({
+    required this.slices,
+    required this.emptyColor,
+    this.progress = 1,
+  });
 
   final List<Slice> slices;
   final Color emptyColor;
+
+  /// Quanto da volta já foi traçado, de 0 a 1.
+  final double progress;
 
   @override
   void paint(Canvas canvas, Size size) {
@@ -76,27 +142,48 @@ class _DonutPainter extends CustomPainter {
       ..strokeWidth = stroke
       ..strokeCap = StrokeCap.butt;
 
-    if (slices.isEmpty) {
-      canvas.drawArc(rect, 0, math.pi * 2, false, paint..color = emptyColor);
-      return;
-    }
+    // O trilho apagado aparece por baixo desde o primeiro quadro: sem ele o
+    // cartão ficaria com um buraco enquanto o anel não fecha.
+    canvas.drawArc(
+      rect,
+      0,
+      math.pi * 2,
+      false,
+      paint..color = emptyColor,
+    );
+
+    if (slices.isEmpty) return;
 
     final total = slices.fold<double>(0, (sum, s) => sum + s.value);
+    final voltaFeita = math.pi * 2 * progress.clamp(0.0, 1.0);
     var start = -math.pi / 2;
+    var percorrido = 0.0;
     const gap = 0.035;
 
     for (final slice in slices) {
       final sweep = (slice.value / total) * math.pi * 2;
       if (sweep <= 0) continue;
-      final drawn = math.max(sweep - gap, 0.02);
-      canvas.drawArc(rect, start, drawn, false, paint..color = slice.color);
+
+      // O que sobra da volta já traçada para esta fatia.
+      final disponivel = voltaFeita - percorrido;
+      if (disponivel <= 0) break;
+
+      final cheia = math.max(sweep - gap, 0.02);
+      final drawn = math.min(cheia, disponivel);
+      if (drawn > 0) {
+        canvas.drawArc(rect, start, drawn, false, paint..color = slice.color);
+      }
+
       start += sweep;
+      percorrido += sweep;
     }
   }
 
   @override
   bool shouldRepaint(covariant _DonutPainter old) =>
-      old.slices != slices || old.emptyColor != emptyColor;
+      old.slices != slices ||
+      old.emptyColor != emptyColor ||
+      old.progress != progress;
 }
 
 /// Linha da evolução do saldo, com área preenchida abaixo.

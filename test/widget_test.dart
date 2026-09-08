@@ -9,6 +9,7 @@ import 'package:bybit_extrato/util/brands.dart';
 import 'package:bybit_extrato/util/categorizer.dart';
 import 'package:bybit_extrato/theme.dart';
 import 'package:bybit_extrato/ui/shell.dart';
+import 'package:bybit_extrato/ui/widgets/charts.dart';
 import 'package:bybit_extrato/ui/subscriptions_page.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -1902,6 +1903,77 @@ void _telas() {
       expect(find.text('Nenhuma assinatura ainda'), findsOneWidget);
       expect(find.text('0 ativas'), findsNothing); // o resumo mostra o total
       expect(find.textContaining('ativas'), findsOneWidget);
+    });
+  });
+
+  group('Gráfico de distribuição', () {
+    const fatias = [
+      Slice('Educação', 230, Color(0xFF22D3A6)),
+      Slice('Lazer', 200, Color(0xFF6C8CFF)),
+      Slice('Transporte', 120, Color(0xFF38BDF8)),
+    ];
+
+    Opacity mioloDe(WidgetTester tester) => tester.widget<Opacity>(
+          find
+              .ancestor(
+                of: find.text('CATEGORIAS'),
+                matching: find.byType(Opacity),
+              )
+              .first,
+        );
+
+    testWidgets('a rosca se desenha ao aparecer', (tester) async {
+      await montar(
+        tester,
+        const Scaffold(
+          body: Center(
+            child: DonutChart(
+              slices: fatias,
+              centerTop: 'CATEGORIAS',
+              centerBottom: '3',
+            ),
+          ),
+        ),
+        const Size(400, 400),
+      );
+
+      // No primeiro quadro o anel ainda está sendo traçado e o miolo não
+      // entrou; o número aparece quando já há anel em volta dele.
+      expect(mioloDe(tester).opacity, lessThan(1));
+
+      await tester.pumpAndSettle();
+      expect(mioloDe(tester).opacity, 1);
+      expect(tester.takeException(), isNull);
+    });
+
+    testWidgets('mudar a distribuição refaz o traço', (tester) async {
+      Widget comFatias(List<Slice> lista) => MaterialApp(
+            theme: buildTheme(Brightness.dark),
+            home: Scaffold(
+              body: Center(
+                child: DonutChart(
+                  slices: lista,
+                  centerTop: 'CATEGORIAS',
+                  centerBottom: '${lista.length}',
+                ),
+              ),
+            ),
+          );
+
+      await tester.pumpWidget(comFatias(fatias));
+      await tester.pumpAndSettle();
+      expect(mioloDe(tester).opacity, 1);
+
+      // Outro mês, outra distribuição: o desenho recomeça do zero.
+      await tester.pumpWidget(comFatias(const [
+        Slice('Educação', 100, Color(0xFF22D3A6)),
+        Slice('Lazer', 400, Color(0xFF6C8CFF)),
+      ]));
+      await tester.pump();
+      expect(mioloDe(tester).opacity, lessThan(1));
+
+      await tester.pumpAndSettle();
+      expect(mioloDe(tester).opacity, 1);
     });
   });
 
