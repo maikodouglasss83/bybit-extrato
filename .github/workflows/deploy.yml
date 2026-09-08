@@ -53,6 +53,11 @@ jobs:
       - name: Preparar fallback de rotas
         run: cp build/web/index.html build/web/404.html
 
+      # A página de apresentação vai ao lado do app, em /nivel/. Como o
+      # arquivo existe de verdade, o Pages o serve em vez do fallback acima.
+      - name: Publicar a página de apresentação
+        run: cp -r landing build/web/nivel
+
       - uses: actions/upload-pages-artifact@v3
         with:
           path: build/web

@@ -1,0 +1,547 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Nível</title>
+<meta name="description" content="Acompanhe quanto falta para manter o nível de cashback do seu cartão cripto e o reembolso das suas assinaturas.">
+<meta property="og:title" content="Nível">
+<meta property="og:description" content="Não perca seu nível de cashback por falta de conta.">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Archivo:wght@600;700;800&family=IBM+Plex+Mono:wght@400;500;600&family=IBM+Plex+Sans:wght@400;500;600&display=swap">
+<style>
+/* ---- Tokens: escuro por padrão, com o claro completo logo abaixo ---- */
+:root {
+  --ground: #0B1118;
+  --surface: #141C25;
+  --surface-2: #1B2530;
+  --line: #253141;
+  --line-soft: #1D2733;
+  --text: #E9EEF4;
+  --text-dim: #93A2B4;
+  --text-faint: #6B7A8C;
+  --brass: #D6A93C;
+  --brass-ink: #2A1F06;
+  --brass-soft: rgba(214, 169, 60, 0.14);
+  --warn: #E0803A;
+  --good: #3FBF7F;
+  --shadow: 0 24px 60px -30px rgba(0, 0, 0, 0.9);
+}
+@media (prefers-color-scheme: light) {
+  :root:not([data-theme="dark"]) {
+    --ground: #EEF1F5;
+    --surface: #FFFFFF;
+    --surface-2: #F4F6F9;
+    --line: #D8DFE8;
+    --line-soft: #E5EAF0;
+    --text: #101821;
+    --text-dim: #4F5F72;
+    --text-faint: #77869A;
+    --brass: #9A7514;
+    --brass-ink: #FFFFFF;
+    --brass-soft: rgba(154, 117, 20, 0.10);
+    --warn: #B5601E;
+    --good: #1E8A55;
+    --shadow: 0 20px 44px -32px rgba(16, 24, 33, 0.5);
+  }
+}
+:root[data-theme="light"] {
+  --ground: #EEF1F5;
+  --surface: #FFFFFF;
+  --surface-2: #F4F6F9;
+  --line: #D8DFE8;
+  --line-soft: #E5EAF0;
+  --text: #101821;
+  --text-dim: #4F5F72;
+  --text-faint: #77869A;
+  --brass: #9A7514;
+  --brass-ink: #FFFFFF;
+  --brass-soft: rgba(154, 117, 20, 0.10);
+  --warn: #B5601E;
+  --good: #1E8A55;
+  --shadow: 0 20px 44px -32px rgba(16, 24, 33, 0.5);
+}
+
+* { box-sizing: border-box; }
+body {
+  margin: 0;
+  background: var(--ground);
+  color: var(--text);
+  font-family: "IBM Plex Sans", -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  font-size: 16px;
+  line-height: 1.6;
+  -webkit-font-smoothing: antialiased;
+}
+.wrap { width: min(1080px, 100% - 44px); margin-inline: auto; }
+
+h1, h2, h3 {
+  font-family: Archivo, "IBM Plex Sans", sans-serif;
+  font-weight: 800;
+  letter-spacing: -0.03em;
+  line-height: 1.05;
+  text-wrap: balance;
+  margin: 0;
+}
+h1 { font-size: clamp(2.1rem, 5.2vw, 3.5rem); }
+h2 { font-size: clamp(1.5rem, 3vw, 2.05rem); }
+h3 { font-size: 1.05rem; font-weight: 700; letter-spacing: -0.015em; }
+p { margin: 0; }
+
+.eyebrow {
+  font-family: "IBM Plex Mono", monospace;
+  font-size: 0.72rem;
+  font-weight: 500;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  color: var(--brass);
+}
+.lead { color: var(--text-dim); font-size: 1.08rem; max-width: 46ch; }
+.num { font-family: "IBM Plex Mono", monospace; font-variant-numeric: tabular-nums; }
+
+/* ---- Topo ---- */
+header {
+  border-bottom: 1px solid var(--line-soft);
+  position: sticky; top: 0; z-index: 10;
+  background: color-mix(in srgb, var(--ground) 88%, transparent);
+  backdrop-filter: blur(10px);
+}
+.bar { display: flex; align-items: center; gap: 16px; height: 66px; }
+.mark {
+  display: flex; align-items: center; gap: 10px;
+  font-family: Archivo, sans-serif; font-weight: 800;
+  letter-spacing: -0.04em; font-size: 1.22rem;
+}
+.mark-badge {
+  width: 26px; height: 26px; border-radius: 7px;
+  background: var(--brass-soft); border: 1px solid var(--brass);
+  display: grid; place-items: center;
+  font-family: "IBM Plex Mono", monospace; font-size: 0.7rem;
+  font-weight: 600; color: var(--brass); letter-spacing: 0;
+}
+.bar .spacer { flex: 1; }
+.bar a.top-cta {
+  font-size: 0.9rem; font-weight: 600; color: var(--text);
+  text-decoration: none; border: 1px solid var(--line);
+  padding: 8px 15px; border-radius: 9px;
+}
+.bar a.top-cta:hover { border-color: var(--brass); color: var(--brass); }
+
+/* ---- Herói ---- */
+.hero { padding: clamp(44px, 7vw, 84px) 0 clamp(36px, 5vw, 60px); }
+.hero-grid { display: grid; gap: clamp(32px, 5vw, 56px); grid-template-columns: 1fr; align-items: start; }
+@media (min-width: 900px) { .hero-grid { grid-template-columns: 1.05fr 0.95fr; } }
+.hero h1 { margin-top: 14px; }
+.hero .lead { margin-top: 18px; }
+
+/* ---- Formulário ---- */
+form.signup { margin-top: 26px; max-width: 460px; }
+.field { display: flex; gap: 8px; flex-wrap: wrap; }
+input[type="email"] {
+  flex: 1 1 220px; min-width: 0;
+  background: var(--surface); color: var(--text);
+  border: 1px solid var(--line); border-radius: 11px;
+  padding: 13px 15px; font: inherit; font-size: 0.98rem;
+}
+input[type="email"]::placeholder { color: var(--text-faint); }
+input[type="email"]:focus-visible { outline: 2px solid var(--brass); outline-offset: 1px; border-color: var(--brass); }
+button {
+  background: var(--brass); color: var(--brass-ink);
+  border: 0; border-radius: 11px; padding: 13px 22px;
+  font: inherit; font-weight: 700; font-size: 0.98rem; cursor: pointer;
+  transition: filter 0.15s ease;
+}
+button:hover { filter: brightness(1.08); }
+button:focus-visible { outline: 2px solid var(--text); outline-offset: 2px; }
+.form-note { margin-top: 11px; font-size: 0.85rem; color: var(--text-faint); }
+.form-done {
+  margin-top: 16px; padding: 14px 16px; border-radius: 12px;
+  border: 1px solid var(--good); background: color-mix(in srgb, var(--good) 12%, transparent);
+  font-size: 0.95rem;
+}
+
+/* ---- Medidor: o objeto central ---- */
+.meter-card {
+  background: var(--surface); border: 1px solid var(--line);
+  border-radius: 18px; padding: 24px; box-shadow: var(--shadow);
+}
+.meter-head { display: flex; align-items: baseline; justify-content: space-between; gap: 12px; }
+.meter-head .tag {
+  font-family: "IBM Plex Mono", monospace; font-size: 0.68rem;
+  letter-spacing: 0.14em; text-transform: uppercase; color: var(--text-faint);
+}
+.meter-big { margin-top: 16px; display: flex; align-items: baseline; gap: 8px; }
+.meter-big .val { font-family: Archivo, sans-serif; font-weight: 800; font-size: 2.6rem; letter-spacing: -0.04em; }
+.meter-big .of { color: var(--text-dim); font-size: 0.95rem; }
+.track {
+  margin-top: 18px; height: 12px; border-radius: 99px;
+  background: var(--surface-2); border: 1px solid var(--line-soft);
+  overflow: hidden;
+}
+.fill {
+  height: 100%; width: 0;
+  background: linear-gradient(90deg, var(--brass), color-mix(in srgb, var(--brass) 60%, var(--warn)));
+  transition: width 1.1s cubic-bezier(0.22, 0.8, 0.28, 1);
+}
+.ticks {
+  margin-top: 7px; display: flex; justify-content: space-between;
+  font-family: "IBM Plex Mono", monospace; font-size: 0.7rem; color: var(--text-faint);
+}
+.meter-alert {
+  margin-top: 18px; padding: 12px 14px; border-radius: 11px;
+  background: color-mix(in srgb, var(--warn) 13%, transparent);
+  border: 1px solid color-mix(in srgb, var(--warn) 42%, transparent);
+  font-size: 0.9rem; color: var(--text);
+}
+.meter-alert b { color: var(--warn); }
+.meter-sub { margin-top: 20px; border-top: 1px solid var(--line-soft); padding-top: 16px; }
+.sub-row {
+  display: flex; align-items: center; gap: 11px;
+  padding: 7px 0; font-size: 0.92rem;
+}
+.sub-row .dot { width: 8px; height: 8px; border-radius: 3px; flex: none; }
+.sub-row .name { flex: 1; }
+.sub-row .money { font-family: "IBM Plex Mono", monospace; font-variant-numeric: tabular-nums; color: var(--text-dim); }
+.sub-row .back { font-size: 0.74rem; color: var(--good); font-weight: 600; }
+.caption { margin-top: 12px; font-size: 0.76rem; color: var(--text-faint); }
+
+/* ---- Seções ---- */
+section { padding: clamp(40px, 6vw, 72px) 0; border-top: 1px solid var(--line-soft); }
+.sec-head { max-width: 56ch; }
+.sec-head p { margin-top: 12px; color: var(--text-dim); }
+
+.stakes { margin-top: 32px; display: grid; gap: 1px; background: var(--line-soft); border: 1px solid var(--line-soft); border-radius: 16px; overflow: hidden; }
+@media (min-width: 760px) { .stakes { grid-template-columns: repeat(3, 1fr); } }
+.stake { background: var(--surface); padding: 24px; }
+.stake .fig { font-family: Archivo, sans-serif; font-weight: 800; font-size: 1.9rem; letter-spacing: -0.04em; color: var(--brass); }
+.stake h3 { margin-top: 10px; }
+.stake p { margin-top: 7px; color: var(--text-dim); font-size: 0.93rem; }
+
+.features { margin-top: 32px; display: grid; gap: 22px; }
+@media (min-width: 760px) { .features { grid-template-columns: 1fr 1fr; gap: 26px 40px; } }
+.feature { display: flex; gap: 14px; }
+.feature .key {
+  font-family: "IBM Plex Mono", monospace; font-size: 0.72rem; font-weight: 600;
+  color: var(--brass); padding-top: 4px; flex: none; width: 26px;
+}
+.feature p { margin-top: 6px; color: var(--text-dim); font-size: 0.93rem; }
+
+.trust { display: grid; gap: 20px; margin-top: 28px; }
+@media (min-width: 760px) { .trust { grid-template-columns: repeat(3, 1fr); gap: 26px; } }
+.trust h3 { display: flex; align-items: center; gap: 9px; }
+.trust p { margin-top: 8px; color: var(--text-dim); font-size: 0.92rem; }
+.trust svg { flex: none; color: var(--brass); }
+
+.closer { text-align: center; }
+.closer .lead { margin: 16px auto 0; }
+.closer form.signup { margin-inline: auto; }
+.closer .field { justify-content: center; }
+
+footer { border-top: 1px solid var(--line-soft); padding: 30px 0 44px; }
+footer p { font-size: 0.82rem; color: var(--text-faint); max-width: 70ch; }
+footer p + p { margin-top: 8px; }
+
+@media (prefers-reduced-motion: reduce) {
+  .fill { transition: none; }
+}
+</style>
+</head>
+<body>
+
+<header>
+  <div class="wrap bar">
+    <span class="mark"><span class="mark-badge">NV</span>Nível</span>
+    <span class="spacer"></span>
+    <a class="top-cta" href="#lista">Entrar na lista</a>
+  </div>
+</header>
+
+<main>
+  <div class="wrap hero">
+    <div class="hero-grid">
+      <div>
+        <p class="eyebrow">Para quem usa cartão cripto com cashback</p>
+        <h1>Não perca seu nível de cashback por falta de conta.</h1>
+        <p class="lead">
+          Seu nível define quanto você recebe de volta — e ele depende do quanto
+          você gasta no mês. O app do seu cartão mostra a lista de transações.
+          Ele não te avisa que faltam três dias e R$ 412.
+        </p>
+
+        <form class="signup" id="lista" novalidate>
+          <div class="field">
+            <input type="email" name="email" placeholder="seu@email.com" aria-label="Seu e-mail" required>
+            <button type="submit">Quero acompanhar</button>
+          </div>
+          <p class="form-note">Estou abrindo para os primeiros usuários. Sem spam, só o aviso de acesso.</p>
+        </form>
+      </div>
+
+      <div class="meter-card">
+        <div class="meter-head">
+          <span class="tag">Meta do mês</span>
+          <span class="tag">Faltam 9 dias</span>
+        </div>
+        <div class="meter-big">
+          <span class="val num" id="gasto">US$ 312</span>
+          <span class="of num">de US$ 500</span>
+        </div>
+        <div class="track"><div class="fill" id="fill"></div></div>
+        <div class="ticks"><span>0</span><span>250</span><span>500</span></div>
+
+        <div class="meter-alert">
+          Faltam <b>US$ 188</b> para manter o nível. Sem isso, o cashback cai
+          no mês que vem — e o reembolso das assinaturas vai junto.
+        </div>
+
+        <div class="meter-sub">
+          <span class="tag" style="font-family:'IBM Plex Mono',monospace;font-size:0.68rem;letter-spacing:0.14em;text-transform:uppercase;color:var(--text-faint)">Assinaturas do mês</span>
+          <div class="sub-row">
+            <span class="dot" style="background:#E50914"></span>
+            <span class="name">Netflix</span>
+            <span class="back">100% de volta</span>
+            <span class="money">R$ 59,90</span>
+          </div>
+          <div class="sub-row">
+            <span class="dot" style="background:#1DB954"></span>
+            <span class="name">Spotify</span>
+            <span class="back">100% de volta</span>
+            <span class="money">R$ 21,90</span>
+          </div>
+          <div class="sub-row">
+            <span class="dot" style="background:#D97757"></span>
+            <span class="name">ChatGPT</span>
+            <span class="back">100% de volta</span>
+            <span class="money">R$ 110,00</span>
+          </div>
+        </div>
+        <p class="caption">Exemplo ilustrativo. No app, os valores são os seus.</p>
+      </div>
+    </div>
+  </div>
+
+  <section>
+    <div class="wrap">
+      <div class="sec-head">
+        <p class="eyebrow">O que está em jogo</p>
+        <h2>Cada mês abaixo da meta custa dinheiro no mês seguinte.</h2>
+      </div>
+      <div class="stakes">
+        <div class="stake">
+          <p class="fig num">2% – 10%</p>
+          <h3>Cashback por nível</h3>
+          <p>A diferença entre o primeiro e o último degrau é cinco vezes o que
+            volta para o seu bolso em cada compra.</p>
+        </div>
+        <div class="stake">
+          <p class="fig num">100%</p>
+          <h3>Assinaturas reembolsadas</h3>
+          <p>A partir do nível de entrada, serviços como Netflix, Spotify,
+            Amazon Prime, ChatGPT e TradingView voltam integralmente. Só
+            enquanto o nível se mantém.</p>
+        </div>
+        <div class="stake">
+          <p class="fig num">0</p>
+          <h3>Avisos que você recebe</h3>
+          <p>O extrato do cartão lista as compras e para por aí. Nenhuma
+            categoria, nenhuma meta, nenhum alerta antes de virar o mês.</p>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <section>
+    <div class="wrap">
+      <div class="sec-head">
+        <p class="eyebrow">O que o Nível faz</p>
+        <h2>O extrato que o cartão deveria ter.</h2>
+        <p>Você conecta uma chave de leitura e ele monta o resto sozinho.</p>
+      </div>
+      <div class="features">
+        <div class="feature">
+          <span class="key num">01</span>
+          <div>
+            <h3>Medidor da meta do mês</h3>
+            <p>Quanto você já gastou, quanto falta e quantos dias restam. A
+              meta é sua: acompanhe o degrau que você quer manter.</p>
+          </div>
+        </div>
+        <div class="feature">
+          <span class="key num">02</span>
+          <div>
+            <h3>Suas assinaturas, somadas</h3>
+            <p>O app reconhece o que se repete todo mês, mostra o custo mensal
+              e anual, e avisa o que ainda não foi cobrado.</p>
+          </div>
+        </div>
+        <div class="feature">
+          <span class="key num">03</span>
+          <div>
+            <h3>Categoria automática</h3>
+            <p>Cada compra vai para a categoria certa pelo nome do
+              estabelecimento. Você corrige uma vez e vale para sempre.</p>
+          </div>
+        </div>
+        <div class="feature">
+          <span class="key num">04</span>
+          <div>
+            <h3>Histórico que não some</h3>
+            <p>A corretora guarda uns seis meses e apaga o resto. O Nível
+              mantém o que já viu — inclusive o que ela já jogou fora.</p>
+          </div>
+        </div>
+        <div class="feature">
+          <span class="key num">05</span>
+          <div>
+            <h3>Fixo contra variável</h3>
+            <p>O que é compromisso e o que é gasto do dia. Com a data prevista
+              de cada cobrança que ainda vem.</p>
+          </div>
+        </div>
+        <div class="feature">
+          <span class="key num">06</span>
+          <div>
+            <h3>Celular e computador</h3>
+            <p>Mesma conta nos dois, sincronizada. Sem instalar nada: abre no
+              navegador.</p>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <section>
+    <div class="wrap">
+      <div class="sec-head">
+        <p class="eyebrow">Antes que você pergunte</p>
+        <h2>Sua chave não sai do seu navegador.</h2>
+      </div>
+      <div class="trust">
+        <div>
+          <h3>
+            <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M12 3l7 3v6c0 4.4-3 8.3-7 9-4-0.7-7-4.6-7-9V6z"/></svg>
+            Somente leitura
+          </h3>
+          <p>A chave que você cria não permite sacar, transferir nem negociar.
+            Se ela vazasse, não daria para mover um centavo.</p>
+        </div>
+        <div>
+          <h3>
+            <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><rect x="4" y="10" width="16" height="10" rx="2"/><path d="M8 10V7a4 4 0 0 1 8 0v3"/></svg>
+            Fica no seu aparelho
+          </h3>
+          <p>Não existe servidor guardando sua chave. Ela é lida no seu
+            navegador e usada dali para falar direto com a corretora.</p>
+        </div>
+        <div>
+          <h3>
+            <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M12 8v5M12 16.5v.01"/></svg>
+            Projeto independente
+          </h3>
+          <p>Sem vínculo com a corretora. Feito por um usuário do cartão que
+            cansou de fazer essa conta na planilha.</p>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <section class="closer">
+    <div class="wrap">
+      <p class="eyebrow">Lista de espera</p>
+      <h2>Deixe seu e-mail e eu te mando o acesso.</h2>
+      <p class="lead">Estou liberando aos poucos para conseguir dar atenção a
+        quem entra. Sem cobrança agora.</p>
+      <form class="signup" novalidate>
+        <div class="field">
+          <input type="email" name="email" placeholder="seu@email.com" aria-label="Seu e-mail" required>
+          <button type="submit">Quero acompanhar</button>
+        </div>
+        <p class="form-note">Um e-mail quando abrir. Nada além disso.</p>
+      </form>
+    </div>
+  </section>
+</main>
+
+<footer>
+  <div class="wrap">
+    <p><strong>Nível</strong> é um projeto independente, sem qualquer vínculo,
+      patrocínio ou aprovação da Bybit. Marcas e nomes citados pertencem aos
+      seus respectivos donos e aparecem apenas para descrever a
+      compatibilidade.</p>
+    <p>O cashback, os níveis e as regras de reembolso são definidos pela
+      corretora e podem mudar sem aviso. Este site não é recomendação
+      financeira.</p>
+  </div>
+</footer>
+
+<script>
+// Cole aqui o endereço que vai receber os e-mails (Formspree, Getform,
+// Google Forms…). Enquanto estiver vazio, o botão abre o e-mail do dono.
+const DESTINO = "";
+const EMAIL_DONO = "maikodouglas83@gmail.com";
+
+document.querySelectorAll("form.signup").forEach(function (form) {
+  form.addEventListener("submit", async function (evento) {
+    evento.preventDefault();
+    const campo = form.querySelector('input[type="email"]');
+    const email = (campo.value || "").trim();
+
+    if (!email || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+      campo.focus();
+      mostrar(form, "Confira o e-mail — falta o @ ou o domínio.", false);
+      return;
+    }
+
+    if (!DESTINO) {
+      const assunto = encodeURIComponent("Quero entrar na lista do Nível");
+      const corpo = encodeURIComponent("Meu e-mail: " + email);
+      window.location.href =
+        "mailto:" + EMAIL_DONO + "?subject=" + assunto + "&body=" + corpo;
+      mostrar(form, "Abrindo seu e-mail. É só enviar a mensagem.", true);
+      return;
+    }
+
+    try {
+      const resposta = await fetch(DESTINO, {
+        method: "POST",
+        headers: { "Content-Type": "application/json", Accept: "application/json" },
+        body: JSON.stringify({ email: email, origem: location.href })
+      });
+      if (!resposta.ok) throw new Error(resposta.status);
+      form.querySelector(".field").hidden = true;
+      form.querySelector(".form-note").hidden = true;
+      mostrar(form, "Anotado. Te aviso assim que abrir uma vaga.", true);
+    } catch (erro) {
+      mostrar(form, "Não consegui registrar agora. Tente de novo em instantes.", false);
+    }
+  });
+});
+
+function mostrar(form, texto, sucesso) {
+  let aviso = form.querySelector(".form-done");
+  if (!aviso) {
+    aviso = document.createElement("p");
+    aviso.className = "form-done";
+    form.appendChild(aviso);
+  }
+  aviso.textContent = texto;
+  aviso.style.borderColor = sucesso ? "var(--good)" : "var(--warn)";
+  aviso.style.background = sucesso
+    ? "color-mix(in srgb, var(--good) 12%, transparent)"
+    : "color-mix(in srgb, var(--warn) 12%, transparent)";
+}
+
+// O medidor enche uma vez ao abrir: é a leitura que a página quer entregar.
+const barra = document.getElementById("fill");
+const alvo = "62.4%";
+if (window.matchMedia("(prefers-reduced-motion: reduce)").matches) {
+  barra.style.transition = "none";
+  barra.style.width = alvo;
+} else {
+  requestAnimationFrame(function () {
+    requestAnimationFrame(function () { barra.style.width = alvo; });
+  });
+}
+</script>
+</body>
+</html>
