@@ -191,10 +191,8 @@ ThemeData buildTheme(Brightness brightness) {
       height: 66,
       labelBehavior: NavigationDestinationLabelBehavior.alwaysShow,
       labelTextStyle: WidgetStateProperty.resolveWith(
-        // Seis abas num celular estreito: o rótulo precisa ser miúdo para
-        // "Assinaturas" caber inteiro em vez de ser cortado.
         (s) => TextStyle(
-          fontSize: 10.5,
+          fontSize: 11.5,
           fontWeight: FontWeight.w600,
           color: s.contains(WidgetState.selected) ? text : muted,
         ),

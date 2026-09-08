@@ -2016,7 +2016,7 @@ void _telas() {
       expect(tester.takeException(), isNull);
     });
 
-    testWidgets('a barra do celular cabe com as seis abas', (tester) async {
+    testWidgets('a barra do celular cabe com as cinco abas', (tester) async {
       final state = comAssinaturas();
       await montar(
         tester,
@@ -2030,6 +2030,40 @@ void _telas() {
       await tester.tap(find.text('Assinaturas'));
       await tester.pumpAndSettle();
       expect(find.text('SUAS ASSINATURAS CUSTAM'), findsOneWidget);
+    });
+
+    testWidgets('no celular os ajustes abrem pelo botão do topo',
+        (tester) async {
+      final state = comAssinaturas();
+      await montar(tester, shellDe(state), const Size(360, 800));
+
+      // Deixaram de ser uma aba: só o botão ao lado do recarregar leva lá.
+      expect(find.widgetWithText(NavigationBar, 'Ajustes'), findsNothing);
+
+      await tester.tap(find.byIcon(Icons.settings_outlined));
+      await tester.pumpAndSettle();
+      expect(find.widgetWithText(AppBar, 'Ajustes'), findsOneWidget);
+
+      // O mesmo botão devolve para a página de onde se veio.
+      await tester.tap(find.byIcon(Icons.close_rounded));
+      await tester.pumpAndSettle();
+      expect(find.widgetWithText(AppBar, 'Visão geral'), findsOneWidget);
+    });
+
+    testWidgets('no computador o botão fica junto do recarregar',
+        (tester) async {
+      final state = comAssinaturas();
+      await montar(tester, shellDe(state), const Size(1440, 900));
+
+      // Saiu da barra lateral.
+      expect(find.text('Ajustes'), findsNothing);
+
+      await tester.tap(find.byIcon(Icons.settings_outlined));
+      await tester.pumpAndSettle();
+
+      // Agora é o título da página aberta.
+      expect(find.text('Ajustes'), findsOneWidget);
+      expect(tester.takeException(), isNull);
     });
   });
 }

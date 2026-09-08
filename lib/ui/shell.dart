@@ -33,6 +33,10 @@ class AppShell extends StatefulWidget {
 class _AppShellState extends State<AppShell> {
   int _index = 0;
 
+  /// De onde o usuário veio ao abrir os ajustes, para o botão devolvê-lo ao
+  /// mesmo lugar em vez de largá-lo na primeira aba.
+  int _antesDosAjustes = 0;
+
   static const _titles = [
     'Visão geral',
     'Gastos',
@@ -43,6 +47,18 @@ class _AppShellState extends State<AppShell> {
   ];
   static const _settingsIndex = 5;
   static const _statementIndex = 4;
+
+  /// Abre os ajustes, ou fecha e volta para a página anterior.
+  void _alternarAjustes() {
+    setState(() {
+      if (_index == _settingsIndex) {
+        _index = _antesDosAjustes;
+      } else {
+        _antesDosAjustes = _index;
+        _index = _settingsIndex;
+      }
+    });
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -85,6 +101,8 @@ class _AppShellState extends State<AppShell> {
                       title: _titles[_index],
                       state: state,
                       showRefresh: _index != _settingsIndex,
+                      settingsOpen: _index == _settingsIndex,
+                      onSettings: _alternarAjustes,
                       themeMode: widget.themeMode,
                       onThemeModeChanged: widget.onThemeModeChanged,
                     ),
@@ -105,11 +123,13 @@ class _AppShellState extends State<AppShell> {
       );
     }
 
+    final naDefinicoes = _index == _settingsIndex;
+
     return Scaffold(
       appBar: AppBar(
         title: Text(_titles[_index]),
         actions: [
-          if (_index != _settingsIndex)
+          if (!naDefinicoes)
             IconButton(
               tooltip: 'Atualizar',
               onPressed: state.refresh,
@@ -121,12 +141,22 @@ class _AppShellState extends State<AppShell> {
                     )
                   : const Icon(Icons.refresh_rounded),
             ),
+          IconButton(
+            tooltip: naDefinicoes ? 'Fechar ajustes' : 'Ajustes',
+            onPressed: _alternarAjustes,
+            icon: Icon(
+              naDefinicoes ? Icons.close_rounded : Icons.settings_outlined,
+              color: naDefinicoes ? AppColors.accent : null,
+            ),
+          ),
           const SizedBox(width: 4),
         ],
       ),
       body: SafeArea(child: body),
       bottomNavigationBar: NavigationBar(
-        selectedIndex: _index,
+        // Nos ajustes a barra mostra de onde se veio: eles não são uma aba,
+        // e nenhum destino aceso seria pior do que o anterior aceso.
+        selectedIndex: naDefinicoes ? _antesDosAjustes : _index,
         onDestinationSelected: (i) => setState(() => _index = i),
         destinations: const [
           NavigationDestination(
@@ -153,11 +183,6 @@ class _AppShellState extends State<AppShell> {
             icon: Icon(Icons.receipt_long_outlined),
             selectedIcon: Icon(Icons.receipt_long_rounded),
             label: 'Extrato',
-          ),
-          NavigationDestination(
-            icon: Icon(Icons.settings_outlined),
-            selectedIcon: Icon(Icons.settings_rounded),
-            label: 'Ajustes',
           ),
         ],
       ),
@@ -235,9 +260,6 @@ class _SideNav extends StatelessWidget {
     ],
     'ANÁLISE': [
       (1, Icons.pie_chart_rounded, 'Gastos por categoria'),
-    ],
-    'CONTA': [
-      (5, Icons.settings_rounded, 'Ajustes'),
     ],
   };
 
@@ -405,6 +427,8 @@ class _TopBar extends StatelessWidget {
     required this.title,
     required this.state,
     required this.showRefresh,
+    required this.settingsOpen,
+    required this.onSettings,
     required this.themeMode,
     required this.onThemeModeChanged,
   });
@@ -412,6 +436,8 @@ class _TopBar extends StatelessWidget {
   final String title;
   final AppState state;
   final bool showRefresh;
+  final bool settingsOpen;
+  final VoidCallback onSettings;
   final ThemeMode themeMode;
   final ValueChanged<ThemeMode> onThemeModeChanged;
 
@@ -447,6 +473,15 @@ class _TopBar extends StatelessWidget {
                   : const Icon(Icons.refresh_rounded, size: 20),
             ),
           ],
+          IconButton(
+            tooltip: settingsOpen ? 'Fechar ajustes' : 'Ajustes',
+            onPressed: onSettings,
+            icon: Icon(
+              settingsOpen ? Icons.close_rounded : Icons.settings_outlined,
+              size: 20,
+              color: settingsOpen ? AppColors.accent : null,
+            ),
+          ),
           IconButton(
             tooltip: state.hideBalances ? 'Mostrar valores' : 'Ocultar valores',
             onPressed: state.toggleHideBalances,
