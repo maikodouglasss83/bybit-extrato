@@ -227,6 +227,57 @@ class PreferencesStore {
     }
   }
 
+  static const _kPendingCard = 'pending_card';
+
+  /// Compras pendentes do cartão, guardadas só neste aparelho.
+  ///
+  /// Voltam na próxima abertura para o app não perder de vista uma compra que
+  /// ainda vai liquidar — e, com ela, o nome que você tenha dado a ela.
+  Future<({List<LedgerEntry> visiveis, List<LedgerEntry> aguardando})>
+      loadPendingCard() async {
+    List<LedgerEntry> lista(dynamic bruto) => bruto is List
+        ? bruto
+            .whereType<Map>()
+            .map((e) => LedgerEntry.fromCache(Map<String, dynamic>.from(e)))
+            .toList()
+        : const [];
+
+    try {
+      final raw = await _storage.read(key: _kPendingCard);
+      if (raw == null || raw.isEmpty) {
+        return (visiveis: <LedgerEntry>[], aguardando: <LedgerEntry>[]);
+      }
+      final decoded = jsonDecode(raw) as Map<String, dynamic>;
+      return (
+        visiveis: lista(decoded['visiveis']),
+        aguardando: lista(decoded['aguardando']),
+      );
+    } catch (_) {
+      return (visiveis: <LedgerEntry>[], aguardando: <LedgerEntry>[]);
+    }
+  }
+
+  Future<void> savePendingCard(
+    List<LedgerEntry> visiveis,
+    List<LedgerEntry> aguardando,
+  ) async {
+    try {
+      if (visiveis.isEmpty && aguardando.isEmpty) {
+        await _storage.delete(key: _kPendingCard);
+        return;
+      }
+      await _storage.write(
+        key: _kPendingCard,
+        value: jsonEncode({
+          'visiveis': visiveis.map((e) => e.toJson()).toList(),
+          'aguardando': aguardando.map((e) => e.toJson()).toList(),
+        }),
+      );
+    } catch (_) {
+      // Sem cofre, as pendentes voltam na próxima atualização.
+    }
+  }
+
   /// Assinaturas cadastradas à mão, para o que não passa pelo cartão.
   Future<List<ManualSubscription>> loadManualSubscriptions() async {
     try {

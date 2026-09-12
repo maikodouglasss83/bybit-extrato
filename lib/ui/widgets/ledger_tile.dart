@@ -95,6 +95,7 @@ class LedgerTile extends StatelessWidget {
         : kindLabel(entry.kind, entry.rawType);
     final subtitle = [
       fmtTime(entry.time),
+      if (entry.pending) 'pendente',
       if (entry.isCard) state.categoryOf(entry),
       if (entry.isCard && state.isFixed(entry)) 'fixo',
       if (!entry.isCard && entry.note != null) entry.note!,
@@ -127,6 +128,11 @@ class LedgerTile extends StatelessWidget {
                 children: [
                   Row(
                     children: [
+                      if (entry.pending) ...[
+                        const Icon(Icons.schedule_rounded,
+                            size: 14, color: AppColors.warning),
+                        const SizedBox(width: 6),
+                      ],
                       if (oculto) ...[
                         Icon(Icons.visibility_off_rounded,
                             size: 14, color: context.tones.muted),
@@ -313,7 +319,16 @@ class LedgerDetails extends StatelessWidget {
             if (entry.fee != 0) _row(context, 'Taxa', '${fmtCrypto(entry.fee)} ${entry.coin}'),
             if (entry.balanceAfter != null)
               _row(context, 'Saldo após', '${fmtCrypto(entry.balanceAfter!)} ${entry.coin}'),
-            if (entry.status != null) _row(context, 'Situação', entry.status!),
+            if (entry.pending)
+              _row(
+                context,
+                'Situação',
+                'Pendente — o estabelecimento ainda não confirmou. '
+                    'Some daqui se a compra for cancelada.',
+              )
+            else if (entry.status != null)
+              // Na compra do cartão o campo traz a cidade, e não a situação.
+              _row(context, entry.isCard ? 'Local' : 'Situação', entry.status!),
             if (entry.txId != null && entry.txId!.isNotEmpty)
               _row(context, 'Transação', entry.txId!, mono: true),
             _row(context, 'Origem', _sourceLabelOf(entry.source)),

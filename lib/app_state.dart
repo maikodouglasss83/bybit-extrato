@@ -247,7 +247,7 @@ class AppState extends ChangeNotifier {
   /// Extrato já filtrado e ordenado do mais recente para o mais antigo.
   List<LedgerEntry> get entries {
     final query = search.trim().toLowerCase();
-    final list = _entries.where((e) {
+    final list = [..._entries, ..._pendingCard].where((e) {
       if (!_matchesFilter(e)) return false;
       if (query.isEmpty) return true;
       return e.coin.toLowerCase().contains(query) ||
@@ -1613,10 +1613,137 @@ class AppState extends ChangeNotifier {
 
   /// Compras do cartão já carregadas, da mais recente para a mais antiga.
   List<LedgerEntry> get cardEntries {
-    final list = _entries.where((e) => e.isCard).toList()
+    // As pendentes entram em tudo o que soma gasto: o dinheiro já saiu do
+    // limite no momento em que o cartão passou.
+    final list = [..._entries.where((e) => e.isCard), ..._pendingCard]
       ..sort((a, b) => b.time.compareTo(a.time));
     return list;
   }
+
+  // ---------------------------------------------------------------------
+  // Compras pendentes do cartão
+  // ---------------------------------------------------------------------
+
+  /// Autorizações que o estabelecimento ainda não confirmou.
+  ///
+  /// Ficam fora de [_entries] de propósito: não entram no histórico guardado
+  /// nem na nuvem, e a cada atualização a lista é trocada inteira pelo que a
+  /// Bybit disser que continua pendente.
+  List<LedgerEntry> _pendingCard = const [];
+
+  /// Pendentes que já saíram da lista levando um ajuste só delas — um nome
+  /// próprio ou a marcação de oculta. Esperam a liquidação chegar para
+  /// entregar o ajuste a ela, e não aparecem em lugar nenhum.
+  List<LedgerEntry> _pendingAguardando = const [];
+
+  /// Tempo máximo entre autorizar e liquidar. Passou disso, a compra foi
+  /// cancelada ou estornada, e não há mais o que esperar.
+  static const _prazoDeLiquidacao = Duration(days: 15);
+
+  int get pendingCardCount => _pendingCard.length;
+
+  /// Troca as pendentes pelas que acabaram de chegar.
+  ///
+  /// Na Bybit a autorização e a liquidação têm identificadores diferentes,
+  /// então a mesma compra é reconhecida pelo lugar, pelo valor e pela ordem:
+  /// a liquidação vem depois, com o mesmo valor, no mesmo estabelecimento.
+  /// Cada liquidação responde por uma autorização só — duas passagens iguais
+  /// de ônibus na mesma semana não podem sumir juntas.
+  void _applyPendingCard(List<LedgerEntry> recebidas) {
+    final liquidadas = _entries
+        .where((e) => e.kind == LedgerKind.cardPurchase)
+        .toList()
+      ..sort((a, b) => a.time.compareTo(b.time));
+    final usadas = <String>{};
+
+    LedgerEntry? liquidacaoDe(LedgerEntry autorizacao) {
+      final chave = _merchantKey(autorizacao);
+      final valor = autorizacao.change.abs();
+      final inicio = autorizacao.time.subtract(const Duration(hours: 1));
+      final fim = autorizacao.time.add(_prazoDeLiquidacao);
+      for (final e in liquidadas) {
+        if (usadas.contains(e.id)) continue;
+        if (e.time.isBefore(inicio) || e.time.isAfter(fim)) continue;
+        if (_merchantKey(e) != chave) continue;
+        if ((e.change.abs() - valor).abs() >= 0.005) continue;
+        usadas.add(e.id);
+        return e;
+      }
+      return null;
+    }
+
+    final chegaram = {for (final e in recebidas) e.id};
+    final candidatas = {
+      for (final e in _pendingAguardando) e.id: e,
+      for (final e in _pendingCard) e.id: e,
+      for (final e in recebidas) e.id: e,
+    }.values.toList()
+      // A mais antiga primeiro: é a que liquida antes.
+      ..sort((a, b) => a.time.compareTo(b.time));
+
+    final visiveis = <LedgerEntry>[];
+    final aguardando = <LedgerEntry>[];
+    final agora = DateTime.now();
+    var moveuAjuste = false;
+
+    for (final autorizacao in candidatas) {
+      final liquidacao = liquidacaoDe(autorizacao);
+      if (liquidacao != null) {
+        // Já liquidou: daqui em diante quem conta é a liquidação.
+        moveuAjuste = _moverAjustes(autorizacao.id, liquidacao.id) || moveuAjuste;
+        continue;
+      }
+      if (chegaram.contains(autorizacao.id)) {
+        visiveis.add(autorizacao);
+      } else if (_temAjusteProprio(autorizacao.id) &&
+          agora.difference(autorizacao.time) < _prazoDeLiquidacao) {
+        aguardando.add(autorizacao);
+      }
+      // Saiu das pendentes sem ajuste e sem liquidação: foi cancelada, ou a
+      // liquidação ainda vai chegar e aparece sozinha quando chegar.
+    }
+
+    _pendingCard = visiveis;
+    _pendingAguardando = aguardando;
+
+    unawaited(_preferences.savePendingCard(visiveis, aguardando));
+    if (moveuAjuste) {
+      unawaited(_preferences.saveEntryNameOverrides(_entryNameOverrides));
+      unawaited(_preferences.saveHiddenEntries(_hiddenIds));
+      _syncPreference(_kSyncNomesPorCompra, _entryNameOverrides);
+      _syncPreference(_kSyncOcultos, _hiddenIds.toList());
+    }
+  }
+
+  bool _temAjusteProprio(String id) =>
+      _entryNameOverrides.containsKey(id) || _hiddenIds.contains(id);
+
+  /// Passa o nome próprio e a marcação de oculta de um lançamento a outro.
+  bool _moverAjustes(String de, String para) {
+    var moveu = false;
+
+    final nome = _entryNameOverrides[de];
+    if (nome != null) {
+      final novo = Map<String, String>.from(_entryNameOverrides)..remove(de);
+      // Um nome dado depois de liquidar vence o que veio da pendente.
+      novo.putIfAbsent(para, () => nome);
+      _entryNameOverrides = novo;
+      moveu = true;
+    }
+
+    if (_hiddenIds.contains(de)) {
+      _hiddenIds = {..._hiddenIds}
+        ..remove(de)
+        ..add(para);
+      moveu = true;
+    }
+
+    return moveu;
+  }
+
+  /// Aplica pendentes direto, sem passar pela rede, para os testes.
+  @visibleForTesting
+  void seedPending(List<LedgerEntry> recebidas) => _applyPendingCard(recebidas);
 
   /// Quanto foi gasto no cartão no mês corrente, na moeda original das compras.
   double get cardSpentThisMonth {
@@ -1689,6 +1816,12 @@ class AppState extends ChangeNotifier {
     // O histórico guardado entra antes da rede: o app já abre com os meses
     // que a Bybit não devolve mais.
     _entries.addAll(await _preferences.loadCachedEntries());
+
+    // As pendentes da última abertura voltam também: a próxima atualização
+    // corrige o que tiver mudado, e o nome dado a uma delas não se perde.
+    final pendentes = await _preferences.loadPendingCard();
+    _pendingCard = pendentes.visiveis;
+    _pendingAguardando = pendentes.aguardando;
 
     final saved = await _store.load();
     if (saved == null || !saved.isValid) {
@@ -1822,12 +1955,24 @@ class AppState extends ChangeNotifier {
       _mergeUnique(withdrawals);
       _mergeUnique(card.entries);
 
+      // Compras que o cartão já passou e o estabelecimento ainda não
+      // confirmou. Vêm depois das liquidadas, porque é contra elas que a mesma
+      // compra é reconhecida quando liquida.
+      try {
+        _applyPendingCard(await client.pendingCardTransactions());
+      } catch (_) {
+        // O limite de consultas deste endpoint é apertado. Falhou, fica a
+        // lista anterior: sai da tela quem deixou de estar pendente, não quem
+        // só não respondeu a tempo.
+      }
+
       _cursor = page.nextCursor;
       _logHasMore = page.hasMore;
       _cardPage = card.page;
       _cardHasMore = card.hasMore;
       cardTotalCount = card.totalCount;
-      cardLoadedCount = cardEntries.length;
+      // Só as liquidadas: é com o total do histórico que este número se compara.
+      cardLoadedCount = _entries.where((e) => e.isCard).length;
       lastSync = DateTime.now();
 
       // Guarda o acumulado para a próxima abertura e leva para os outros

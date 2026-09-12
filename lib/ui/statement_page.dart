@@ -726,6 +726,7 @@ class _LinhaDaTabela extends StatelessWidget {
         : kindLabel(entry.kind, entry.rawType);
 
     final complemento = [
+      if (entry.pending) 'pendente · o estabelecimento ainda não confirmou',
       if (entry.neutral) 'transferência interna · fora dos totais',
       if (!entry.neutral && !entry.isCard && entry.note != null) entry.note!,
       if (entry.symbol != null) entry.symbol!,
@@ -908,13 +909,15 @@ class _Situacao extends StatelessWidget {
   Widget build(BuildContext context) {
     final tones = context.tones;
 
+    // A ordem importa: nas compras do cartão o campo de situação guarda a
+    // cidade do estabelecimento, então o cartão precisa ser decidido antes.
     final (texto, icone, cor) = switch (entry) {
-      final e when e.neutral => ('Interna', Icons.swap_vert_rounded, tones.muted),
-      final e when e.status != null => (
-          e.status!,
-          Icons.check_circle_outline_rounded,
-          tones.muted,
+      final e when e.pending => (
+          'Pendente',
+          Icons.schedule_rounded,
+          AppColors.warning,
         ),
+      final e when e.neutral => ('Interna', Icons.swap_vert_rounded, tones.muted),
       final e when e.kind == LedgerKind.cardPurchase => (
           'Pago',
           Icons.check_circle_outline_rounded,
@@ -924,6 +927,11 @@ class _Situacao extends StatelessWidget {
           'Estornado',
           Icons.replay_rounded,
           tones.positive,
+        ),
+      final e when e.status != null => (
+          e.status!,
+          Icons.check_circle_outline_rounded,
+          tones.muted,
         ),
       _ => ('Concluído', Icons.check_circle_outline_rounded, tones.muted),
     };

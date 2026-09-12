@@ -310,6 +310,35 @@ class BybitClient {
     );
   }
 
+  /// Compras do cartão que o estabelecimento ainda não confirmou.
+  ///
+  /// O histórico de recompensas só ganha a compra quando ela é liquidada, o
+  /// que costuma levar de algumas horas a dois dias. As autorizações ainda em
+  /// andamento vêm deste outro endpoint, e é ele que faz a compra aparecer no
+  /// app logo depois de o cartão passar.
+  Future<List<LedgerEntry>> pendingCardTransactions() async {
+    final result = await _post(
+      '/v5/card/transaction/query-asset-records',
+      body: {
+        'type': 'SIDE_QUERY_AUTH_ALL',
+        'statusCode': '0',
+        'limit': 100,
+        'page': 1,
+      },
+    );
+    final data = (result['data'] as List?) ?? const [];
+    return data
+        .map((e) => Map<String, dynamic>.from(e as Map))
+        // Só autorizações em andamento. Estorno de autorização, o que já foi
+        // concluído e o que foi recusado não são gasto pendente.
+        .where((j) =>
+            j['side']?.toString() == '1' &&
+            j['tradeStatus']?.toString() == '0' &&
+            asDouble(j['basicAmount']) > 0)
+        .map(LedgerEntry.fromCardAuthorization)
+        .toList();
+  }
+
   /// Pontos acumulados e teto de cashback do cartão.
   Future<CardRewards> cardRewards() async {
     final balance = await _post('/v5/card/reward/points/balance');

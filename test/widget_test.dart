@@ -1675,6 +1675,143 @@ void main() {
     });
   });
 
+  group('Compras pendentes do cartão', () {
+    LedgerEntry liquidada(String id, String merch, double valor, DateTime quando) =>
+        LedgerEntry.fromCardTransaction({
+          'transactionId': id,
+          'side': '1',
+          'transactionDate': '${quando.millisecondsSinceEpoch}',
+          'transactionAmount': '$valor',
+          'basicCurrency': 'BRL',
+          'merchName': merch,
+        });
+
+    // O formato é o que a Bybit devolveu de verdade para uma compra pendente.
+    LedgerEntry pendente(String id, String merch, double valor, DateTime quando) =>
+        LedgerEntry.fromCardAuthorization({
+          'txnId': id,
+          'orderNo': '2026209876736658382438457841_$id',
+          'side': '1',
+          'status': '1',
+          'tradeStatus': '0',
+          'basicAmount': '$valor',
+          'basicCurrency': 'BRL',
+          'txnCreate': quando.millisecondsSinceEpoch,
+          'merchName': merch,
+          'merchCity': 'GUARULHOS BRA',
+          'mccCode': '5411',
+          'merchCategoryDesc': '5411',
+          'pan4': '4469',
+        });
+
+    final setembro = DateTime(2026, 9, 10, 14);
+
+    test('a autorização vira compra pendente, com o valor saindo', () {
+      final e = pendente('ctx-1', 'MERCADO FLAMENGO', 21.99, setembro);
+      expect(e.pending, isTrue);
+      expect(e.kind, LedgerKind.cardPurchase);
+      expect(e.change, -21.99);
+      expect(e.note, 'MERCADO FLAMENGO');
+      expect(e.cardLast4, '4469');
+      expect(e.time, setembro);
+      expect(e.id, 'card-auth-ctx-1');
+      // O código do ramo não pode virar nome de categoria.
+      expect(e.category, isNot('5411'));
+    });
+
+    test('a pendente sobrevive à ida e volta do armazenamento', () {
+      final e = pendente('ctx-1', 'MERCADO FLAMENGO', 21.99, setembro);
+      expect(LedgerEntry.fromCache(e.toJson()).pending, isTrue);
+    });
+
+    test('aparece no extrato e soma no gasto do mês', () {
+      final state = AppState()
+        ..seedEntries([liquidada('cpr-1', 'NETFLIX.COM', 20.90, setembro)])
+        ..seedPending([pendente('ctx-1', 'MERCADO FLAMENGO', 21.99, setembro)]);
+
+      expect(state.pendingCardCount, 1);
+      expect(state.cardEntries.where((e) => e.pending), hasLength(1));
+      expect(state.entries.map((e) => e.note), contains('MERCADO FLAMENGO'));
+      expect(state.cardSpentInMonth(DateTime(2026, 9)), closeTo(42.89, 1e-9));
+    });
+
+    test('quando liquida, sai das pendentes e não conta duas vezes', () {
+      final state = AppState()
+        ..seedPending([pendente('ctx-1', 'MERCADO FLAMENGO', 21.99, setembro)]);
+
+      // A liquidação chega um dia depois, com outro identificador — e a Bybit
+      // ainda lista a autorização por um instante.
+      state
+        ..seedEntries([
+          liquidada('cpr-9', 'MERCADO FLAMENGO', 21.99,
+              setembro.add(const Duration(days: 1))),
+        ])
+        ..seedPending([pendente('ctx-1', 'MERCADO FLAMENGO', 21.99, setembro)]);
+
+      expect(state.pendingCardCount, 0);
+      expect(state.cardSpentInMonth(DateTime(2026, 9)), closeTo(21.99, 1e-9));
+    });
+
+    test('duas compras iguais: só a que liquidou sai das pendentes', () {
+      final state = AppState()
+        ..seedEntries([
+          liquidada('cpr-1', 'BILHUNICO', 50, setembro.add(const Duration(days: 2))),
+        ])
+        ..seedPending([
+          pendente('ctx-1', 'BILHUNICO', 50, setembro),
+          pendente('ctx-2', 'BILHUNICO', 50, setembro.add(const Duration(days: 1))),
+        ]);
+
+      expect(state.pendingCardCount, 1);
+      expect(
+        state.cardEntries.firstWhere((e) => e.pending).id,
+        'card-auth-ctx-2',
+      );
+    });
+
+    test('compra igual feita antes não esconde a pendente nova', () {
+      final state = AppState()
+        ..seedEntries([
+          liquidada('cpr-0', 'BILHUNICO', 50,
+              setembro.subtract(const Duration(days: 3))),
+        ])
+        ..seedPending([pendente('ctx-1', 'BILHUNICO', 50, setembro)]);
+
+      expect(state.pendingCardCount, 1);
+    });
+
+    test('compra cancelada some na atualização seguinte', () {
+      final state = AppState()
+        ..seedPending([pendente('ctx-1', 'LOJA X', 99, setembro)]);
+      state.seedPending(const []);
+      expect(state.pendingCardCount, 0);
+    });
+
+    test('o nome dado enquanto pendente passa para a compra liquidada',
+        () async {
+      // Relativa a hoje: a espera pela liquidação tem prazo.
+      final ontem = DateTime.now().subtract(const Duration(days: 1));
+      final autorizacao = pendente('ctx-1', 'MERCADO FLAMENGO', 21.99, ontem);
+      final state = AppState()..seedPending([autorizacao]);
+
+      await state.setEntryOverrides(autorizacao,
+          name: 'Feira da semana', nameOnlyThis: true);
+
+      // Sai das pendentes antes de a liquidação chegar...
+      state.seedPending(const []);
+      expect(state.pendingCardCount, 0);
+
+      // ...que chega depois, com outro identificador.
+      final liquidacao = liquidada('cpr-9', 'MERCADO FLAMENGO', 21.99,
+          ontem.add(const Duration(hours: 20)));
+      state
+        ..seedEntries([liquidacao])
+        ..seedPending(const []);
+
+      expect(state.displayNameOf(liquidacao), 'Feira da semana');
+    });
+  });
+
   group('Moeda padrão', () {
     test('o real é o padrão quando há cotação', () {
       final state = AppState()..usdBrl = 5.0;
@@ -2082,6 +2219,33 @@ void _telas() {
 
       expect(find.text('NETFLIX.COM'), findsOneWidget);
       expect(find.text('PADARIA DA ESQUINA'), findsOneWidget);
+      expect(tester.takeException(), isNull);
+    });
+
+    testWidgets('compra pendente aparece com a situação "Pendente"',
+        (tester) async {
+      final state = AppState()
+        ..phase = LoadPhase.ready
+        ..preferBrl = false
+        ..seedPending([
+          LedgerEntry.fromCardAuthorization({
+            'txnId': 'ctx-1',
+            'side': '1',
+            'tradeStatus': '0',
+            'basicAmount': '21.99',
+            'basicCurrency': 'BRL',
+            'txnCreate': DateTime.now().millisecondsSinceEpoch,
+            'merchName': 'MERCADO FLAMENGO',
+            'merchCity': 'GUARULHOS BRA',
+          }),
+        ]);
+
+      await montar(tester, shellDe(state), const Size(1440, 900));
+      await tester.tap(find.text('Extrato'));
+      await tester.pumpAndSettle();
+
+      expect(find.text('MERCADO FLAMENGO'), findsOneWidget);
+      expect(find.text('Pendente'), findsOneWidget);
       expect(tester.takeException(), isNull);
     });
 

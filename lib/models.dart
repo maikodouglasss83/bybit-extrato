@@ -220,6 +220,7 @@ class LedgerEntry {
     this.category,
     this.cardLast4,
     this.points,
+    this.pending = false,
   });
 
   final String id;
@@ -253,6 +254,13 @@ class LedgerEntry {
   /// Pontos de recompensa gerados pela compra.
   final int? points;
 
+  /// Compra autorizada que o estabelecimento ainda não confirmou.
+  ///
+  /// Vive só enquanto está pendente: não é guardada no aparelho nem vai para
+  /// a nuvem, porque quando liquida vira outro lançamento, com outro
+  /// identificador — e é esse que fica.
+  final bool pending;
+
   /// De onde veio: `log`, `deposit`, `withdraw`, `transfer` ou `card`.
   final String source;
 
@@ -282,6 +290,7 @@ class LedgerEntry {
         if (category != null) 'category': category,
         if (cardLast4 != null) 'cardLast4': cardLast4,
         if (points != null) 'points': points,
+        if (pending) 'pending': true,
       };
 
   factory LedgerEntry.fromCache(Map<String, dynamic> j) => LedgerEntry(
@@ -309,6 +318,7 @@ class LedgerEntry {
         category: j['category']?.toString(),
         cardLast4: j['cardLast4']?.toString(),
         points: (j['points'] as num?)?.toInt(),
+        pending: j['pending'] == true,
       );
 
   /// Extrato unificado da conta (trades, taxas, funding, transferências…).
@@ -375,6 +385,35 @@ class LedgerEntry {
       points: (j['point'] as num?)?.toInt(),
       status: city.isEmpty ? null : city,
       source: 'card',
+    );
+  }
+
+  /// Compra autorizada no cartão e ainda não confirmada pelo estabelecimento.
+  ///
+  /// Vem do registro de autorizações, que usa outros nomes de campo — e um
+  /// identificador diferente do que a mesma compra terá depois de liquidar.
+  factory LedgerEntry.fromCardAuthorization(Map<String, dynamic> j) {
+    final amount = asDouble(j['basicAmount']);
+    final merchant = (j['merchName']?.toString() ?? '').trim();
+    final city = (j['merchCity']?.toString() ?? '').trim();
+    final pan4 = j['pan4']?.toString() ?? '';
+
+    return LedgerEntry(
+      id: 'card-auth-${j['txnId'] ?? j['orderNo']}',
+      time: asTime(j['txnCreate']?.toString()),
+      rawType: 'CARD_AUTH',
+      kind: LedgerKind.cardPurchase,
+      coin: j['basicCurrency']?.toString() ?? 'BRL',
+      change: -amount.abs(),
+      fee: 0,
+      note: merchant.isEmpty ? null : merchant,
+      // Aqui o campo de categoria traz só o código do ramo (MCC), que não é
+      // nome de categoria nenhum: vale a dedução pelo estabelecimento.
+      category: categorizeMerchant(merchant, apiCategory: null),
+      cardLast4: pan4.isEmpty ? null : pan4,
+      status: city.isEmpty ? null : city,
+      source: 'card',
+      pending: true,
     );
   }
 
