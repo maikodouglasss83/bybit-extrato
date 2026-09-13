@@ -37,6 +37,9 @@ class _AppShellState extends State<AppShell> {
   /// mesmo lugar em vez de largá-lo na primeira aba.
   int _antesDosAjustes = 0;
 
+  /// Barra lateral só com os ícones, para sobrar espaço para as tabelas.
+  bool _menuRecolhido = false;
+
   static const _titles = [
     'Visão geral',
     'Gastos',
@@ -92,6 +95,9 @@ class _AppShellState extends State<AppShell> {
                 index: _index,
                 onSelect: (i) => setState(() => _index = i),
                 state: state,
+                recolhido: _menuRecolhido,
+                onAlternar: () =>
+                    setState(() => _menuRecolhido = !_menuRecolhido),
               ),
               const VerticalDivider(width: 1),
               Expanded(
@@ -243,11 +249,18 @@ class _SideNav extends StatelessWidget {
     required this.index,
     required this.onSelect,
     required this.state,
+    required this.recolhido,
+    required this.onAlternar,
   });
 
   final int index;
   final ValueChanged<int> onSelect;
   final AppState state;
+  final bool recolhido;
+  final VoidCallback onAlternar;
+
+  static const larguraAberta = 244.0;
+  static const larguraRecolhida = 72.0;
 
   static const _secoes = <String, List<(int, IconData, String)>>{
     'GERAL': [
@@ -265,122 +278,222 @@ class _SideNav extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Container(
-      width: 244,
+    return AnimatedContainer(
+      duration: const Duration(milliseconds: 220),
+      curve: Curves.easeOutCubic,
+      width: recolhido ? larguraRecolhida : larguraAberta,
       color: context.colors.surface,
-      padding: const EdgeInsets.symmetric(vertical: 20, horizontal: 14),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 8),
-            child: Row(
+      // Durante a animação a largura passa por valores intermediários: os
+      // textos só aparecem quando cabem, para não estourar no meio do caminho.
+      child: LayoutBuilder(
+        builder: (context, constraints) {
+          final compacto = constraints.maxWidth < 200;
+          return Padding(
+            padding: EdgeInsets.symmetric(
+              vertical: 20,
+              horizontal: compacto ? 10 : 14,
+            ),
+            child: Column(
+              crossAxisAlignment: compacto
+                  ? CrossAxisAlignment.center
+                  : CrossAxisAlignment.start,
               children: [
-                Container(
-                  width: 34,
-                  height: 34,
-                  alignment: Alignment.center,
-                  decoration: BoxDecoration(
-                    color: AppColors.accent.withValues(alpha: 0.16),
-                    borderRadius: BorderRadius.circular(11),
-                  ),
-                  child: const Icon(Icons.account_balance_wallet_rounded,
-                      size: 18, color: AppColors.accent),
-                ),
-                const SizedBox(width: 10),
+                _cabecalho(context, compacto),
+                const SizedBox(height: 22),
                 Expanded(
-                  child: Text(
-                    'Extrato Bybit',
-                    style: context.texts.titleMedium,
-                    overflow: TextOverflow.ellipsis,
+                  child: SingleChildScrollView(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        for (final secao in _secoes.entries) ...[
+                          if (compacto)
+                            const Padding(
+                              padding: EdgeInsets.symmetric(vertical: 8),
+                              child: Divider(height: 1, indent: 8, endIndent: 8),
+                            )
+                          else
+                            Padding(
+                              padding: const EdgeInsets.fromLTRB(12, 10, 12, 8),
+                              child: Text(
+                                secao.key,
+                                style: context.texts.labelSmall,
+                                maxLines: 1,
+                              ),
+                            ),
+                          for (final (i, icone, rotulo) in secao.value)
+                            _navItem(context, i, icone, rotulo, compacto),
+                        ],
+                      ],
+                    ),
                   ),
                 ),
+                const Divider(height: 24),
+                _Assinante(state: state, compacto: compacto),
               ],
             ),
+          );
+        },
+      ),
+    );
+  }
+
+  Widget _cabecalho(BuildContext context, bool compacto) {
+    final botao = IconButton(
+      tooltip: recolhido ? 'Expandir menu' : 'Recolher menu',
+      onPressed: onAlternar,
+      icon: _IconeBarraLateral(color: context.tones.muted),
+    );
+
+    if (compacto) return botao;
+
+    return Padding(
+      padding: const EdgeInsets.only(left: 8),
+      child: Row(
+        children: [
+          Container(
+            width: 34,
+            height: 34,
+            alignment: Alignment.center,
+            decoration: BoxDecoration(
+              color: AppColors.accent.withValues(alpha: 0.16),
+              borderRadius: BorderRadius.circular(11),
+            ),
+            child: const Icon(Icons.account_balance_wallet_rounded,
+                size: 18, color: AppColors.accent),
           ),
-          const SizedBox(height: 22),
+          const SizedBox(width: 10),
           Expanded(
-            child: SingleChildScrollView(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  for (final secao in _secoes.entries) ...[
-                    Padding(
-                      padding: const EdgeInsets.fromLTRB(12, 10, 12, 8),
-                      child: Text(secao.key, style: context.texts.labelSmall),
-                    ),
-                    for (final (i, icone, rotulo) in secao.value)
-                      _navItem(context, i, icone, rotulo),
-                  ],
-                ],
-              ),
+            child: Text(
+              'Extrato Bybit',
+              style: context.texts.titleMedium,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
             ),
           ),
-          const Divider(height: 24),
-          _Assinante(state: state),
+          botao,
         ],
       ),
     );
   }
 
-  Widget _navItem(BuildContext context, int i, IconData icon, String label) {
+  Widget _navItem(
+    BuildContext context,
+    int i,
+    IconData icon,
+    String label,
+    bool compacto,
+  ) {
     final selected = index == i;
+    final icone = Icon(icon,
+        size: 19, color: selected ? AppColors.accent : context.tones.muted);
+
+    final item = InkWell(
+      borderRadius: BorderRadius.circular(12),
+      onTap: () => onSelect(i),
+      child: Container(
+        padding: EdgeInsets.symmetric(
+          horizontal: compacto ? 0 : 12,
+          vertical: 11,
+        ),
+        decoration: BoxDecoration(
+          color: selected
+              ? AppColors.accent.withValues(alpha: 0.14)
+              : Colors.transparent,
+          borderRadius: BorderRadius.circular(12),
+        ),
+        child: compacto
+            ? Center(child: icone)
+            : Row(
+                children: [
+                  icone,
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: Text(
+                      label,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: context.texts.bodyMedium?.copyWith(
+                        fontWeight:
+                            selected ? FontWeight.w600 : FontWeight.w400,
+                        color: selected
+                            ? context.colors.onSurface
+                            : context.tones.muted,
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+      ),
+    );
+
     return Padding(
       padding: const EdgeInsets.only(bottom: 4),
-      child: InkWell(
-        borderRadius: BorderRadius.circular(12),
-        onTap: () => onSelect(i),
-        child: Container(
-          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 11),
-          decoration: BoxDecoration(
-            color: selected
-                ? AppColors.accent.withValues(alpha: 0.14)
-                : Colors.transparent,
-            borderRadius: BorderRadius.circular(12),
-          ),
-          child: Row(
-            children: [
-              Icon(icon,
-                  size: 19,
-                  color: selected ? AppColors.accent : context.tones.muted),
-              const SizedBox(width: 12),
-              Expanded(
-                child: Text(
-                  label,
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                  style: context.texts.bodyMedium?.copyWith(
-                    fontWeight: selected ? FontWeight.w600 : FontWeight.w400,
-                    color: selected
-                        ? context.colors.onSurface
-                        : context.tones.muted,
-                  ),
-                ),
-              ),
-            ],
-          ),
-        ),
-      ),
+      // Recolhido, o nome da página aparece ao passar o mouse.
+      child: compacto
+          ? Tooltip(
+              message: label,
+              waitDuration: const Duration(milliseconds: 300),
+              child: item,
+            )
+          : item,
     );
   }
 }
 
+/// Quadrado arredondado com a faixa da barra à esquerda.
+class _IconeBarraLateral extends StatelessWidget {
+  const _IconeBarraLateral({required this.color});
+
+  final Color color;
+
+  @override
+  Widget build(BuildContext context) {
+    return SizedBox.square(
+      dimension: 20,
+      child: CustomPaint(painter: _PintorBarraLateral(color)),
+    );
+  }
+}
+
+class _PintorBarraLateral extends CustomPainter {
+  const _PintorBarraLateral(this.color);
+
+  final Color color;
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final pincel = Paint()
+      ..color = color
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = 1.8
+      ..strokeCap = StrokeCap.round;
+
+    final caixa = Rect.fromLTWH(2, 3, size.width - 4, size.height - 6);
+    canvas.drawRRect(
+      RRect.fromRectAndRadius(caixa, const Radius.circular(3.5)),
+      pincel,
+    );
+    final x = caixa.left + caixa.width * 0.36;
+    canvas.drawLine(Offset(x, caixa.top), Offset(x, caixa.bottom), pincel);
+  }
+
+  @override
+  bool shouldRepaint(_PintorBarraLateral old) => old.color != color;
+}
+
 /// Quem está usando o app, no pé da barra lateral.
 class _Assinante extends StatelessWidget {
-  const _Assinante({required this.state});
+  const _Assinante({required this.state, this.compacto = false});
 
   final AppState state;
+  final bool compacto;
 
   @override
   Widget build(BuildContext context) {
     final nome = state.cloudName ?? state.cloudEmail;
     final chave = state.credentials?.maskedKey;
 
-    return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-      child: Row(
-        children: [
-          CircleAvatar(
+    final avatar = CircleAvatar(
             radius: 15,
             backgroundColor: AppColors.accent.withValues(alpha: 0.18),
             backgroundImage: state.cloudAvatar == null
@@ -393,7 +506,24 @@ class _Assinante extends StatelessWidget {
                     size: 16,
                     color: AppColors.accent,
                   ),
-          ),
+          );
+
+    if (compacto) {
+      return Tooltip(
+        message: [nome ?? 'Sem conta', if (chave != null) 'Chave $chave']
+            .join('\n'),
+        child: Padding(
+          padding: const EdgeInsets.symmetric(vertical: 4),
+          child: avatar,
+        ),
+      );
+    }
+
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+      child: Row(
+        children: [
+          avatar,
           const SizedBox(width: 10),
           Expanded(
             child: Column(
