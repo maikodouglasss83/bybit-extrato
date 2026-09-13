@@ -284,6 +284,12 @@ class AppState extends ChangeNotifier {
   /// Converte um valor em dólar para a moeda de exibição escolhida.
   double toDisplay(double usd) => showInBrl && usdBrl != null ? usd * usdBrl! : usd;
 
+  /// O inverso de [toDisplay]: um valor digitado na moeda da tela, em dólar.
+  /// É o que deixa a meta do nível ser editada em real e continuar guardada
+  /// na moeda em que a Bybit mede o nível.
+  double displayToUsd(double value) =>
+      showInBrl && usdBrl != null && usdBrl! > 0 ? value / usdBrl! : value;
+
   /// Valor em dólar de uma quantidade de determinada moeda.
   double usdValueOf(String coin, double amount) {
     final c = coin.toUpperCase();

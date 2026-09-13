@@ -2099,6 +2099,33 @@ void main() {
     });
   });
 
+  group('Meta do nível na moeda da tela', () {
+    test('a meta digitada em real é guardada em dólar', () {
+      final state = AppState()
+        ..usdBrl = 5.0
+        ..preferBrl = true;
+      expect(state.displayToUsd(2500), 500);
+      expect(state.toDisplay(state.displayToUsd(2500)), 2500);
+    });
+
+    test('com a tela em dólar, nada é convertido', () {
+      final state = AppState()
+        ..usdBrl = 5.0
+        ..preferBrl = false;
+      expect(state.displayToUsd(500), 500);
+      expect(state.toDisplay(500), 500);
+    });
+
+    test('o cashback medido em dólar aparece em real', () {
+      final state = AppState()
+        ..usdBrl = 5.0
+        ..preferBrl = true;
+      final texto = state.formatValue(13.33, 'USD', signed: false);
+      expect(texto, contains(r'R$'));
+      expect(texto, contains('66,65'));
+    });
+  });
+
   group('Moeda padrão', () {
     test('o real é o padrão quando há cotação', () {
       final state = AppState()..usdBrl = 5.0;

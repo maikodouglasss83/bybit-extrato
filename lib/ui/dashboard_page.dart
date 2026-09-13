@@ -553,7 +553,7 @@ class _CardSpendingCard extends StatelessWidget {
                 Text('Cashback do mês', style: context.texts.bodySmall),
                 const Spacer(),
                 Text(
-                  '${fmtPlain(rewards.usedLimit)} / ${fmtPlain(rewards.limit)} ${rewards.limitUnit}',
+                  '${state.formatValue(rewards.usedLimit, rewards.limitUnit, signed: false)} / ${state.formatValue(rewards.limit, rewards.limitUnit, signed: false)}',
                   style: context.texts.bodySmall,
                 ),
               ],
@@ -723,14 +723,14 @@ class _TierGoal extends StatelessWidget {
                 MaskedValue(
                   hidden: state.hideBalances,
                   maskLength: 6,
-                  value: fmtFiat(state.cardSpentUsdThisMonth, brl: false),
+                  value: fmtFiat(state.toDisplay(state.cardSpentUsdThisMonth), brl: state.showInBrl),
                   style: context.texts.headlineSmall?.copyWith(color: cor),
                 ),
                 const SizedBox(width: 6),
                 Padding(
                   padding: const EdgeInsets.only(bottom: 3),
                   child: Text(
-                    'de ${fmtFiat(state.cardGoalUsd, brl: false)}',
+                    'de ${fmtFiat(state.toDisplay(state.cardGoalUsd), brl: state.showInBrl)}',
                     style: context.texts.bodySmall,
                   ),
                 ),
@@ -752,7 +752,7 @@ class _TierGoal extends StatelessWidget {
                   ? 'Meta batida! O nível está garantido neste mês.'
                   : state.hideBalances
                       ? 'Faltam •••• para manter o nível'
-                      : 'Faltam ${fmtFiat(falta, brl: false)} para manter o nível'
+                      : 'Faltam ${fmtFiat(state.toDisplay(falta), brl: state.showInBrl)} para manter o nível'
                           ' · ${dias == 1 ? 'último dia' : '$dias dias restantes'}',
               style: context.texts.bodySmall?.copyWith(
                 color: bateu ? tones.positive : null,
@@ -766,7 +766,7 @@ class _TierGoal extends StatelessWidget {
 
   Future<void> _editarMeta(BuildContext context) async {
     final controller =
-        TextEditingController(text: state.cardGoalUsd.toStringAsFixed(0));
+        TextEditingController(text: state.toDisplay(state.cardGoalUsd).toStringAsFixed(0));
 
     final valor = await showDialog<double>(
       context: context,
@@ -777,8 +777,9 @@ class _TierGoal extends StatelessWidget {
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             Text(
-              'Quanto é preciso gastar por mês, em dólar, para manter o nível '
-              'do cartão. A Bybit não informa esse valor pela API.',
+              'Quanto é preciso gastar por mês para manter o nível '
+              'do cartão. A Bybit não informa esse valor pela API e mede o nível '
+              'em dólar: em real, a meta é convertida pela cotação de hoje.',
               style: context.texts.bodySmall,
             ),
             const SizedBox(height: 16),
@@ -786,8 +787,8 @@ class _TierGoal extends StatelessWidget {
               controller: controller,
               autofocus: true,
               keyboardType: const TextInputType.numberWithOptions(decimal: true),
-              decoration: const InputDecoration(
-                prefixText: r'US$ ',
+              decoration: InputDecoration(
+                prefixText: state.displayCurrencySymbol,
                 labelText: 'Meta mensal',
               ),
               onSubmitted: (t) => Navigator.of(dialogContext)
@@ -809,7 +810,7 @@ class _TierGoal extends StatelessWidget {
       ),
     );
 
-    if (valor != null && valor > 0) await state.setCardGoal(valor);
+    if (valor != null && valor > 0) await state.setCardGoal(state.displayToUsd(valor));
   }
 }
 
