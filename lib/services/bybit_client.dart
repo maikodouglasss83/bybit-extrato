@@ -194,6 +194,11 @@ class BybitClient {
   }
 
   /// Confere se a chave é válida antes de salvar.
+  /// A própria chave vista pela Bybit: se é só de leitura, o que libera e
+  /// quando vence.
+  Future<ApiKeyInfo> apiKeyInfo() async =>
+      ApiKeyInfo.fromJson(await _get('/v5/user/query-api'));
+
   Future<void> ping() => _get('/v5/account/wallet-balance', params: {'accountType': 'UNIFIED'});
 
   /// Depósitos internos (fora da blockchain), como compras em reais.

@@ -1839,6 +1839,42 @@ class AppState extends ChangeNotifier {
   }
 
   /// Valida as credenciais na Bybit antes de gravá-las.
+  /// O que a Bybit disse sobre a chave em uso, na última consulta.
+  ApiKeyInfo? apiKeyInfo;
+
+  /// Aviso sobre a chave aceita na última conexão: algo que não impede de
+  /// usar o app, mas deixa uma parte dele vazia.
+  String? connectWarning;
+
+  /// Dias até a chave vencer. Nulo quando ela não vence ou ainda não se sabe.
+  int? get keyDaysLeft => apiKeyInfo?.daysLeft(DateTime.now());
+
+  /// Com quantos dias de antecedência o app começa a avisar do vencimento.
+  static const keyWarningDays = 14;
+
+  /// A chave vence logo. Avisar antes é o que evita descobrir pelo app parado.
+  bool get keyExpiresSoon {
+    final dias = keyDaysLeft;
+    return dias != null && dias <= keyWarningDays;
+  }
+
+  /// Por que uma chave não pode ser usada, ou nulo quando pode.
+  ///
+  /// O app promete que só lê. Uma chave que negocia ou saca desmente a
+  /// promessa — e, se vazar, abre caminho até o dinheiro. Melhor recusar na
+  /// porta do que guardar.
+  static String? keyProblem(ApiKeyInfo info) {
+    if (info.canWithdraw) {
+      return 'Essa chave tem permissão de saque. Por segurança, crie uma '
+          'chave "Read-Only" (somente leitura) e cole aqui.';
+    }
+    if (!info.readOnly) {
+      return 'Essa chave pode negociar e movimentar a conta. O app só precisa '
+          'ler: crie uma chave "Read-Only" (somente leitura) e cole aqui.';
+    }
+    return null;
+  }
+
   Future<String?> connect(Credentials c) async {
     final client = BybitClient(
       apiKey: c.apiKey.trim(),
@@ -1849,8 +1885,8 @@ class AppState extends ChangeNotifier {
       await client.ping();
     } on BybitException catch (e) {
       if (e.isAuth) {
-        return 'Chave rejeitada pela Bybit: ${e.message}. Confira a API Key, '
-            'o Secret e se o IP está liberado.';
+        return 'A Bybit não aceitou essa chave. Confira se copiou a API Key e '
+            'a API Secret inteiras, e se a chave não foi apagada ou venceu.';
       }
       if (e.isClockSkew) {
         return 'O relógio deste dispositivo está fora de hora. Ative o ajuste '
@@ -1860,6 +1896,28 @@ class AppState extends ChangeNotifier {
     } catch (e) {
       return 'Não foi possível falar com a Bybit. Verifique sua conexão. ($e)';
     }
+
+    // Com a chave aceita, confere o que ela libera. Se a própria consulta
+    // falhar, segue em frente: melhor conectar sem a conferência do que
+    // barrar a entrada por causa dela.
+    ApiKeyInfo? info;
+    try {
+      info = await client.apiKeyInfo();
+    } catch (_) {
+      // Sem a informação, a chave vale como veio.
+    }
+
+    if (info != null) {
+      final problema = keyProblem(info);
+      if (problema != null) return problema;
+    }
+
+    connectWarning = info != null && !info.canReadCard
+        ? 'A chave não tem a permissão do cartão: saldos e extrato aparecem, '
+            'mas as compras do Bybit Card não. Crie outra marcando a '
+            'permissão do cartão.'
+        : null;
+    apiKeyInfo = info;
 
     // Guardar a chave pode falhar: o cofre do navegador exige contexto
     // seguro, e um endereço servido por HTTP puro não é. A conexão continua
@@ -1884,6 +1942,12 @@ class AppState extends ChangeNotifier {
     _client = null;
     _credentials = null;
     _entries.clear();
+    // A chave e as compras pendentes eram da conta que saiu.
+    _pendingCard = const [];
+    _pendingAguardando = const [];
+    unawaited(_preferences.savePendingCard(const [], const []));
+    apiKeyInfo = null;
+    connectWarning = null;
     _cursor = null;
     snapshot = WalletSnapshot.empty();
     lastSync = null;
@@ -1939,6 +2003,8 @@ class AppState extends ChangeNotifier {
         CardPage(entries: const [], page: 1, pageSize: _cardPageSize, totalCount: 0),
       );
       cardRewards = await _optional(client.cardRewards(), CardRewards.empty);
+      // A situação da chave muda com o tempo: o vencimento se aproxima.
+      apiKeyInfo = await _optional<ApiKeyInfo?>(client.apiKeyInfo(), apiKeyInfo);
 
       snapshot = wallet;
       fundingCoins = funding
@@ -1984,7 +2050,11 @@ class AppState extends ChangeNotifier {
     } on BybitException catch (e) {
       if (e.isAuth) {
         errorMessage =
-            'A Bybit recusou a chave de API. Vá em Configurações e confira as credenciais.';
+            (keyDaysLeft ?? 0) < 0
+                ? 'Sua chave da Bybit venceu. Ela vence em 90 dias quando não '
+                    'está presa a um IP: crie outra e troque em Ajustes.'
+                : 'A Bybit recusou a chave de API. Vá em Ajustes e confira as '
+                    'credenciais.';
       } else if (e.isClockSkew) {
         errorMessage = 'O relógio deste dispositivo está fora de hora e a Bybit '
             'recusou as requisições. Ajuste a data e a hora automaticamente nas '

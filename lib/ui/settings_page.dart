@@ -74,6 +74,14 @@ class SettingsPage extends StatelessWidget {
                       'Ela vale enquanto esta aba estiver aberta.',
                 ),
               ],
+              if (state.apiKeyInfo != null) ...[
+                const SizedBox(height: 16),
+                KeyStatusCard(state: state),
+              ],
+              if (state.connectWarning != null) ...[
+                const SizedBox(height: 12),
+                ErrorBanner(message: state.connectWarning!),
+              ],
               if (state.lastSync != null) ...[
                 const SizedBox(height: 16),
                 Row(

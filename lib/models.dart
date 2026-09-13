@@ -181,6 +181,76 @@ class CardRewards {
       );
 }
 
+/// O que a Bybit diz sobre a chave de API que o app está usando.
+///
+/// A tela de conexão precisa de duas respostas antes de guardar a chave: se
+/// ela é mesmo só de leitura, e quando vai vencer. A Bybit invalida sozinha,
+/// depois de 90 dias, toda chave que não está presa a um endereço de IP — e
+/// um app que roda no navegador de cada pessoa não tem IP fixo para prender.
+class ApiKeyInfo {
+  const ApiKeyInfo({
+    required this.readOnly,
+    required this.permissions,
+    this.note,
+    this.createdAt,
+    this.expiresAt,
+  });
+
+  final bool readOnly;
+
+  /// Grupos de permissão ativos, com o que cada um libera.
+  final Map<String, List<String>> permissions;
+
+  /// Nome que a pessoa deu à chave na Bybit.
+  final String? note;
+
+  final DateTime? createdAt;
+
+  /// Quando a chave vence. Nulo quando ela não vence, por estar presa a IP.
+  final DateTime? expiresAt;
+
+  /// Saque liberado: a chave pode tirar dinheiro da conta.
+  bool get canWithdraw => permissions['Wallet']?.contains('Withdraw') ?? false;
+
+  /// Sem esta permissão as compras do cartão não chegam ao app.
+  bool get canReadCard => permissions['BitCard']?.isNotEmpty ?? false;
+
+  /// Dias até vencer, contando o dia de hoje como zero.
+  int? daysLeft(DateTime agora) {
+    final vence = expiresAt;
+    if (vence == null) return null;
+    return vence.difference(agora).inDays;
+  }
+
+  factory ApiKeyInfo.fromJson(Map<String, dynamic> j) {
+    final permissoes = <String, List<String>>{};
+    final bruto = j['permissions'];
+    if (bruto is Map) {
+      bruto.forEach((grupo, valores) {
+        final lista = valores is List
+            ? valores.map((v) => v.toString()).toList()
+            : <String>[];
+        if (lista.isNotEmpty) permissoes[grupo.toString()] = lista;
+      });
+    }
+
+    DateTime? data(dynamic v) {
+      final d = DateTime.tryParse(v?.toString() ?? '');
+      // A Bybit manda 1970 quando a chave não vence.
+      return d == null || d.year < 2000 ? null : d;
+    }
+
+    final nome = j['note']?.toString().trim() ?? '';
+    return ApiKeyInfo(
+      readOnly: j['readOnly']?.toString() == '1',
+      permissions: permissoes,
+      note: nome.isEmpty ? null : nome,
+      createdAt: data(j['createdAt']),
+      expiresAt: data(j['expiredAt']),
+    );
+  }
+}
+
 /// Natureza de um lançamento, usada para escolher ícone, cor e rótulo.
 enum LedgerKind {
   deposit,

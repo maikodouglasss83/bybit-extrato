@@ -1812,6 +1812,90 @@ void main() {
     });
   });
 
+  group('Conferência da chave de API', () {
+    // O formato é o que a Bybit devolveu para a chave de verdade do app.
+    Map<String, dynamic> resposta({
+      int readOnly = 1,
+      String expiredAt = '2026-11-09T23:14:29Z',
+      List<String> carteira = const ['AccountTransfer', 'SubMemberTransfer'],
+      List<String> cartao = const ['BitCard'],
+    }) =>
+        {
+          'note': 'APP Claude',
+          'readOnly': readOnly,
+          'permissions': {
+            'ContractTrade': ['Order', 'Position'],
+            'Spot': ['SpotTrade'],
+            'Wallet': carteira,
+            'Options': <String>[],
+            'BitCard': cartao,
+          },
+          'ips': ['*'],
+          'type': 1,
+          'deadlineDay': 57,
+          'expiredAt': expiredAt,
+          'createdAt': '2026-08-09T23:14:29Z',
+        };
+
+    test('lê a chave somente leitura com a data de vencimento', () {
+      final info = ApiKeyInfo.fromJson(resposta());
+      expect(info.readOnly, isTrue);
+      expect(info.canWithdraw, isFalse);
+      expect(info.canReadCard, isTrue);
+      expect(info.note, 'APP Claude');
+      expect(info.expiresAt, DateTime.utc(2026, 11, 9, 23, 14, 29));
+      expect(info.daysLeft(DateTime.utc(2026, 11, 1, 23, 14, 29)), 8);
+      // Grupo sem nada liberado não conta como permissão.
+      expect(info.permissions.containsKey('Options'), isFalse);
+    });
+
+    test('chave presa a IP não tem vencimento', () {
+      final info = ApiKeyInfo.fromJson(
+        resposta(expiredAt: '1970-01-01T00:00:00Z'),
+      );
+      expect(info.expiresAt, isNull);
+      expect(info.daysLeft(DateTime.now()), isNull);
+    });
+
+    test('somente leitura passa na conferência', () {
+      expect(AppState.keyProblem(ApiKeyInfo.fromJson(resposta())), isNull);
+    });
+
+    test('chave que negocia é recusada', () {
+      final problema =
+          AppState.keyProblem(ApiKeyInfo.fromJson(resposta(readOnly: 0)));
+      expect(problema, contains('Read-Only'));
+    });
+
+    test('chave que saca é recusada, mesmo sendo a pior das duas', () {
+      final problema = AppState.keyProblem(ApiKeyInfo.fromJson(
+        resposta(readOnly: 0, carteira: const ['Withdraw']),
+      ));
+      expect(problema, contains('saque'));
+    });
+
+    test('sem a permissão do cartão a conferência avisa, mas não recusa', () {
+      final info = ApiKeyInfo.fromJson(resposta(cartao: const []));
+      expect(info.canReadCard, isFalse);
+      expect(AppState.keyProblem(info), isNull);
+    });
+
+    test('o aviso de vencimento começa duas semanas antes', () {
+      final state = AppState();
+
+      state.apiKeyInfo = ApiKeyInfo.fromJson(resposta(
+        expiredAt: DateTime.now().add(const Duration(days: 30)).toIso8601String(),
+      ));
+      expect(state.keyExpiresSoon, isFalse);
+
+      state.apiKeyInfo = ApiKeyInfo.fromJson(resposta(
+        expiredAt: DateTime.now().add(const Duration(days: 10)).toIso8601String(),
+      ));
+      expect(state.keyExpiresSoon, isTrue);
+      expect(state.keyDaysLeft, inInclusiveRange(9, 10));
+    });
+  });
+
   group('Moeda padrão', () {
     test('o real é o padrão quando há cotação', () {
       final state = AppState()..usdBrl = 5.0;

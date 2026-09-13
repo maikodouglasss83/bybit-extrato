@@ -6,6 +6,7 @@ import '../app_state.dart';
 import '../models.dart';
 import '../theme.dart';
 import '../util/format.dart';
+import 'connect_page.dart';
 import 'widgets/charts.dart';
 import 'widgets/common.dart';
 import 'widgets/entry_editor.dart';
@@ -37,6 +38,10 @@ class DashboardPage extends StatelessWidget {
           const SizedBox(height: 16),
           if (state.errorMessage != null) ...[
             ErrorBanner(message: state.errorMessage!, onRetry: state.refresh),
+            const SizedBox(height: 16),
+          ],
+          if (state.keyExpiresSoon) ...[
+            KeyExpiryBanner(state: state),
             const SizedBox(height: 16),
           ],
           if (wide)
