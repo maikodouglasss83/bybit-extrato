@@ -460,8 +460,10 @@ class _SeletorDeCategoriaState extends State<_SeletorDeCategoria> {
     widget.onChanged(state.categoryValueOf(criado));
   }
 
+  /// O mesmo ícone que a categoria tem no planejamento.
   static IconData _iconeDe(AppState state, BudgetNode node) {
-    if (node.sources.isEmpty) return Icons.folder_outlined;
+    if (node.isMain) return mainCategoryIcon(node.id);
+    if (node.sources.isEmpty) return iconForCategoryName(node.name);
     final valor = node.sources.first;
     return state.isCustomCategory(valor)
         ? iconForCategoryName(node.name)

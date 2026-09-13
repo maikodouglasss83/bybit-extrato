@@ -96,8 +96,6 @@ class _AppShellState extends State<AppShell> {
                 onSelect: (i) => setState(() => _index = i),
                 state: state,
                 recolhido: _menuRecolhido,
-                onAlternar: () =>
-                    setState(() => _menuRecolhido = !_menuRecolhido),
               ),
               const VerticalDivider(width: 1),
               Expanded(
@@ -106,6 +104,9 @@ class _AppShellState extends State<AppShell> {
                     _TopBar(
                       title: _titles[_index],
                       state: state,
+                      menuRecolhido: _menuRecolhido,
+                      onAlternarMenu: () =>
+                          setState(() => _menuRecolhido = !_menuRecolhido),
                       showRefresh: _index != _settingsIndex,
                       settingsOpen: _index == _settingsIndex,
                       onSettings: _alternarAjustes,
@@ -250,14 +251,12 @@ class _SideNav extends StatelessWidget {
     required this.onSelect,
     required this.state,
     required this.recolhido,
-    required this.onAlternar,
   });
 
   final int index;
   final ValueChanged<int> onSelect;
   final AppState state;
   final bool recolhido;
-  final VoidCallback onAlternar;
 
   static const larguraAberta = 244.0;
   static const larguraRecolhida = 72.0;
@@ -338,29 +337,25 @@ class _SideNav extends StatelessWidget {
   }
 
   Widget _cabecalho(BuildContext context, bool compacto) {
-    final botao = IconButton(
-      tooltip: recolhido ? 'Expandir menu' : 'Recolher menu',
-      onPressed: onAlternar,
-      icon: _IconeBarraLateral(color: context.tones.muted),
+    final logo = Container(
+      width: 34,
+      height: 34,
+      alignment: Alignment.center,
+      decoration: BoxDecoration(
+        color: AppColors.accent.withValues(alpha: 0.16),
+        borderRadius: BorderRadius.circular(11),
+      ),
+      child: const Icon(Icons.account_balance_wallet_rounded,
+          size: 18, color: AppColors.accent),
     );
 
-    if (compacto) return botao;
+    if (compacto) return logo;
 
     return Padding(
-      padding: const EdgeInsets.only(left: 8),
+      padding: const EdgeInsets.symmetric(horizontal: 8),
       child: Row(
         children: [
-          Container(
-            width: 34,
-            height: 34,
-            alignment: Alignment.center,
-            decoration: BoxDecoration(
-              color: AppColors.accent.withValues(alpha: 0.16),
-              borderRadius: BorderRadius.circular(11),
-            ),
-            child: const Icon(Icons.account_balance_wallet_rounded,
-                size: 18, color: AppColors.accent),
-          ),
+          logo,
           const SizedBox(width: 10),
           Expanded(
             child: Text(
@@ -370,7 +365,6 @@ class _SideNav extends StatelessWidget {
               overflow: TextOverflow.ellipsis,
             ),
           ),
-          botao,
         ],
       ),
     );
@@ -556,6 +550,8 @@ class _TopBar extends StatelessWidget {
   const _TopBar({
     required this.title,
     required this.state,
+    required this.menuRecolhido,
+    required this.onAlternarMenu,
     required this.showRefresh,
     required this.settingsOpen,
     required this.onSettings,
@@ -565,6 +561,8 @@ class _TopBar extends StatelessWidget {
 
   final String title;
   final AppState state;
+  final bool menuRecolhido;
+  final VoidCallback onAlternarMenu;
   final bool showRefresh;
   final bool settingsOpen;
   final VoidCallback onSettings;
@@ -576,9 +574,15 @@ class _TopBar extends StatelessWidget {
     final escuro = Theme.of(context).brightness == Brightness.dark;
 
     return Padding(
-      padding: const EdgeInsets.fromLTRB(24, 18, 24, 10),
+      padding: const EdgeInsets.fromLTRB(12, 18, 24, 10),
       child: Row(
         children: [
+          IconButton(
+            tooltip: menuRecolhido ? 'Expandir menu' : 'Recolher menu',
+            onPressed: onAlternarMenu,
+            icon: _IconeBarraLateral(color: context.tones.muted),
+          ),
+          const SizedBox(width: 6),
           Flexible(
             child: Text(
               title,

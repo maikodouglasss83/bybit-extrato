@@ -140,6 +140,23 @@ void main() {
       expect(state.categoryOf(entry), 'Hortifruti');
     });
 
+    testWidgets('as categorias trazem os mesmos ícones do planejamento',
+        (tester) async {
+      await abrirEditor(tester, AppState(), compra());
+
+      expect(find.byIcon(Icons.folder_outlined), findsNothing);
+      for (final icone in [
+        Icons.home_outlined, // Casa
+        Icons.school_outlined, // Educação
+        Icons.favorite_border_rounded, // Saúde
+        Icons.directions_car_filled_outlined, // Transporte
+        Icons.person_outline_rounded, // Despesas pessoais
+        Icons.more_horiz_rounded, // Outros
+      ]) {
+        expect(find.byIcon(icone), findsWidgets, reason: '$icone');
+      }
+    });
+
     testWidgets('nome repetido mostra o motivo no próprio diálogo',
         (tester) async {
       final state = AppState();
