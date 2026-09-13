@@ -223,6 +223,27 @@ IconData iconForCategoryName(String nome) {
   return Icons.bookmark_outline_rounded;
 }
 
+/// Mantém o conteúdo de uma folha acima do teclado do celular.
+///
+/// A altura do teclado precisa ser lida no contexto da própria folha: lida no
+/// da página que a abriu, ela fica congelada em zero, e o teclado cobre os
+/// campos e o botão de salvar.
+class AcimaDoTeclado extends StatelessWidget {
+  const AcimaDoTeclado({super.key, required this.child});
+
+  final Widget child;
+
+  @override
+  Widget build(BuildContext context) {
+    return AnimatedPadding(
+      duration: const Duration(milliseconds: 120),
+      curve: Curves.easeOut,
+      padding: EdgeInsets.only(bottom: MediaQuery.viewInsetsOf(context).bottom),
+      child: child,
+    );
+  }
+}
+
 /// Barra de mês: setas para os lados e o mês escolhido no meio.
 ///
 /// O mês é o mesmo em todas as páginas — trocar aqui troca no resto do app,

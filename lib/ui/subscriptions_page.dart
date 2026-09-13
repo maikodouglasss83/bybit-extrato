@@ -650,11 +650,12 @@ void _abrirEditorManual(
     shape: const RoundedRectangleBorder(
       borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
     ),
-    builder: (_) => Padding(
-      padding: EdgeInsets.only(
-        bottom: MediaQuery.viewInsetsOf(context).bottom,
+    // Com o teclado aberto o formulário não cabe inteiro: rola, e o campo
+    // tocado é trazido para cima do teclado.
+    builder: (_) => AcimaDoTeclado(
+      child: SingleChildScrollView(
+        child: _EditorManual(state: state, existente: existente),
       ),
-      child: _EditorManual(state: state, existente: existente),
     ),
   );
 }

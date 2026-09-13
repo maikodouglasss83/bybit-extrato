@@ -871,10 +871,12 @@ Future<void> showBudgetNodeEditor(
     shape: const RoundedRectangleBorder(
       borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
     ),
-    builder: (_) => _NodeEditor(
-      state: state,
-      parentId: parentId,
-      parentName: parentName,
+    builder: (_) => AcimaDoTeclado(
+      child: _NodeEditor(
+        state: state,
+        parentId: parentId,
+        parentName: parentName,
+      ),
     ),
   );
 }

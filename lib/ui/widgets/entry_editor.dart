@@ -23,7 +23,9 @@ Future<void> showEntryEditor(
     shape: const RoundedRectangleBorder(
       borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
     ),
-    builder: (sheetContext) => _EntryEditor(state: state, entry: entry),
+    builder: (sheetContext) => AcimaDoTeclado(
+      child: _EntryEditor(state: state, entry: entry),
+    ),
   );
 }
 
