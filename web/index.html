@@ -5,13 +5,24 @@
 
   <meta charset="UTF-8">
   <meta content="IE=Edge" http-equiv="X-UA-Compatible">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+  <!--
+    Sem viewport-fit=cover: o Flutter web ainda não lê as áreas seguras do
+    iPhone, então deixar o app desenhar embaixo do entalhe e da barra de gestos
+    só serviria para esconder botões ali. O iOS mantém a página dentro da área
+    segura sozinho.
+  -->
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
   <meta name="description" content="Saldos e extrato da sua conta Bybit, no celular e no computador.">
   <meta name="theme-color" content="#0A0E14">
 
   <!-- iOS -->
   <meta name="mobile-web-app-capable" content="yes">
-  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <!--
+    Barra de status opaca, e não "black-translucent". Com a translúcida, o app
+    instalado na tela inicial desenha por baixo da barra sem o Flutter saber, e
+    todo toque cai deslocado para baixo do dedo.
+  -->
+  <meta name="apple-mobile-web-app-status-bar-style" content="black">
   <meta name="apple-mobile-web-app-title" content="Extrato Bybit">
   <link rel="apple-touch-icon" href="icons/Icon-192.png">
 
@@ -21,11 +32,23 @@
   <link rel="manifest" href="manifest.json">
 
   <style>
-    /* Fundo do app enquanto o Flutter carrega, para não piscar branco. */
+    /*
+      A página fica presa à tela. O Flutter calcula a posição de cada toque a
+      partir do topo do documento; se o documento rolar alguns pixels — o que o
+      iOS faz ao abrir o teclado ou ao puxar a tela —, todos os toques passam a
+      cair fora do lugar.
+    */
     html, body {
+      position: fixed;
+      inset: 0;
+      width: 100%;
+      height: 100%;
       margin: 0;
       padding: 0;
-      height: 100%;
+      overflow: hidden;
+      overscroll-behavior: none;
+      touch-action: manipulation;
+      /* Fundo do app enquanto o Flutter carrega, para não piscar branco. */
       background-color: #0A0E14;
     }
     #loading {
@@ -44,6 +67,55 @@
 <body>
   <div id="loading">Carregando…</div>
   <script>
+    // O Flutter reescreve a tag de viewport ao iniciar, liberando zoom e
+    // mudando a escala — e com isso a conta que liga o toque ao botão. Toda
+    // vez que ela for trocada, volta ao que está definido aqui.
+    (function () {
+      var VIEWPORT =
+        'width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no';
+
+      function manterViewport() {
+        var tags = document.querySelectorAll('meta[name="viewport"]');
+        for (var i = 0; i < tags.length; i++) {
+          if (tags[i].getAttribute('content') !== VIEWPORT) {
+            tags[i].setAttribute('content', VIEWPORT);
+          }
+        }
+      }
+
+      manterViewport();
+      new MutationObserver(manterViewport).observe(document.head, {
+        childList: true,
+        subtree: true,
+        attributes: true,
+        attributeFilter: ['content'],
+      });
+    })();
+
+    // Mantém o documento no ponto zero. É a garantia de que o toque cai onde o
+    // dedo está: se algo rolar a página, ela volta antes de o Flutter ler a
+    // posição do toque.
+    (function () {
+      function voltarAoTopo() {
+        if (window.scrollX !== 0 || window.scrollY !== 0) window.scrollTo(0, 0);
+      }
+
+      ['scroll', 'resize', 'orientationchange'].forEach(function (evento) {
+        window.addEventListener(evento, voltarAoTopo, { passive: true });
+      });
+      // Na fase de captura, para rodar antes de o Flutter tratar o toque.
+      ['pointerdown', 'touchstart', 'focusout'].forEach(function (evento) {
+        document.addEventListener(evento, voltarAoTopo, {
+          passive: true,
+          capture: true,
+        });
+      });
+      if (window.visualViewport) {
+        window.visualViewport.addEventListener('resize', voltarAoTopo);
+        window.visualViewport.addEventListener('scroll', voltarAoTopo);
+      }
+    })();
+
     // Limpa service workers registrados por versões anteriores.
     //
     // Enquanto um deles existir, o navegador continua servindo o app antigo
