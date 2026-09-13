@@ -201,6 +201,53 @@ List<BudgetNode> defaultBudgetTree() => const [
       BudgetNode(id: kUncategorizedId, name: 'Sem categoria', builtIn: true),
     ];
 
+/// A categoria de gasto que pode voltar para uma subcategoria vazia, ou nulo.
+///
+/// Uma versão anterior deixava a criação de uma subcategoria levar, sem
+/// avisar, a única categoria de outra: foi assim que "Mercado" ficou vazia
+/// quando "Padaria" foi criada levando "Mercado" junto. Vazia, a subcategoria
+/// continua na tela, mas nenhum gasto consegue cair nela.
+///
+/// Não há como saber se levar a categoria foi de propósito, então nada volta
+/// sozinho: a tela oferece trazer de volta, e a pessoa decide. Para as
+/// subcategorias padrão, volta a categoria de fábrica; para as criadas pela
+/// pessoa, o próprio nome. E só quando quem a segura hoje fica com pelo menos
+/// uma outra — nunca se esvazia um nó para encher outro.
+String? restorableSource(List<BudgetNode> nodes, BudgetNode node) {
+  if (node.isMain || node.sources.isNotEmpty) return null;
+
+  final String? candidata;
+  if (node.builtIn) {
+    final padrao = defaultBudgetTree().where((n) => n.id == node.id).firstOrNull;
+    candidata =
+        padrao == null || padrao.sources.isEmpty ? null : padrao.sources.first;
+  } else {
+    candidata = node.name;
+  }
+  if (candidata == null) return null;
+
+  final dono = nodes.where((n) => n.sources.contains(candidata)).firstOrNull;
+  if (dono != null && dono.sources.length < 2) return null;
+  return candidata;
+}
+
+/// Leva [source] para o nó [nodeId], tirando de quem a segurava — uma
+/// categoria de gasto alimenta um nó só.
+List<BudgetNode> withSourceMoved(
+  List<BudgetNode> nodes,
+  String nodeId,
+  String source,
+) =>
+    [
+      for (final n in nodes)
+        if (n.id == nodeId)
+          n.copyWith(sources: [...n.sources.where((s) => s != source), source])
+        else if (n.sources.contains(source))
+          n.copyWith(sources: n.sources.where((s) => s != source).toList())
+        else
+          n,
+    ];
+
 /// Quanto foi gasto e quanto foi planejado num nó.
 class BudgetLine {
   const BudgetLine({

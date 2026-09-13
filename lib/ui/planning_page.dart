@@ -485,6 +485,43 @@ class _SubcategoryTile extends StatelessWidget {
                 ),
               ],
             ),
+            // Subcategoria sem nenhuma categoria de gasto ligada: aparece, mas
+            // nada consegue cair nela. Em vez de esconder, diz o que houve e
+            // oferece trazer a categoria de volta — a decisão é da pessoa.
+            if (linha.node.sources.isEmpty) ...[
+              const SizedBox(height: 6),
+              Padding(
+                padding: const EdgeInsets.only(left: 16, right: _larguraDoMenu),
+                child: Row(
+                  children: [
+                    const Icon(Icons.info_outline_rounded,
+                        size: 14, color: AppColors.warning),
+                    const SizedBox(width: 6),
+                    Expanded(
+                      child: Text(
+                        state.restorableSourceOf(linha.node) == null
+                            ? 'Nenhum gasto chega aqui. Renomeie ou apague '
+                                'pelo menu ⋮.'
+                            : 'Nenhum gasto chega aqui: '
+                                '"${state.restorableSourceOf(linha.node)}" '
+                                'está em '
+                                '${state.nodeForCategory(state.restorableSourceOf(linha.node)!)?.name ?? 'outro lugar'}.',
+                        style: context.texts.bodySmall,
+                      ),
+                    ),
+                    if (state.restorableSourceOf(linha.node) != null)
+                      TextButton(
+                        onPressed: () => state.restoreNodeSource(linha.node.id),
+                        style: TextButton.styleFrom(
+                          visualDensity: VisualDensity.compact,
+                          padding: const EdgeInsets.symmetric(horizontal: 8),
+                        ),
+                        child: const Text('Trazer de volta'),
+                      ),
+                  ],
+                ),
+              ),
+            ],
             if (linha.hasBudget) ...[
               const SizedBox(height: 4),
               Padding(
@@ -767,6 +804,9 @@ class _NodeEditorState extends State<_NodeEditor> {
   final _budgetController = TextEditingController();
   final Set<String> _sources = {};
 
+  /// Motivo de não ter conseguido criar, mostrado acima do botão.
+  String? _erro;
+
   @override
   void dispose() {
     _nameController.dispose();
@@ -776,19 +816,23 @@ class _NodeEditorState extends State<_NodeEditor> {
 
   Future<void> _salvar() async {
     final nome = _nameController.text.trim();
-    if (nome.isEmpty) return;
 
     final digitado =
         double.tryParse(_budgetController.text.replaceAll(',', '.')) ?? 0;
 
-    await widget.state.addBudgetNode(
+    final erro = await widget.state.addBudgetNode(
       name: nome,
       parentId: widget.parentId,
       // A meta entra na moeda da tela e é guardada em reais.
       budget: widget.state.displayToBrl(digitado),
       sources: _sources.toList(),
     );
-    if (mounted) Navigator.of(context).maybePop();
+    if (!mounted) return;
+    if (erro != null) {
+      setState(() => _erro = erro);
+      return;
+    }
+    Navigator.of(context).maybePop();
   }
 
   @override
@@ -820,6 +864,9 @@ class _NodeEditorState extends State<_NodeEditor> {
                   controller: _nameController,
                   autofocus: true,
                   textCapitalization: TextCapitalization.sentences,
+                  onChanged: (_) {
+                    if (_erro != null) setState(() => _erro = null);
+                  },
                   decoration: const InputDecoration(
                     labelText: 'Nome',
                     hintText: 'Ex.: Academia, Pets, Viagens',
@@ -841,7 +888,8 @@ class _NodeEditorState extends State<_NodeEditor> {
                 Text(
                   'Escolha as categorias de gasto que devem alimentar esta '
                   'categoria. Cada uma pertence a um lugar só, então ela sai '
-                  'de onde estava hoje.',
+                  'de onde estava hoje. As apagadas são a única categoria de '
+                  'outra subcategoria — levá-las deixaria aquela vazia.',
                   style: context.texts.bodySmall,
                 ),
                 const SizedBox(height: 14),
@@ -852,6 +900,10 @@ class _NodeEditorState extends State<_NodeEditor> {
                     for (final categoria in SpendCategories.all)
                       FilterChip(
                         label: Text(categoria),
+                        tooltip: widget.state.lockedSources[categoria] == null
+                            ? null
+                            : 'É a única categoria de '
+                                '"${widget.state.lockedSources[categoria]}"',
                         selected: _sources.contains(categoria),
                         showCheckmark: false,
                         avatar: Icon(
@@ -861,13 +913,15 @@ class _NodeEditorState extends State<_NodeEditor> {
                               ? AppColors.accent
                               : context.tones.muted,
                         ),
-                        onSelected: (marcada) => setState(() {
-                          if (marcada) {
-                            _sources.add(categoria);
-                          } else {
-                            _sources.remove(categoria);
-                          }
-                        }),
+                        onSelected: widget.state.lockedSources[categoria] != null
+                            ? null
+                            : (marcada) => setState(() {
+                                  if (marcada) {
+                                    _sources.add(categoria);
+                                  } else {
+                                    _sources.remove(categoria);
+                                  }
+                                }),
                         backgroundColor: context.tones.surfaceAlt,
                         selectedColor: AppColors.accent.withValues(alpha: 0.14),
                         side: BorderSide(
@@ -886,12 +940,23 @@ class _NodeEditorState extends State<_NodeEditor> {
             top: false,
             child: Padding(
               padding: const EdgeInsets.fromLTRB(24, 8, 24, 16),
-              child: SizedBox(
-                width: double.infinity,
-                child: FilledButton(
-                  onPressed: _salvar,
-                  child: const Text('Criar'),
-                ),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  if (_erro != null) ...[
+                    Text(
+                      _erro!,
+                      style: context.texts.bodySmall
+                          ?.copyWith(color: context.tones.negative),
+                    ),
+                    const SizedBox(height: 10),
+                  ],
+                  FilledButton(
+                    onPressed: _salvar,
+                    child: const Text('Criar'),
+                  ),
+                ],
               ),
             ),
           ),

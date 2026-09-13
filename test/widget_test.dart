@@ -474,6 +474,10 @@ void main() {
     });
 
     test('criar categoria com origem tira o gasto de onde estava', () async {
+      // Restaurantes não pode ser a única categoria da subcategoria dela:
+      // a única fica onde está, para ninguém ficar vazio.
+      await state.setBudgetSources('alimentacao_restaurantes',
+          [SpendCategories.restaurantes, SpendCategories.mercado]);
       await state.addBudgetNode(
         name: 'Delivery',
         parentId: 'casa',
@@ -485,6 +489,19 @@ void main() {
       expect(linhas.firstWhere((l) => l.node.id == 'alimentacao').spent, 300);
       // …e entrou em Casa, sem o total mudar.
       expect(linhas.firstWhere((l) => l.node.id == 'casa').spent, 200);
+      expect(state.budgetSpentTotal(junho), 700);
+    });
+
+    test('a única categoria de uma subcategoria não sai do lugar', () async {
+      await state.addBudgetNode(
+        name: 'Delivery',
+        parentId: 'casa',
+        sources: [SpendCategories.restaurantes],
+      );
+
+      final linhas = state.budgetLines(junho);
+      expect(linhas.firstWhere((l) => l.node.id == 'alimentacao').spent, 500);
+      expect(linhas.firstWhere((l) => l.node.id == 'casa').spent, 0);
       expect(state.budgetSpentTotal(junho), 700);
     });
 
@@ -548,6 +565,11 @@ void main() {
       // O caso da tela: uma subcategoria criada recebendo tambem uma
       // categoria que o app deduz sozinho. Agrupar pela categoria de gasto
       // gerava duas linhas com o mesmo nome.
+      //
+      // "Assinaturas" é a única categoria da subcategoria padrão: para ela
+      // poder ir para "Streaming", a padrão sai antes — do contrário ficaria
+      // vazia.
+      await state.removeBudgetNode('lazer_assinaturas');
       await state.addBudgetNode(
         name: 'Streaming',
         parentId: 'lazer',
@@ -1893,6 +1915,187 @@ void main() {
       ));
       expect(state.keyExpiresSoon, isTrue);
       expect(state.keyDaysLeft, inInclusiveRange(9, 10));
+    });
+  });
+
+  group('Subcategoria que ficou vazia', () {
+    LedgerEntry compra(String id, String merch, double valor, DateTime quando) =>
+        LedgerEntry.fromCardTransaction({
+          'transactionId': id,
+          'side': '1',
+          'transactionDate': '${quando.millisecondsSinceEpoch}',
+          'transactionAmount': '$valor',
+          'basicCurrency': 'BRL',
+          'merchName': merch,
+        });
+
+    final setembro = DateTime(2026, 9, 7, 14);
+
+    // A árvore como ficou na conta: "Padaria" levou "Mercado", "Streaming"
+    // levou "Assinaturas", e "Terapia" perdeu o próprio nome.
+    List<BudgetNode> arvoreDaConta() => [
+          for (final n in defaultBudgetTree())
+            n.id == 'alimentacao_mercado' || n.id == 'lazer_assinaturas'
+                ? n.copyWith(sources: [])
+                : n,
+          const BudgetNode(
+            id: 'user_padaria',
+            name: 'Padaria',
+            parentId: 'alimentacao',
+            sources: ['Padaria', SpendCategories.mercado],
+          ),
+          const BudgetNode(
+            id: 'user_streaming',
+            name: 'Streaming',
+            parentId: 'lazer',
+            sources: ['Streaming', SpendCategories.assinaturas],
+          ),
+          const BudgetNode(
+            id: 'user_terapia',
+            name: 'Terapia',
+            parentId: 'pessoais',
+          ),
+        ];
+
+    BudgetNode no(List<BudgetNode> arvore, String id) =>
+        arvore.firstWhere((n) => n.id == id);
+
+    test('subcategoria vazia pode receber a categoria de volta', () {
+      final arvore = arvoreDaConta();
+      expect(restorableSource(arvore, no(arvore, 'alimentacao_mercado')),
+          SpendCategories.mercado);
+      expect(restorableSource(arvore, no(arvore, 'lazer_assinaturas')),
+          SpendCategories.assinaturas);
+      // A criada pela pessoa recebe de volta o próprio nome.
+      expect(restorableSource(arvore, no(arvore, 'user_terapia')), 'Terapia');
+    });
+
+    test('não oferece trazer de volta quando esvaziaria quem segura', () {
+      final arvore = [
+        for (final n in defaultBudgetTree())
+          n.id == 'alimentacao_mercado' ? n.copyWith(sources: []) : n,
+        const BudgetNode(
+          id: 'user_feira',
+          name: 'Feira',
+          parentId: 'alimentacao',
+          sources: [SpendCategories.mercado],
+        ),
+      ];
+      expect(restorableSource(arvore, no(arvore, 'alimentacao_mercado')), isNull);
+    });
+
+    test('principal e subcategoria com categoria não precisam de nada', () {
+      final arvore = arvoreDaConta();
+      expect(restorableSource(arvore, no(arvore, 'alimentacao')), isNull);
+      expect(restorableSource(arvore, no(arvore, 'alimentacao_restaurantes')),
+          isNull);
+    });
+
+    test('trazer de volta leva só aquela categoria', () {
+      final arvore = withSourceMoved(
+        arvoreDaConta(),
+        'alimentacao_mercado',
+        SpendCategories.mercado,
+      );
+      expect(no(arvore, 'alimentacao_mercado').sources, [SpendCategories.mercado]);
+      expect(no(arvore, 'user_padaria').sources, ['Padaria']);
+      // O que a pessoa fez em Lazer não é tocado.
+      expect(no(arvore, 'user_streaming').sources,
+          ['Streaming', SpendCategories.assinaturas]);
+      expect(no(arvore, 'lazer_assinaturas').sources, isEmpty);
+    });
+
+    test('depois de trazer Mercado de volta, a compra de mercado cai lá',
+        () async {
+      final mercado = compra('m', 'ATACADO E AUTO SERVICO', 68.61, setembro);
+      final padaria = compra('p', 'PANIFICADORA SOL', 37.39, setembro);
+      final state = AppState()
+        ..seedEntries([mercado, padaria])
+        ..budgetNodes = arvoreDaConta();
+      await state.setEntryOverrides(mercado, category: SpendCategories.mercado);
+      await state.setEntryOverrides(padaria, category: 'Padaria');
+
+      // Antes: tudo em Padaria, que é o que a tela mostrava.
+      expect(
+        state.subcategoryBreakdown(setembro, 'alimentacao').single.label,
+        'Padaria',
+      );
+
+      await state.restoreNodeSource('alimentacao_mercado');
+
+      final linhas = state.subcategoryBreakdown(setembro, 'alimentacao');
+      expect(
+        {for (final l in linhas) l.label: l.total},
+        {'Mercado': 68.61, 'Padaria': 37.39},
+      );
+      final planejamento = state
+          .budgetLines(setembro)
+          .firstWhere((l) => l.node.id == 'alimentacao');
+      expect(
+        planejamento.children.firstWhere((c) => c.node.name == 'Mercado').spent,
+        68.61,
+      );
+    });
+
+    test('subcategoria vazia não aparece para escolher numa compra', () {
+      final state = AppState()..budgetNodes = arvoreDaConta();
+      final alimentacao = no(state.budgetNodes, 'alimentacao');
+      final nomes = state.subcategoriesFor(alimentacao).map((n) => n.name);
+      expect(nomes, isNot(contains('Mercado')));
+      expect(nomes, containsAll(<String>['Padaria', 'Restaurantes e delivery']));
+    });
+
+    test('categoria única de uma principal com subcategorias pode ser levada',
+        () async {
+      final state = AppState();
+      // Apagar "Assinaturas" joga a categoria na principal Lazer, que tem
+      // outras subcategorias: dali ela pode ir para uma nova.
+      await state.removeBudgetNode('lazer_assinaturas');
+      expect(state.lockedSources, isNot(contains(SpendCategories.assinaturas)));
+
+      await state.addBudgetNode(
+        name: 'Streaming',
+        parentId: 'lazer',
+        sources: [SpendCategories.assinaturas],
+      );
+      expect(
+        state.budgetNodes.firstWhere((n) => n.name == 'Streaming').sources,
+        ['Streaming', SpendCategories.assinaturas],
+      );
+    });
+
+    test('criar subcategoria não leva a única categoria de outra', () async {
+      final state = AppState();
+      final erro = await state.addBudgetNode(
+        name: 'Padaria',
+        parentId: 'alimentacao',
+        sources: [SpendCategories.mercado],
+      );
+
+      expect(erro, isNull);
+      expect(no(state.budgetNodes, 'alimentacao_mercado').sources,
+          [SpendCategories.mercado]);
+      expect(
+        state.budgetNodes.firstWhere((n) => n.name == 'Padaria').sources,
+        ['Padaria'],
+      );
+    });
+
+    test('nome repetido é recusado, para não disputar as mesmas compras',
+        () async {
+      final state = AppState();
+      final erro = await state.addBudgetNode(
+        name: 'mercado',
+        parentId: 'alimentacao',
+      );
+      expect(erro, contains('Já existe'));
+      expect(state.budgetNodes.where((n) => n.name.toLowerCase() == 'mercado'),
+          hasLength(1));
+    });
+
+    test('a única categoria de uma subcategoria aparece travada', () {
+      final state = AppState();
+      expect(state.lockedSources[SpendCategories.mercado], 'Mercado');
     });
   });
 

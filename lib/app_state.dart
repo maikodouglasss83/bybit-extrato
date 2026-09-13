@@ -1220,7 +1220,11 @@ class AppState extends ChangeNotifier {
   /// principal fica sem caminho para ser escolhida.
   List<BudgetNode> subcategoriesFor(BudgetNode main) {
     final filhos = childrenOf(main.id);
-    return filhos.isEmpty ? [main] : filhos;
+    if (filhos.isEmpty) return [main];
+    // Subcategoria sem categoria de gasto não recebe nada: escolhê-la mandaria
+    // a compra para outro lugar sem avisar. Ela fica fora até ser consertada
+    // no planejamento.
+    return filhos.where((n) => n.sources.isNotEmpty).toList();
   }
 
   /// Gasto do mês que cai direto neste nó, sem contar as subcategorias.
@@ -1391,33 +1395,108 @@ class AppState extends ChangeNotifier {
   }
 
   /// Cria uma categoria principal ou uma subcategoria de [parentId].
-  Future<void> addBudgetNode({
+  ///
+  /// Devolve o motivo quando não dá para criar, ou nulo quando criou.
+  Future<String?> addBudgetNode({
     required String name,
     String? parentId,
     double budget = 0,
     List<String> sources = const [],
   }) async {
     final limpo = name.trim();
-    if (limpo.isEmpty) return;
+    if (limpo.isEmpty) return 'Dê um nome para a categoria.';
+
+    // O nome vira o valor de categoria que as compras recebem. Dois nós com
+    // o mesmo nome disputariam as mesmas compras, e uma delas nunca receberia
+    // nada — mesmo aparecendo no seletor.
+    final repetido = limpo.toLowerCase();
+    final jaExiste = budgetNodes.any((n) =>
+        n.name.trim().toLowerCase() == repetido ||
+        n.sources.any((s) => s.toLowerCase() == repetido));
+    if (jaExiste) {
+      return 'Já existe uma categoria chamada "$limpo". Escolha outro nome.';
+    }
 
     final id = 'user_${DateTime.now().microsecondsSinceEpoch}';
-
-    // O próprio nome entra como origem: é o que permite marcar uma compra
-    // com esta categoria no extrato e ver o valor cair aqui.
-    final origens = <String>{limpo, ...sources}.toList();
+    final (arvore, levadas) = _claimSources(budgetNodes, sources);
 
     budgetNodes = [
-      // Uma categoria de gasto pertence a um nó só, senão o mesmo dinheiro
-      // seria contado duas vezes no planejamento.
-      ..._withoutSources(budgetNodes, origens),
+      ...arvore,
       BudgetNode(
         id: id,
         name: limpo,
         parentId: parentId,
         budget: budget,
-        sources: origens,
+        // O próprio nome entra como origem: é o que permite marcar uma compra
+        // com esta categoria no extrato e ver o valor cair aqui.
+        sources: <String>{limpo, ...levadas}.toList(),
       ),
     ];
+    await _persistBudget();
+    return null;
+  }
+
+  /// Tira de outros nós as categorias de gasto pedidas — menos a última de
+  /// cada nó.
+  ///
+  /// Uma categoria alimenta um nó só, senão o mesmo dinheiro seria contado
+  /// duas vezes. Mas levar a única categoria de um nó o deixaria vazio: na
+  /// tela e no seletor, sem conseguir receber gasto nenhum. Essa fica onde
+  /// está. Devolve a árvore resultante e as categorias que puderam ser levadas.
+  (List<BudgetNode>, List<String>) _claimSources(
+    List<BudgetNode> nodes,
+    List<String> pedidas,
+  ) {
+    var arvore = nodes;
+    final levadas = <String>[];
+
+    for (final origem in pedidas) {
+      final dono = arvore.where((n) => n.sources.contains(origem)).firstOrNull;
+      if (dono != null && _ficariaVazio(dono)) continue;
+
+      if (dono != null) {
+        arvore = arvore
+            .map((n) => n.id == dono.id
+                ? n.copyWith(
+                    sources: n.sources.where((s) => s != origem).toList(),
+                  )
+                : n)
+            .toList();
+      }
+      levadas.add(origem);
+    }
+
+    return (arvore, levadas);
+  }
+
+  /// Tirar a última categoria deste nó o deixaria como destino que não recebe
+  /// nada. Vale para subcategoria e para principal sem subcategorias — a
+  /// principal que tem filhas continua somando o gasto delas.
+  bool _ficariaVazio(BudgetNode dono) =>
+      dono.sources.length < 2 &&
+      (!dono.isMain || childrenOf(dono.id).isEmpty);
+
+  /// Categorias de gasto que não podem ser levadas para um nó novo, com o
+  /// nome de quem as segura: tirar deixaria aquele nó vazio.
+  Map<String, String> get lockedSources => {
+        for (final n in budgetNodes)
+          if (n.sources.isNotEmpty && _ficariaVazio(n)) n.sources.first: n.name,
+      };
+
+  /// A categoria que pode voltar para uma subcategoria vazia, ou nulo.
+  String? restorableSourceOf(BudgetNode node) =>
+      restorableSource(budgetNodes, node);
+
+  /// Traz de volta a categoria de uma subcategoria que ficou vazia.
+  ///
+  /// Só acontece quando a pessoa pede: levar a categoria pode ter sido de
+  /// propósito, e nada muda sozinho no planejamento dela.
+  Future<void> restoreNodeSource(String nodeId) async {
+    final node = budgetNodeById(nodeId);
+    if (node == null) return;
+    final origem = restorableSource(budgetNodes, node);
+    if (origem == null) return;
+    budgetNodes = withSourceMoved(budgetNodes, nodeId, origem);
     await _persistBudget();
   }
 
