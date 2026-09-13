@@ -109,33 +109,44 @@ void main() {
     });
   });
 
-  test('a lista fica em ordem de vencimento, com as canceladas no meio',
-      () async {
-    final agora = DateTime.now();
-    final hojeSemHora = DateTime(agora.year, agora.month, agora.day);
-    // Dias à frente de hoje, no mês corrente ou no seguinte.
-    int diaDaqui(int dias) => hojeSemHora.add(Duration(days: dias)).day;
-
+  test('a lista vai do dia 1 ao 31, com as canceladas no dia delas', () async {
     final state = AppState();
+    // Cadastradas fora de ordem de propósito. O dia 28 pode vencer antes do
+    // dia 1 no calendário, mas a lista segue o dia do mês.
     await state.addManualSubscription(
-        name: 'Longe', monthlyBrl: 500, dueDay: diaDaqui(20));
+        name: 'Dia 28', monthlyBrl: 500, dueDay: 28);
     await state.addManualSubscription(
-        name: 'Perto', monthlyBrl: 10, dueDay: diaDaqui(2));
+        name: 'Dia 1', monthlyBrl: 10, dueDay: 1);
     await state.addManualSubscription(
-        name: 'Meio cancelada', monthlyBrl: 50, dueDay: diaDaqui(9));
+        name: 'Dia 15 cancelada', monthlyBrl: 50, dueDay: 15);
+    await state.addManualSubscription(
+      name: 'Dia 10 pela cobrança',
+      monthlyBrl: 20,
+      lastCharge: DateTime(2026, 8, 10),
+    );
+    await state.addManualSubscription(
+        name: 'Dia 1 mais cara', monthlyBrl: 99, dueDay: 1);
     await state.addManualSubscription(name: 'Sem dia cara', monthlyBrl: 300);
     await state.addManualSubscription(name: 'Sem dia barata', monthlyBrl: 5);
 
     final cancelada =
-        state.subscriptions().firstWhere((s) => s.name == 'Meio cancelada');
+        state.subscriptions().firstWhere((s) => s.name == 'Dia 15 cancelada');
     await state.setSubscriptionCancelled(cancelada.key, true);
 
     expect(
       state.subscriptions().map((s) => s.name).toList(),
-      ['Perto', 'Meio cancelada', 'Longe', 'Sem dia cara', 'Sem dia barata'],
+      [
+        'Dia 1 mais cara',
+        'Dia 1',
+        'Dia 10 pela cobrança',
+        'Dia 15 cancelada',
+        'Dia 28',
+        'Sem dia cara',
+        'Sem dia barata',
+      ],
     );
     // Cancelada continua fora do total.
-    expect(state.subscriptionsMonthlyBrl, closeTo(815, 0.001));
+    expect(state.subscriptionsMonthlyBrl, closeTo(934, 0.001));
   });
 
   testWidgets('a lista mostra quando vence, ou que falta o dia',

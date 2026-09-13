@@ -126,6 +126,9 @@ class Subscription {
 
   bool get active => !cancelled;
 
+  /// Dia do mês em que vence: o informado ou, sem ele, o da última cobrança.
+  int? get diaDoVencimento => dueDay ?? lastCharge?.day;
+
   /// Próxima data em que a cobrança deve cair, a partir de [hoje].
   ///
   /// Usa o dia de vencimento informado ou, sem ele, o dia da última cobrança.
@@ -135,7 +138,7 @@ class Subscription {
   /// com [mesmoCancelada], para ordenar a lista inteira pela data.
   DateTime? proximoVencimento(DateTime hoje, {bool mesmoCancelada = false}) {
     if (cancelled && !mesmoCancelada) return null;
-    final dia = dueDay ?? lastCharge?.day;
+    final dia = diaDoVencimento;
     if (dia == null) return null;
 
     final hojeSemHora = DateTime(hoje.year, hoje.month, hoje.day);

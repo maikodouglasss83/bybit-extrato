@@ -874,21 +874,16 @@ class AppState extends ChangeNotifier {
       ));
     }
 
-    // Pela data em que vence, da mais próxima para a mais distante — as
-    // canceladas também, cada uma no dia em que venceria. Sem dia conhecido
-    // vão para o fim, da mais cara para a mais barata.
-    final hoje = DateTime.now();
-    final vencimentos = {
-      for (final s in lista) s.key: s.proximoVencimento(hoje, mesmoCancelada: true),
-    };
+    // Pelo dia do mês em que vence, do dia 1 ao 31, como num calendário de
+    // contas — as canceladas também, no dia delas. Sem dia conhecido vão para
+    // o fim. No mesmo dia, a mais cara vem antes.
     lista.sort((a, b) {
-      final va = vencimentos[a.key];
-      final vb = vencimentos[b.key];
-      if (va != null && vb != null) {
-        final data = va.compareTo(vb);
-        if (data != 0) return data;
-      } else if (va != null || vb != null) {
-        return va != null ? -1 : 1;
+      final da = a.diaDoVencimento;
+      final db = b.diaDoVencimento;
+      if (da != null && db != null) {
+        if (da != db) return da.compareTo(db);
+      } else if (da != null || db != null) {
+        return da != null ? -1 : 1;
       }
       final peso = b.monthlyBrl.compareTo(a.monthlyBrl);
       if (peso != 0) return peso;

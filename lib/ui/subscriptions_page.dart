@@ -58,15 +58,6 @@ class SubscriptionsPage extends StatelessWidget {
                     assinaturas: assinaturas,
                     emColunas: tabela,
                   ),
-                const SizedBox(height: 18),
-                Center(
-                  child: Text(
-                    'As assinaturas alimentam os compromissos do mês na '
-                    'Visão geral.',
-                    style: context.texts.bodySmall,
-                    textAlign: TextAlign.center,
-                  ),
-                ),
               ],
             );
           },
@@ -204,25 +195,6 @@ class _Tabela extends StatelessWidget {
               emColunas: emColunas,
             ),
           ],
-          const Divider(height: 1),
-          Padding(
-            padding: const EdgeInsets.fromLTRB(18, 14, 18, 16),
-            child: Row(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Icon(Icons.touch_app_outlined,
-                    size: 14, color: context.tones.muted),
-                const SizedBox(width: 8),
-                Expanded(
-                  child: Text(
-                    'Toque numa assinatura para editar, marcar como cancelada '
-                    'ou tirar da lista — cancelar de verdade é com o serviço.',
-                    style: context.texts.bodySmall,
-                  ),
-                ),
-              ],
-            ),
-          ),
         ],
       ),
     );
