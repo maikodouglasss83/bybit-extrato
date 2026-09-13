@@ -412,7 +412,7 @@ class _SeletorDeCategoriaState extends State<_SeletorDeCategoria> {
         if (aberta != null) ...[
           const SizedBox(height: 16),
           Text(
-            'Em ${aberta.name}',
+            'Subcategorias',
             style: context.texts.bodySmall?.copyWith(
               fontWeight: FontWeight.w600,
             ),
