@@ -79,16 +79,9 @@ class _EntryEditorState extends State<_EntryEditor> {
     Navigator.of(context).maybePop();
   }
 
-  Future<void> _reset() async {
-    await widget.state.clearOverridesFor(widget.entry);
-    if (!mounted) return;
-    Navigator.of(context).maybePop();
-  }
-
   @override
   Widget build(BuildContext context) {
     final original = widget.state.originalNameOf(widget.entry);
-    final ajustado = widget.state.hasCustomizations(widget.entry);
     final irmas = widget.state.merchantEntryCount(widget.entry);
 
     return DraggableScrollableSheet(
@@ -243,17 +236,15 @@ class _EntryEditorState extends State<_EntryEditor> {
                       child: const Text('Salvar'),
                     ),
                   ),
-                  if (ajustado) ...[
-                    const SizedBox(height: 8),
-                    SizedBox(
-                      width: double.infinity,
-                      child: TextButton.icon(
-                        onPressed: _reset,
-                        icon: const Icon(Icons.auto_fix_high_rounded, size: 18),
-                        label: const Text('Restaurar nome e categoria originais'),
-                      ),
+                  const SizedBox(height: 8),
+                  SizedBox(
+                    width: double.infinity,
+                    child: TextButton(
+                      // Fecha sem salvar e volta para a tela de onde veio.
+                      onPressed: () => Navigator.of(context).maybePop(),
+                      child: const Text('Cancelar'),
                     ),
-                  ],
+                  ),
                 ],
               ),
             ),
@@ -407,6 +398,10 @@ class _SeletorDeCategoriaState extends State<_SeletorDeCategoria> {
                   _principal = aberta?.id == main.id ? null : main;
                 }),
               ),
+            _AdicionarChip(
+              label: 'Nova categoria',
+              onTap: () => _criar(context),
+            ),
           ],
         ),
         if (aberta != null) ...[
@@ -430,11 +425,39 @@ class _SeletorDeCategoriaState extends State<_SeletorDeCategoria> {
                   onTap: () =>
                       widget.onChanged(state.categoryValueOf(sub)),
                 ),
+              _AdicionarChip(
+                label: 'Nova subcategoria',
+                onTap: () => _criar(context, parent: aberta),
+              ),
             ],
           ),
         ],
       ],
     );
+  }
+
+  /// Cria a categoria ali mesmo, sem sair da compra, e já a deixa escolhida.
+  ///
+  /// Quem cria uma categoria no meio de uma edição quer usá-la nesta compra;
+  /// fazer a pessoa procurar o que acabou de criar seria trabalho à toa. A
+  /// escolha só vale depois de salvar, como qualquer outra.
+  Future<void> _criar(BuildContext context, {BudgetNode? parent}) async {
+    final state = widget.state;
+    final nome = await showDialog<String>(
+      context: context,
+      builder: (_) => _NovaCategoriaDialog(
+        titulo: parent == null ? 'Nova categoria' : 'Nova subcategoria',
+        dentroDe: parent?.name,
+        criar: (nome) => state.addBudgetNode(name: nome, parentId: parent?.id),
+      ),
+    );
+    if (nome == null || !mounted) return;
+
+    final criado = state.budgetNodes.where((n) => n.name == nome).lastOrNull;
+    if (criado == null) return;
+
+    setState(() => _principal = parent ?? criado);
+    widget.onChanged(state.categoryValueOf(criado));
   }
 
   static IconData _iconeDe(AppState state, BudgetNode node) {
@@ -443,6 +466,137 @@ class _SeletorDeCategoriaState extends State<_SeletorDeCategoria> {
     return state.isCustomCategory(valor)
         ? iconForCategoryName(node.name)
         : categoryIcon(valor);
+  }
+}
+
+/// Chip de criar, no fim de cada lista: parece com as opções, mas traz o "+"
+/// e a cor de ação, para não ser confundido com uma categoria.
+class _AdicionarChip extends StatelessWidget {
+  const _AdicionarChip({required this.label, required this.onTap});
+
+  final String label;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    return InkWell(
+      onTap: onTap,
+      borderRadius: BorderRadius.circular(12),
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+        decoration: BoxDecoration(
+          borderRadius: BorderRadius.circular(12),
+          border: Border.all(color: AppColors.accent.withValues(alpha: 0.45)),
+        ),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            const Icon(Icons.add_rounded, size: 16, color: AppColors.accent),
+            const SizedBox(width: 6),
+            Text(
+              label,
+              style: context.texts.bodySmall?.copyWith(
+                color: AppColors.accent,
+                fontWeight: FontWeight.w600,
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+/// Pede o nome de uma categoria nova e mostra ali mesmo por que não deu.
+class _NovaCategoriaDialog extends StatefulWidget {
+  const _NovaCategoriaDialog({
+    required this.titulo,
+    required this.criar,
+    this.dentroDe,
+  });
+
+  final String titulo;
+
+  /// Principal onde a subcategoria vai entrar; nulo para uma principal.
+  final String? dentroDe;
+
+  /// Cria de fato. Devolve o motivo quando não dá, ou nulo quando criou.
+  final Future<String?> Function(String nome) criar;
+
+  @override
+  State<_NovaCategoriaDialog> createState() => _NovaCategoriaDialogState();
+}
+
+class _NovaCategoriaDialogState extends State<_NovaCategoriaDialog> {
+  final _nome = TextEditingController();
+  String? _erro;
+  bool _criando = false;
+
+  @override
+  void dispose() {
+    _nome.dispose();
+    super.dispose();
+  }
+
+  Future<void> _confirmar() async {
+    final nome = _nome.text.trim();
+    if (nome.isEmpty) {
+      setState(() => _erro = 'Dê um nome para a categoria.');
+      return;
+    }
+
+    setState(() {
+      _criando = true;
+      _erro = null;
+    });
+    final erro = await widget.criar(nome);
+    if (!mounted) return;
+
+    if (erro != null) {
+      setState(() {
+        _criando = false;
+        _erro = erro;
+      });
+      return;
+    }
+    Navigator.of(context).pop(nome);
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return AlertDialog(
+      title: Text(widget.titulo),
+      content: Column(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          if (widget.dentroDe != null) ...[
+            Text('Dentro de ${widget.dentroDe}', style: context.texts.bodySmall),
+            const SizedBox(height: 12),
+          ],
+          TextField(
+            controller: _nome,
+            autofocus: true,
+            textCapitalization: TextCapitalization.sentences,
+            onSubmitted: (_) => _confirmar(),
+            onChanged: (_) {
+              if (_erro != null) setState(() => _erro = null);
+            },
+            decoration: InputDecoration(labelText: 'Nome', errorText: _erro),
+          ),
+        ],
+      ),
+      actions: [
+        TextButton(
+          onPressed: () => Navigator.of(context).pop(),
+          child: const Text('Cancelar'),
+        ),
+        TextButton(
+          onPressed: _criando ? null : _confirmar,
+          child: const Text('Criar'),
+        ),
+      ],
+    );
   }
 }
 
