@@ -48,6 +48,17 @@ jobs:
             --dart-define=SUPABASE_URL="${{ secrets.SUPABASE_URL }}" \
             --dart-define=SUPABASE_KEY="${{ secrets.SUPABASE_KEY }}"
 
+      # O Pages manda o navegador guardar os arquivos por 10 minutos, e o app
+      # da tela inicial do iPhone às vezes segura por bem mais. Com a versão
+      # no endereço, cada publicação é um arquivo novo e aparece na hora.
+      - name: Marcar a versão nos arquivos do app
+        run: |
+          v="${GITHUB_SHA::7}"
+          sed -i "s#\"mainJsPath\":\"main.dart.js\"#\"mainJsPath\":\"main.dart.js?v=$v\"#" build/web/flutter_bootstrap.js
+          sed -i "s#flutter_bootstrap.js\"#flutter_bootstrap.js?v=$v\"#" build/web/index.html
+          grep -q "main.dart.js?v=$v" build/web/flutter_bootstrap.js
+          grep -q "flutter_bootstrap.js?v=$v" build/web/index.html
+
       # O Pages não serve caminhos desconhecidos: uma cópia do index como
       # 404 faz o app responder em qualquer rota.
       - name: Preparar fallback de rotas
