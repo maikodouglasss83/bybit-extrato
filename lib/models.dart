@@ -339,6 +339,13 @@ class LedgerEntry {
   bool get isCard =>
       kind == LedgerKind.cardPurchase || kind == LedgerKind.cardRefund;
 
+  /// O mesmo lançamento em outro horário — o da compra, quando a Bybit só
+  /// informou o da liquidação.
+  LedgerEntry comHorario(DateTime quando) => LedgerEntry.fromCache({
+        ...toJson(),
+        'time': quando.millisecondsSinceEpoch,
+      });
+
   /// A Bybit mantém só uns seis meses de histórico, então o que já foi visto
   /// é guardado no dispositivo — daí a necessidade de ida e volta em JSON.
   Map<String, dynamic> toJson() => {

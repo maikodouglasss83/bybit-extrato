@@ -321,7 +321,13 @@ class BybitClient {
   /// que costuma levar de algumas horas a dois dias. As autorizações ainda em
   /// andamento vêm deste outro endpoint, e é ele que faz a compra aparecer no
   /// app logo depois de o cartão passar.
-  Future<List<LedgerEntry>> pendingCardTransactions() async {
+  ///
+  /// A mesma consulta traz também as autorizações já concluídas. Elas não são
+  /// gasto pendente, mas guardam a hora em que o cartão passou — a liquidação
+  /// chega com a hora em que o estabelecimento confirmou, às vezes um dia
+  /// depois, e é pela autorização que a compra volta para o dia certo.
+  Future<({List<LedgerEntry> pendentes, List<LedgerEntry> concluidas})>
+      cardAuthorizations() async {
     final result = await _post(
       '/v5/card/transaction/query-asset-records',
       body: {
@@ -332,16 +338,24 @@ class BybitClient {
       },
     );
     final data = (result['data'] as List?) ?? const [];
-    return data
+    // Só compras autorizadas. Estorno de autorização (side 3 é a liquidação,
+    // e há outros lados para estorno) e o que foi recusado ficam de fora.
+    final autorizacoes = data
         .map((e) => Map<String, dynamic>.from(e as Map))
-        // Só autorizações em andamento. Estorno de autorização, o que já foi
-        // concluído e o que foi recusado não são gasto pendente.
         .where((j) =>
-            j['side']?.toString() == '1' &&
-            j['tradeStatus']?.toString() == '0' &&
-            asDouble(j['basicAmount']) > 0)
-        .map(LedgerEntry.fromCardAuthorization)
+            j['side']?.toString() == '1' && asDouble(j['basicAmount']) > 0)
         .toList();
+
+    return (
+      pendentes: autorizacoes
+          .where((j) => j['tradeStatus']?.toString() == '0')
+          .map(LedgerEntry.fromCardAuthorization)
+          .toList(),
+      concluidas: autorizacoes
+          .where((j) => j['tradeStatus']?.toString() == '1')
+          .map(LedgerEntry.fromCardAuthorization)
+          .toList(),
+    );
   }
 
   /// Pontos acumulados e teto de cashback do cartão.

@@ -24,6 +24,7 @@ class PreferencesStore {
   static const _kCardGoal = 'card_goal_usd';
   static const _kBudgetTree = 'budget_tree';
   static const _kBudgetPending = 'budget_tree_pending';
+  static const _kPurchaseDates = 'purchase_dates';
   static const _kCachedEntries = 'cached_entries';
   static const _kManualSubscriptions = 'manual_subscriptions';
   static const _kCancelledSubscriptions = 'cancelled_subscriptions';
@@ -207,6 +208,23 @@ class PreferencesStore {
       // Sem cofre disponível o planejamento vale só na sessão atual.
     }
   }
+
+  /// Hora em que o cartão passou, por lançamento liquidado, em milissegundos.
+  ///
+  /// A Bybit só entrega a liquidação com a hora da confirmação. Guardado,
+  /// o dia da compra sobrevive a uma reconexão, que baixa o extrato de novo.
+  Future<Map<String, int>> loadPurchaseDates() async {
+    final bruto = await _loadMap(_kPurchaseDates);
+    return {
+      for (final e in bruto.entries)
+        if (int.tryParse(e.value) case final ms?) e.key: ms,
+    };
+  }
+
+  Future<void> savePurchaseDates(Map<String, int> datas) => _saveMap(
+        _kPurchaseDates,
+        datas.map((id, ms) => MapEntry(id, '$ms')),
+      );
 
   /// Se o planejamento mudou neste aparelho e a nuvem ainda não recebeu.
   ///

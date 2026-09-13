@@ -1731,6 +1731,13 @@ class AppState extends ChangeNotifier {
   /// entregar o ajuste a ela, e não aparecem em lugar nenhum.
   List<LedgerEntry> _pendingAguardando = const [];
 
+  /// Hora da compra de cada liquidação, pelo identificador dela.
+  ///
+  /// A liquidação chega com a hora em que o estabelecimento confirmou, que
+  /// pode cair no dia seguinte — ou no mês seguinte. A hora certa é a da
+  /// autorização, lembrada quando as duas são reconhecidas como a mesma compra.
+  Map<String, int> _datasDaCompra = {};
+
   /// Tempo máximo entre autorizar e liquidar. Passou disso, a compra foi
   /// cancelada ou estornada, e não há mais o que esperar.
   static const _prazoDeLiquidacao = Duration(days: 15);
@@ -1744,7 +1751,13 @@ class AppState extends ChangeNotifier {
   /// a liquidação vem depois, com o mesmo valor, no mesmo estabelecimento.
   /// Cada liquidação responde por uma autorização só — duas passagens iguais
   /// de ônibus na mesma semana não podem sumir juntas.
-  void _applyPendingCard(List<LedgerEntry> recebidas) {
+  ///
+  /// [concluidas] são autorizações que já liquidaram: não voltam para a tela,
+  /// só emprestam à liquidação a hora em que a compra foi feita.
+  void _applyPendingCard(
+    List<LedgerEntry> recebidas, {
+    List<LedgerEntry> concluidas = const [],
+  }) {
     final liquidadas = _entries
         .where((e) => e.kind == LedgerKind.cardPurchase)
         .toList()
@@ -1771,6 +1784,9 @@ class AppState extends ChangeNotifier {
     final candidatas = {
       for (final e in _pendingAguardando) e.id: e,
       for (final e in _pendingCard) e.id: e,
+      // Concluídas antes das pendentes recebidas: se a mesma autorização
+      // aparecer nas duas, vale o que a Bybit disse por último sobre ela.
+      for (final e in concluidas) e.id: e,
       for (final e in recebidas) e.id: e,
     }.values.toList()
       // A mais antiga primeiro: é a que liquida antes.
@@ -1780,12 +1796,15 @@ class AppState extends ChangeNotifier {
     final aguardando = <LedgerEntry>[];
     final agora = DateTime.now();
     var moveuAjuste = false;
+    var lembrouData = false;
 
     for (final autorizacao in candidatas) {
       final liquidacao = liquidacaoDe(autorizacao);
       if (liquidacao != null) {
-        // Já liquidou: daqui em diante quem conta é a liquidação.
+        // Já liquidou: daqui em diante quem conta é a liquidação — mas no dia
+        // em que o cartão passou.
         moveuAjuste = _moverAjustes(autorizacao.id, liquidacao.id) || moveuAjuste;
+        lembrouData = _lembrarDataDaCompra(autorizacao, liquidacao) || lembrouData;
         continue;
       }
       if (chegaram.contains(autorizacao.id)) {
@@ -1801,12 +1820,43 @@ class AppState extends ChangeNotifier {
     _pendingCard = visiveis;
     _pendingAguardando = aguardando;
 
+    if (lembrouData) {
+      _aplicarDatasDaCompra();
+      unawaited(_preferences.savePurchaseDates(_datasDaCompra));
+      _syncPreference(_kSyncDatasDaCompra, _datasDaCompra);
+    }
+
     unawaited(_preferences.savePendingCard(visiveis, aguardando));
     if (moveuAjuste) {
       unawaited(_preferences.saveEntryNameOverrides(_entryNameOverrides));
       unawaited(_preferences.saveHiddenEntries(_hiddenIds));
       _syncPreference(_kSyncNomesPorCompra, _entryNameOverrides);
       _syncPreference(_kSyncOcultos, _hiddenIds.toList());
+    }
+  }
+
+  /// Guarda a hora da autorização como a hora da compra liquidada.
+  bool _lembrarDataDaCompra(LedgerEntry autorizacao, LedgerEntry liquidacao) {
+    // A autorização vem antes da confirmação. Se viesse depois, o par estaria
+    // errado, e a hora da liquidação é a mais segura.
+    if (autorizacao.time.isAfter(liquidacao.time) &&
+        !_datasDaCompra.containsKey(liquidacao.id)) {
+      return false;
+    }
+    final ms = autorizacao.time.millisecondsSinceEpoch;
+    if (_datasDaCompra[liquidacao.id] == ms) return false;
+    _datasDaCompra = {..._datasDaCompra, liquidacao.id: ms};
+    return true;
+  }
+
+  /// Põe cada liquidação conhecida no horário em que a compra foi feita.
+  void _aplicarDatasDaCompra() {
+    if (_datasDaCompra.isEmpty) return;
+    for (var i = 0; i < _entries.length; i++) {
+      final ms = _datasDaCompra[_entries[i].id];
+      if (ms == null || _entries[i].time.millisecondsSinceEpoch == ms) continue;
+      _entries[i] =
+          _entries[i].comHorario(DateTime.fromMillisecondsSinceEpoch(ms));
     }
   }
 
@@ -1838,7 +1888,11 @@ class AppState extends ChangeNotifier {
 
   /// Aplica pendentes direto, sem passar pela rede, para os testes.
   @visibleForTesting
-  void seedPending(List<LedgerEntry> recebidas) => _applyPendingCard(recebidas);
+  void seedPending(
+    List<LedgerEntry> recebidas, {
+    List<LedgerEntry> concluidas = const [],
+  }) =>
+      _applyPendingCard(recebidas, concluidas: concluidas);
 
   /// Quanto foi gasto no cartão no mês corrente, na moeda original das compras.
   double get cardSpentThisMonth {
@@ -1912,6 +1966,8 @@ class AppState extends ChangeNotifier {
     // O histórico guardado entra antes da rede: o app já abre com os meses
     // que a Bybit não devolve mais.
     _entries.addAll(await _preferences.loadCachedEntries());
+    _datasDaCompra = await _preferences.loadPurchaseDates();
+    _aplicarDatasDaCompra();
 
     // As pendentes da última abertura voltam também: a próxima atualização
     // corrige o que tiver mudado, e o nome dado a uma delas não se perde.
@@ -2121,7 +2177,11 @@ class AppState extends ChangeNotifier {
       // confirmou. Vêm depois das liquidadas, porque é contra elas que a mesma
       // compra é reconhecida quando liquida.
       try {
-        _applyPendingCard(await client.pendingCardTransactions());
+        final autorizacoes = await client.cardAuthorizations();
+        _applyPendingCard(
+          autorizacoes.pendentes,
+          concluidas: autorizacoes.concluidas,
+        );
       } catch (_) {
         // O limite de consultas deste endpoint é apertado. Falhou, fica a
         // lista anterior: sai da tela quem deixou de estar pendente, não quem
@@ -2208,6 +2268,7 @@ class AppState extends ChangeNotifier {
   static const _kSyncNomes = 'name_overrides';
   static const _kSyncOcultos = 'hidden_entries';
   static const _kSyncPlanejamento = 'budget_tree';
+  static const _kSyncDatasDaCompra = 'purchase_dates';
   static const _kSyncMetaCartao = 'card_goal_usd';
   static const _kSyncFixos = 'fixed_overrides';
   static const _kSyncMoeda = 'show_in_brl';
@@ -2304,6 +2365,17 @@ class AppState extends ChangeNotifier {
           .map((e) => e.toString())
           .toSet();
     }
+    if (ajustes[_kSyncDatasDaCompra] is Map) {
+      // Datas são fatos: junta os dois lados, e o que foi visto aqui fica.
+      final remotas = {
+        for (final e in (ajustes[_kSyncDatasDaCompra] as Map).entries)
+          if (int.tryParse(e.value.toString()) case final ms?)
+            e.key.toString(): ms,
+      };
+      _datasDaCompra = {...remotas, ..._datasDaCompra};
+      _aplicarDatasDaCompra();
+      _preferences.savePurchaseDates(_datasDaCompra);
+    }
     if (ajustes[_kSyncMetaCartao] is num) {
       cardGoalUsd = (ajustes[_kSyncMetaCartao] as num).toDouble();
     }
@@ -2338,6 +2410,7 @@ class AppState extends ChangeNotifier {
       budgetNodes.map((n) => n.toJson()).toList(),
     );
     if (versao == _versaoDoPlanejamento) _marcarPlanejamentoPendente(false);
+    await _cloud.pushPreference(_kSyncDatasDaCompra, _datasDaCompra);
     await _cloud.pushPreference(_kSyncMetaCartao, cardGoalUsd);
     await _cloud.pushPreference(_kSyncMoeda, _showInBrl);
     await _cloud.pushPreference(
@@ -2460,6 +2533,9 @@ class AppState extends ChangeNotifier {
     for (final e in incoming) {
       if (seen.add(e.id)) _entries.add(e);
     }
+    // O que chega da Bybit vem com a hora da liquidação; a da compra já
+    // conhecida volta a valer.
+    _aplicarDatasDaCompra();
   }
 
   void setFilter(LedgerFilter f) {
