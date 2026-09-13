@@ -6,6 +6,7 @@ import '../theme.dart';
 import '../util/categorizer.dart';
 import '../util/format.dart';
 import 'widgets/common.dart';
+import 'widgets/ledger_tile.dart';
 
 /// Planejamento financeiro: metas por categoria e subcategoria, comparadas
 /// com o que já foi gasto no mês.
@@ -445,7 +446,7 @@ class _SubcategoryTile extends StatelessWidget {
         state.hideBalances ? '••••' : state.formatValue(v, 'BRL', signed: false);
 
     return InkWell(
-      onTap: () => showBudgetGoalDialog(context, state: state, node: linha.node),
+      onTap: () => _abrirGastosDaSubcategoria(context, state, linha.node),
       borderRadius: BorderRadius.circular(10),
       child: Padding(
         padding: const EdgeInsets.symmetric(vertical: 10, horizontal: 4),
@@ -535,6 +536,93 @@ class _SubcategoryTile extends StatelessWidget {
       ),
     );
   }
+}
+
+/// Os gastos do mês que caíram numa subcategoria.
+///
+/// Tocar na subcategoria mostra o que ela recebeu. A meta fica no menu ⋮: é
+/// onde se muda a régua, e não onde se confere o que foi gasto.
+void _abrirGastosDaSubcategoria(
+  BuildContext context,
+  AppState state,
+  BudgetNode node,
+) {
+  showModalBottomSheet<void>(
+    context: context,
+    backgroundColor: context.colors.surface,
+    showDragHandle: true,
+    isScrollControlled: true,
+    shape: const RoundedRectangleBorder(
+      borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+    ),
+    // A folha vive fora da árvore que escuta o estado: sem isto, renomear ou
+    // recategorizar uma compra daqui não apareceria na hora.
+    builder: (sheetContext) => AnimatedBuilder(
+      animation: state,
+      builder: (_, __) {
+        final mes = state.selectedMonth;
+        final compras = state.purchasesOfSubcategory(mes, node.id);
+        final total = compras.fold<double>(0, (s, e) => s + e.change.abs());
+        final valor = state.hideBalances
+            ? '••••'
+            : state.formatValue(total, 'BRL', signed: false);
+
+        return DraggableScrollableSheet(
+          expand: false,
+          initialChildSize: 0.7,
+          maxChildSize: 0.92,
+          builder: (_, scrollController) => Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Padding(
+                padding: const EdgeInsets.fromLTRB(24, 4, 24, 12),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(node.name, style: context.texts.headlineSmall),
+                    const SizedBox(height: 4),
+                    Text(
+                      '$valor · ${compras.length} '
+                      '${compras.length == 1 ? 'compra' : 'compras'} · '
+                      '${fmtMonthYear(mes)}',
+                      style: context.texts.bodySmall,
+                    ),
+                  ],
+                ),
+              ),
+              const Divider(height: 1),
+              Expanded(
+                child: compras.isEmpty
+                    // Em lista, para a folha continuar arrastável mesmo vazia.
+                    ? ListView(
+                        controller: scrollController,
+                        children: [
+                          const SizedBox(height: 12),
+                          EmptyState(
+                            icon: Icons.receipt_long_outlined,
+                            title: 'Nenhum gasto aqui',
+                            message:
+                                'Nada caiu em ${node.name} em ${fmtMonthYear(mes)}.',
+                          ),
+                        ],
+                      )
+                    : ListView.builder(
+                        controller: scrollController,
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 20,
+                          vertical: 8,
+                        ),
+                        itemCount: compras.length,
+                        itemBuilder: (_, i) =>
+                            LedgerTile(entry: compras[i], state: state),
+                      ),
+              ),
+            ],
+          ),
+        );
+      },
+    ),
+  );
 }
 
 /// Ações de uma subcategoria: meta, renomear e apagar.
