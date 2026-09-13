@@ -1571,7 +1571,9 @@ void main() {
       expect(netflix.chargeCount, 2);
     });
 
-    test('lista vem da mais cara para a mais barata', () {
+    // As duas cobraram em 29 de agosto e vencem no mesmo dia: no empate da
+    // data, a mais cara vem antes.
+    test('mesma data de vencimento: da mais cara para a mais barata', () {
       expect(state.subscriptions().map((s) => s.name).toList(),
           ['CLARO37', 'NETFLIX.COM']);
     });
@@ -1588,8 +1590,11 @@ void main() {
 
       final depois = state.subscriptions();
       expect(depois.length, 2);
-      expect(depois.first.name, 'NETFLIX.COM'); // as canceladas vão para o fim
-      expect(depois.last.cancelled, isTrue);
+      // A cancelada fica no lugar da data dela, e não mais no fim: a lista é
+      // por vencimento. As duas vencem no mesmo dia, e a Claro é mais cara.
+      expect(depois.map((s) => s.name).toList(), ['CLARO37', 'NETFLIX.COM']);
+      expect(depois.first.cancelled, isTrue);
+      expect(depois.last.cancelled, isFalse);
       expect(state.subscriptionsMonthlyBrl, closeTo(59.90, 1e-9));
       expect(state.activeSubscriptionCount, 1);
 
@@ -2272,7 +2277,8 @@ void _telas() {
       expect(find.text('MERCADINHO DO TICO'), findsNothing);
       // A coluna mostra quando vence de novo, não quando foi cobrada: as duas
       // caíram em 29 de agosto e voltam a cair no mesmo dia.
-      expect(find.text('VENCE'), findsOneWidget);
+      // A seta marca a coluna que ordena a lista.
+      expect(find.text('VENCE ↓'), findsOneWidget);
       final vence = state
           .subscriptions()
           .firstWhere((s) => s.name == 'NETFLIX.COM')

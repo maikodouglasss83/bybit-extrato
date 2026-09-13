@@ -131,9 +131,10 @@ class Subscription {
   /// Usa o dia de vencimento informado ou, sem ele, o dia da última cobrança.
   /// Se a data deste mês já passou — ou a cobrança deste mês já caiu —, vale a
   /// do mês seguinte. Dia 31 num mês mais curto vira o último dia dele.
-  /// Nulo quando não há como saber o dia, ou quando está cancelada.
-  DateTime? proximoVencimento(DateTime hoje) {
-    if (cancelled) return null;
+  /// Nulo quando não há como saber o dia, ou quando está cancelada — a não ser
+  /// com [mesmoCancelada], para ordenar a lista inteira pela data.
+  DateTime? proximoVencimento(DateTime hoje, {bool mesmoCancelada = false}) {
+    if (cancelled && !mesmoCancelada) return null;
     final dia = dueDay ?? lastCharge?.day;
     if (dia == null) return null;
 

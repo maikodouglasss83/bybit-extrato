@@ -246,10 +246,10 @@ class _Cabecalho extends StatelessWidget {
         children: [
           Expanded(flex: 5, child: rotulo('ASSINATURA')),
           Expanded(flex: 3, child: rotulo('CATEGORIA')),
-          Expanded(flex: 3, child: rotulo('VENCE')),
+          Expanded(flex: 3, child: rotulo('VENCE ↓')),
           SizedBox(
             width: 110,
-            child: rotulo('POR MÊS ↓', align: TextAlign.right),
+            child: rotulo('POR MÊS', align: TextAlign.right),
           ),
         ],
       ),
@@ -286,7 +286,10 @@ class _Linha extends StatelessWidget {
 
     final categoria = assinatura.category.isEmpty ? '—' : assinatura.category;
     // O que importa numa assinatura é quando ela cai de novo, não quando caiu.
-    final vence = assinatura.proximoVencimento(DateTime.now());
+    // As canceladas também mostram a data: é por ela que a lista está em
+    // ordem, e sem ela a riscada pareceria fora do lugar.
+    final vence =
+        assinatura.proximoVencimento(DateTime.now(), mesmoCancelada: true);
     final quando =
         vence == null ? '—' : fmtVencimento(vence, comPrefixo: false);
 

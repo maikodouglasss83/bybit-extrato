@@ -874,10 +874,22 @@ class AppState extends ChangeNotifier {
       ));
     }
 
-    // O que está ativo vem primeiro, da assinatura mais cara para a mais
-    // barata: é a ordem em que se decide o que cortar.
+    // Pela data em que vence, da mais próxima para a mais distante — as
+    // canceladas também, cada uma no dia em que venceria. Sem dia conhecido
+    // vão para o fim, da mais cara para a mais barata.
+    final hoje = DateTime.now();
+    final vencimentos = {
+      for (final s in lista) s.key: s.proximoVencimento(hoje, mesmoCancelada: true),
+    };
     lista.sort((a, b) {
-      if (a.cancelled != b.cancelled) return a.cancelled ? 1 : -1;
+      final va = vencimentos[a.key];
+      final vb = vencimentos[b.key];
+      if (va != null && vb != null) {
+        final data = va.compareTo(vb);
+        if (data != 0) return data;
+      } else if (va != null || vb != null) {
+        return va != null ? -1 : 1;
+      }
       final peso = b.monthlyBrl.compareTo(a.monthlyBrl);
       if (peso != 0) return peso;
       return a.name.toLowerCase().compareTo(b.name.toLowerCase());
