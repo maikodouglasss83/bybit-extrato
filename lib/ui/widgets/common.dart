@@ -132,6 +132,18 @@ IconData iconForCategoryName(String nome) {
   if (tem(['carro', 'moto', 'transport', 'ônibus', 'onibus'])) {
     return Icons.directions_car_filled_outlined;
   }
+  if (tem(['tecnolog', 'eletrôn', 'eletron', 'computador', 'notebook'])) {
+    return Icons.devices_other_rounded;
+  }
+  if (tem(['vestu', 'roupa', 'calçad', 'calcad', 'moda'])) {
+    return Icons.checkroom_rounded;
+  }
+  if (tem(['terapia', 'psicól', 'psicol', 'psiqui'])) {
+    return Icons.psychology_outlined;
+  }
+  if (tem(['compra', 'shopping', 'loja'])) {
+    return Icons.shopping_bag_outlined;
+  }
 
   // Nada reconhecido: a marcação neutra de categoria criada à mão.
   return Icons.bookmark_outline_rounded;

@@ -413,15 +413,18 @@ class _CategoryTile extends StatelessWidget {
 
   /// Principais usam o ícone do grupo; subcategorias, o da categoria de
   /// gasto que elas representam.
-  static IconData _iconFor(BudgetNode node) {
-    if (node.isMain) return mainCategoryIcon(node.id);
-    if (node.sources.isEmpty) return iconForCategoryName(node.name);
+  static IconData _iconFor(BudgetNode node) => _iconeDoNo(node);
+}
 
-    final valor = node.sources.first;
-    return SpendCategories.all.contains(valor)
-        ? categoryIcon(valor)
-        : iconForCategoryName(node.name);
-  }
+/// Ícone de uma linha do planejamento, principal ou subcategoria.
+IconData _iconeDoNo(BudgetNode node) {
+  if (node.isMain) return mainCategoryIcon(node.id);
+  if (node.sources.isEmpty) return iconForCategoryName(node.name);
+
+  final valor = node.sources.first;
+  return SpendCategories.all.contains(valor)
+      ? categoryIcon(valor)
+      : iconForCategoryName(node.name);
 }
 
 /// Espaço reservado ao menu de opções da subcategoria. A linha de baixo usa
@@ -456,13 +459,14 @@ class _SubcategoryTile extends StatelessWidget {
             Row(
               children: [
                 Container(
-                  width: 6,
-                  height: 6,
+                  width: 28,
+                  height: 28,
                   margin: const EdgeInsets.only(right: 10),
                   decoration: BoxDecoration(
-                    color: color.withValues(alpha: 0.7),
-                    shape: BoxShape.circle,
+                    color: color.withValues(alpha: 0.12),
+                    borderRadius: BorderRadius.circular(9),
                   ),
+                  child: Icon(_iconeDoNo(linha.node), size: 15, color: color),
                 ),
                 Expanded(
                   child: Text(
@@ -491,7 +495,8 @@ class _SubcategoryTile extends StatelessWidget {
               Padding(
                 // Mesma leitura da categoria acima: meta sob o nome, saldo
                 // sob o valor, e a barra ocupando a largura toda.
-                padding: const EdgeInsets.only(left: 16, right: _larguraDoMenu),
+                // O recuo acompanha o ícone, para a meta começar sob o nome.
+                padding: const EdgeInsets.only(left: 38, right: _larguraDoMenu),
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [

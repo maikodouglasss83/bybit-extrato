@@ -2,6 +2,7 @@ import 'package:bybit_extrato/app_state.dart';
 import 'package:bybit_extrato/models.dart';
 import 'package:bybit_extrato/theme.dart';
 import 'package:bybit_extrato/ui/planning_page.dart';
+import 'package:bybit_extrato/ui/widgets/common.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -86,6 +87,31 @@ void main() {
       expect(find.textContaining('1 compra'), findsOneWidget);
       // O gasto de mercado não é desta subcategoria.
       expect(find.text('MERCADINHO DO TICO'), findsNothing);
+    });
+
+    testWidgets('cada subcategoria mostra o seu ícone', (tester) async {
+      await abrirPlanejamento(tester);
+
+      await tocar(tester, find.text('Lazer'));
+
+      // A linha de Assinaturas traz um ícone ao lado do nome.
+      final linha = find
+          .ancestor(of: find.text('Assinaturas'), matching: find.byType(Row))
+          .first;
+      // Um ícone é o do menu ⋮; o outro é o da subcategoria.
+      final icones = find
+          .descendant(of: linha, matching: find.byType(Icon))
+          .evaluate()
+          .map((e) => (e.widget as Icon).icon)
+          .where((i) => i != Icons.more_vert_rounded);
+      expect(icones, isNotEmpty);
+    });
+
+    test('nomes comuns de subcategoria ganham ícone próprio', () {
+      expect(iconForCategoryName('Tecnologia'), Icons.devices_other_rounded);
+      expect(iconForCategoryName('Compras'), Icons.shopping_bag_outlined);
+      expect(iconForCategoryName('Vestuário'), Icons.checkroom_rounded);
+      expect(iconForCategoryName('Terapia'), Icons.psychology_outlined);
     });
 
     testWidgets('a meta continua no menu de três pontos', (tester) async {
