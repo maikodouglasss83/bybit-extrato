@@ -194,7 +194,7 @@ class _TotalCard extends StatelessWidget {
 }
 
 /// Rosca com a divisão do gasto entre as categorias.
-class _DistributionCard extends StatelessWidget {
+class _DistributionCard extends StatefulWidget {
   const _DistributionCard({
     required this.categorias,
     required this.moeda,
@@ -206,7 +206,24 @@ class _DistributionCard extends StatelessWidget {
   final AppState state;
 
   @override
+  State<_DistributionCard> createState() => _DistributionCardState();
+}
+
+class _DistributionCardState extends State<_DistributionCard> {
+  /// Fatia destacada, compartilhada entre a rosca e a legenda.
+  final _destaque = ValueNotifier<int?>(null);
+
+  @override
+  void dispose() {
+    _destaque.dispose();
+    super.dispose();
+  }
+
+  @override
   Widget build(BuildContext context) {
+    final categorias = widget.categorias;
+    final state = widget.state;
+
     // Acima de oito fatias o gráfico vira sopa: o excedente vira "Outras".
     final visiveis = categorias.take(7).toList();
     final resto = categorias.skip(7).fold<double>(0, (sum, c) => sum + c.total);
@@ -215,6 +232,23 @@ class _DistributionCard extends StatelessWidget {
       for (var i = 0; i < visiveis.length; i++)
         Slice(visiveis[i].label, visiveis[i].total, CategoriesPage.colorFor(i)),
       if (resto > 0) Slice('Demais categorias', resto, context.tones.muted),
+    ];
+
+    final legendas = <(Color, String, String)>[
+      for (var i = 0; i < visiveis.length; i++)
+        (
+          CategoriesPage.colorFor(i),
+          visiveis[i].label,
+          fmtPercent(visiveis[i].share),
+        ),
+      if (resto > 0)
+        (
+          context.tones.muted,
+          'Demais categorias',
+          fmtPercent(
+            resto / categorias.fold<double>(0, (s, c) => s + c.total),
+          ),
+        ),
     ];
 
     return AppCard(
@@ -228,28 +262,43 @@ class _DistributionCard extends StatelessWidget {
               size: 190,
               centerTop: 'CATEGORIAS',
               centerBottom: '${categorias.length}',
+              destaque: _destaque,
+              detalhe: (i) => state.hideBalances
+                  ? '••••'
+                  : state.formatValue(slices[i].value, widget.moeda,
+                      signed: false),
             ),
           ),
           const SizedBox(height: 20),
-          Wrap(
-            spacing: 16,
-            runSpacing: 10,
-            children: [
-              for (var i = 0; i < visiveis.length; i++)
-                _Legend(
-                  color: CategoriesPage.colorFor(i),
-                  label: visiveis[i].label,
-                  value: fmtPercent(visiveis[i].share),
-                ),
-              if (resto > 0)
-                _Legend(
-                  color: context.tones.muted,
-                  label: 'Demais categorias',
-                  value: fmtPercent(
-                    resto / categorias.fold<double>(0, (s, c) => s + c.total),
+          // A legenda destaca a mesma fatia: passar o mouse ou tocar num nome
+          // acende a parte dele no gráfico.
+          ValueListenableBuilder<int?>(
+            valueListenable: _destaque,
+            builder: (context, destacada, _) => Wrap(
+              spacing: 16,
+              runSpacing: 10,
+              children: [
+                for (var i = 0; i < legendas.length; i++)
+                  MouseRegion(
+                    cursor: SystemMouseCursors.click,
+                    onEnter: (_) => _destaque.value = i,
+                    onExit: (_) {
+                      if (_destaque.value == i) _destaque.value = null;
+                    },
+                    child: GestureDetector(
+                      behavior: HitTestBehavior.opaque,
+                      onTap: () => _destaque.value =
+                          _destaque.value == i ? null : i,
+                      child: _Legend(
+                        color: legendas[i].$1,
+                        label: legendas[i].$2,
+                        value: legendas[i].$3,
+                        apagada: destacada != null && destacada != i,
+                      ),
+                    ),
                   ),
-                ),
-            ],
+              ],
+            ),
           ),
         ],
       ),
@@ -258,14 +307,30 @@ class _DistributionCard extends StatelessWidget {
 }
 
 class _Legend extends StatelessWidget {
-  const _Legend({required this.color, required this.label, required this.value});
+  const _Legend({
+    required this.color,
+    required this.label,
+    required this.value,
+    this.apagada = false,
+  });
 
   final Color color;
   final String label;
   final String value;
 
+  /// Outra fatia está em destaque.
+  final bool apagada;
+
   @override
   Widget build(BuildContext context) {
+    return AnimatedOpacity(
+      duration: const Duration(milliseconds: 200),
+      opacity: apagada ? 0.4 : 1,
+      child: _conteudo(context),
+    );
+  }
+
+  Widget _conteudo(BuildContext context) {
     return ConstrainedBox(
       constraints: const BoxConstraints(maxWidth: 210),
       child: Row(

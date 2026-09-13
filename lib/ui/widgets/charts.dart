@@ -1,8 +1,10 @@
 import 'dart:math' as math;
 
+import 'package:flutter/gestures.dart' show PointerDeviceKind;
 import 'package:flutter/material.dart';
 
 import '../../theme.dart';
+import '../../util/format.dart';
 
 /// Uma fatia do gráfico de alocação.
 class Slice {
@@ -25,6 +27,8 @@ class DonutChart extends StatefulWidget {
     this.size = 148,
     this.centerTop,
     this.centerBottom,
+    this.destaque,
+    this.detalhe,
   });
 
   final List<Slice> slices;
@@ -32,12 +36,19 @@ class DonutChart extends StatefulWidget {
   final String? centerTop;
   final String? centerBottom;
 
+  /// Fatia em destaque. Passe um de fora para a legenda destacar junto; sem
+  /// ele o gráfico guarda o próprio.
+  final ValueNotifier<int?>? destaque;
+
+  /// Linha extra no centro da fatia destacada, como o valor em reais.
+  final String Function(int indice)? detalhe;
+
   @override
   State<DonutChart> createState() => _DonutChartState();
 }
 
 class _DonutChartState extends State<DonutChart>
-    with SingleTickerProviderStateMixin {
+    with TickerProviderStateMixin {
   late final AnimationController _controller = AnimationController(
     vsync: this,
     duration: const Duration(milliseconds: 900),
@@ -59,18 +70,79 @@ class _DonutChartState extends State<DonutChart>
   static String _assinatura(List<Slice> slices) =>
       slices.map((s) => '${s.label}:${s.value}').join('|');
 
+  final _destaqueInterno = ValueNotifier<int?>(null);
+  ValueNotifier<int?> get _destaque => widget.destaque ?? _destaqueInterno;
+
+  /// Entrada e saída do destaque: a fatia cresce e as outras apagam.
+  late final AnimationController _foco = AnimationController(
+    vsync: this,
+    duration: const Duration(milliseconds: 260),
+  );
+
+  /// Última fatia destacada, mantida enquanto o destaque se desfaz.
+  int? _desenhada;
+
+  @override
+  void initState() {
+    super.initState();
+    _destaque.addListener(_aoMudarDestaque);
+  }
+
+  void _aoMudarDestaque() {
+    final indice = _destaque.value;
+    setState(() {
+      if (indice != null) _desenhada = indice;
+    });
+    indice != null ? _foco.forward() : _foco.reverse();
+  }
+
   @override
   void didUpdateWidget(DonutChart old) {
     super.didUpdateWidget(old);
+    if (old.destaque != widget.destaque) {
+      (old.destaque ?? _destaqueInterno).removeListener(_aoMudarDestaque);
+      _destaque.addListener(_aoMudarDestaque);
+    }
     if (_assinatura(old.slices) != _assinatura(widget.slices)) {
       _controller.forward(from: 0);
+      // Em outro mês a fatia destacada pode nem existir.
+      if ((_destaque.value ?? -1) >= widget.slices.length) {
+        WidgetsBinding.instance.addPostFrameCallback((_) {
+          if (mounted) _destaque.value = null;
+        });
+      }
     }
   }
 
   @override
   void dispose() {
+    _destaque.removeListener(_aoMudarDestaque);
+    _destaqueInterno.dispose();
+    _foco.dispose();
     _controller.dispose();
     super.dispose();
+  }
+
+  /// A fatia sob o ponteiro. Só o anel conta: o miolo é para ler.
+  int? _fatiaEm(Offset local) {
+    final total = widget.slices.fold<double>(0, (s, f) => s + f.value);
+    if (total <= 0) return null;
+
+    final raio = widget.size / 2;
+    final traco = widget.size * 0.14;
+    final d = local - Offset(raio, raio);
+    if (d.distance < raio - traco * 1.4 || d.distance > raio + 6) return null;
+
+    // Ângulo a partir do topo, no sentido do relógio, como o desenho.
+    var angulo = math.atan2(d.dy, d.dx) + math.pi / 2;
+    if (angulo < 0) angulo += math.pi * 2;
+
+    var acumulado = 0.0;
+    for (var i = 0; i < widget.slices.length; i++) {
+      acumulado += widget.slices[i].value / total * math.pi * 2;
+      if (angulo <= acumulado) return i;
+    }
+    return widget.slices.length - 1;
   }
 
   @override
@@ -78,9 +150,50 @@ class _DonutChartState extends State<DonutChart>
     final total = widget.slices.fold<double>(0, (sum, s) => sum + s.value);
     // Quem pediu menos animação no sistema recebe o gráfico já pronto.
     final semAnimacao = MediaQuery.disableAnimationsOf(context);
+    final indice = _destaque.value;
+    final ativo = indice != null && indice < widget.slices.length && total > 0;
 
-    final miolo = Center(
-      child: Column(
+    final Widget miolo;
+    if (ativo) {
+      final fatia = widget.slices[indice];
+      final detalhe = widget.detalhe?.call(indice);
+      miolo = Column(
+        key: ValueKey('fatia-$indice'),
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          SizedBox(
+            width: widget.size * 0.56,
+            child: Text(
+              fatia.label,
+              textAlign: TextAlign.center,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: context.texts.labelSmall?.copyWith(color: fatia.color),
+            ),
+          ),
+          const SizedBox(height: 2),
+          // A porcentagem sobe de zero até o valor da fatia.
+          TweenAnimationBuilder<double>(
+            tween: Tween(begin: 0, end: fatia.value / total),
+            duration: semAnimacao
+                ? Duration.zero
+                : const Duration(milliseconds: 550),
+            curve: Curves.easeOutCubic,
+            builder: (context, parte, _) => Text(
+              fmtPercent(parte),
+              style: context.texts.titleMedium?.copyWith(
+                fontSize: 22,
+                fontWeight: FontWeight.w700,
+              ),
+            ),
+          ),
+          if (detalhe != null)
+            Text(detalhe, style: context.texts.bodySmall),
+        ],
+      );
+    } else {
+      miolo = Column(
+        key: const ValueKey('resumo'),
         mainAxisSize: MainAxisSize.min,
         children: [
           if (widget.centerTop != null)
@@ -94,26 +207,60 @@ class _DonutChartState extends State<DonutChart>
               ),
             ),
         ],
-      ),
-    );
+      );
+    }
 
-    return SizedBox(
-      width: widget.size,
-      height: widget.size,
-      child: AnimatedBuilder(
-        animation: _controller,
-        builder: (context, child) => CustomPaint(
-          painter: _DonutPainter(
-            slices: total > 0 ? widget.slices : const [],
-            emptyColor: context.tones.surfaceAlt,
-            progress: semAnimacao ? 1 : _traco.value,
-          ),
-          child: Opacity(
-            opacity: semAnimacao ? 1 : _centro.value,
-            child: child,
+    return MouseRegion(
+      onHover: (evento) {
+        final i = _fatiaEm(evento.localPosition);
+        if (i != _destaque.value) _destaque.value = i;
+      },
+      onExit: (_) => _destaque.value = null,
+      child: GestureDetector(
+        behavior: HitTestBehavior.opaque,
+        onTapDown: (toque) {
+          final i = _fatiaEm(toque.localPosition);
+          // O mouse já destacou ao passar: o clique mantém. No toque, tocar
+          // de novo na mesma fatia volta ao resumo.
+          _destaque.value = toque.kind == PointerDeviceKind.mouse
+              ? i
+              : (i == _destaque.value ? null : i);
+        },
+        child: SizedBox(
+          width: widget.size,
+          height: widget.size,
+          child: AnimatedBuilder(
+            animation: Listenable.merge([_controller, _foco]),
+            builder: (context, child) => CustomPaint(
+              painter: _DonutPainter(
+                slices: total > 0 ? widget.slices : const [],
+                emptyColor: context.tones.surfaceAlt,
+                progress: semAnimacao ? 1 : _traco.value,
+                destaque: _desenhada,
+                foco: semAnimacao ? (ativo ? 1 : 0) : _foco.value,
+              ),
+              child: Opacity(
+                opacity: semAnimacao ? 1 : _centro.value,
+                child: child,
+              ),
+            ),
+            child: Center(
+              child: AnimatedSwitcher(
+                duration: semAnimacao
+                    ? Duration.zero
+                    : const Duration(milliseconds: 220),
+                transitionBuilder: (filho, animacao) => FadeTransition(
+                  opacity: animacao,
+                  child: ScaleTransition(
+                    scale: Tween(begin: 0.85, end: 1.0).animate(animacao),
+                    child: filho,
+                  ),
+                ),
+                child: miolo,
+              ),
+            ),
           ),
         ),
-        child: miolo,
       ),
     );
   }
@@ -124,10 +271,16 @@ class _DonutPainter extends CustomPainter {
     required this.slices,
     required this.emptyColor,
     this.progress = 1,
+    this.destaque,
+    this.foco = 0,
   });
 
   final List<Slice> slices;
   final Color emptyColor;
+
+  /// Fatia destacada e quanto do destaque já entrou, de 0 a 1.
+  final int? destaque;
+  final double foco;
 
   /// Quanto da volta já foi traçado, de 0 a 1.
   final double progress;
@@ -160,7 +313,8 @@ class _DonutPainter extends CustomPainter {
     var percorrido = 0.0;
     const gap = 0.035;
 
-    for (final slice in slices) {
+    for (var i = 0; i < slices.length; i++) {
+      final slice = slices[i];
       final sweep = (slice.value / total) * math.pi * 2;
       if (sweep <= 0) continue;
 
@@ -171,7 +325,29 @@ class _DonutPainter extends CustomPainter {
       final cheia = math.max(sweep - gap, 0.02);
       final drawn = math.min(cheia, disponivel);
       if (drawn > 0) {
-        canvas.drawArc(rect, start, drawn, false, paint..color = slice.color);
+        final emFoco = i == destaque;
+        // As outras apagam para a destacada saltar aos olhos.
+        final cor = destaque == null || emFoco
+            ? slice.color
+            : slice.color.withValues(alpha: 1 - 0.62 * foco);
+
+        if (emFoco && foco > 0) {
+          // Engrossa para fora, mantendo a borda de dentro no lugar.
+          final extra = stroke * 0.32 * foco;
+          canvas.drawArc(
+            rect.inflate(extra / 2),
+            start,
+            drawn,
+            false,
+            Paint()
+              ..style = PaintingStyle.stroke
+              ..strokeWidth = stroke + extra
+              ..strokeCap = StrokeCap.butt
+              ..color = cor,
+          );
+        } else {
+          canvas.drawArc(rect, start, drawn, false, paint..color = cor);
+        }
       }
 
       start += sweep;
@@ -183,7 +359,9 @@ class _DonutPainter extends CustomPainter {
   bool shouldRepaint(covariant _DonutPainter old) =>
       old.slices != slices ||
       old.emptyColor != emptyColor ||
-      old.progress != progress;
+      old.progress != progress ||
+      old.destaque != destaque ||
+      old.foco != foco;
 }
 
 /// Linha da evolução do saldo, com área preenchida abaixo.
