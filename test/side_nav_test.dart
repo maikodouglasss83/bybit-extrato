@@ -1,5 +1,6 @@
 import 'package:bybit_extrato/app_state.dart';
 import 'package:bybit_extrato/models.dart';
+import 'package:bybit_extrato/services/cloud_sync.dart';
 import 'package:bybit_extrato/theme.dart';
 import 'package:bybit_extrato/ui/shell.dart';
 import 'package:flutter/material.dart';
@@ -9,6 +10,20 @@ import 'package:intl/date_symbol_data_local.dart';
 
 /// Canal do cofre onde o app guarda os ajustes.
 const _cofre = MethodChannel('plugins.it_nomads.com/flutter_secure_storage');
+
+/// Conta conectada, sem ir à rede.
+class _ContaConectada extends CloudSync {
+  @override
+  bool get available => true;
+  @override
+  bool get signedIn => true;
+  @override
+  String? get userEmail => 'maiko@exemplo.com';
+  @override
+  String? get userName => 'Maiko Douglas';
+  @override
+  String? get userAvatar => null;
+}
 
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
@@ -24,8 +39,8 @@ void main() {
         .setMockMethodCallHandler(_cofre, null);
   });
 
-  Future<void> abrirNoComputador(WidgetTester tester) async {
-    final state = AppState()
+  Future<void> abrirNoComputador(WidgetTester tester, {CloudSync? cloud}) async {
+    final state = AppState(cloud: cloud)
       ..phase = LoadPhase.ready
       ..seedEntries(<LedgerEntry>[]);
 
@@ -80,6 +95,37 @@ void main() {
       await tester.tap(find.byTooltip('Expandir menu'));
       await tester.pumpAndSettle();
       expect(find.text('Gastos por categoria'), findsOneWidget);
+    });
+
+    testWidgets('o rodapé mostra o e-mail, esconde a chave e abre os ajustes',
+        (tester) async {
+      await abrirNoComputador(tester, cloud: _ContaConectada());
+
+      expect(find.text('Maiko Douglas'), findsOneWidget);
+      expect(find.text('maiko@exemplo.com'), findsOneWidget);
+      expect(find.textContaining('Chave'), findsNothing);
+
+      // O botão do rodapé fica na mesma linha do nome. O menu lateral vem
+      // antes da barra do topo na árvore, então é o primeiro dos dois.
+      final noRodape = find.byTooltip('Ajustes').first;
+      expect(
+        (tester.getCenter(noRodape).dy -
+                tester.getCenter(find.text('Maiko Douglas')).dy)
+            .abs(),
+        lessThan(20),
+      );
+
+      await tester.tap(noRodape);
+      await tester.pumpAndSettle();
+      expect(find.byTooltip('Fechar ajustes'), findsWidgets);
+
+      // Recolhido, os ajustes continuam a um clique.
+      await tester.tap(find.byTooltip('Fechar ajustes').last);
+      await tester.pumpAndSettle();
+      await tester.tap(find.byTooltip('Recolher menu'));
+      await tester.pumpAndSettle();
+      expect(find.byTooltip('Ajustes'), findsNWidgets(2));
+      expect(tester.takeException(), isNull);
     });
 
     testWidgets('não estoura enquanto anima', (tester) async {

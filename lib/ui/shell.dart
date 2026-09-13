@@ -96,6 +96,8 @@ class _AppShellState extends State<AppShell> {
                 onSelect: (i) => setState(() => _index = i),
                 state: state,
                 recolhido: _menuRecolhido,
+                ajustesAbertos: _index == _settingsIndex,
+                onAjustes: _alternarAjustes,
               ),
               const VerticalDivider(width: 1),
               Expanded(
@@ -251,12 +253,16 @@ class _SideNav extends StatelessWidget {
     required this.onSelect,
     required this.state,
     required this.recolhido,
+    required this.ajustesAbertos,
+    required this.onAjustes,
   });
 
   final int index;
   final ValueChanged<int> onSelect;
   final AppState state;
   final bool recolhido;
+  final bool ajustesAbertos;
+  final VoidCallback onAjustes;
 
   static const larguraAberta = 244.0;
   static const larguraRecolhida = 72.0;
@@ -327,7 +333,12 @@ class _SideNav extends StatelessWidget {
                   ),
                 ),
                 const Divider(height: 24),
-                _Assinante(state: state, compacto: compacto),
+                _Assinante(
+                  state: state,
+                  compacto: compacto,
+                  ajustesAbertos: ajustesAbertos,
+                  onAjustes: onAjustes,
+                ),
               ],
             ),
           );
@@ -475,17 +486,37 @@ class _PintorBarraLateral extends CustomPainter {
   bool shouldRepaint(_PintorBarraLateral old) => old.color != color;
 }
 
-/// Quem está usando o app, no pé da barra lateral.
+/// Quem está usando o app, no pé da barra lateral, com o atalho dos ajustes.
+///
+/// Mostra o e-mail da conta conectada. A chave da Bybit não aparece aqui: nem
+/// mascarada ela ajuda a identificar a conta, e fica à vista de quem olha a tela.
 class _Assinante extends StatelessWidget {
-  const _Assinante({required this.state, this.compacto = false});
+  const _Assinante({
+    required this.state,
+    required this.ajustesAbertos,
+    required this.onAjustes,
+    this.compacto = false,
+  });
 
   final AppState state;
   final bool compacto;
+  final bool ajustesAbertos;
+  final VoidCallback onAjustes;
 
   @override
   Widget build(BuildContext context) {
-    final nome = state.cloudName ?? state.cloudEmail;
-    final chave = state.credentials?.maskedKey;
+    final email = state.cloudEmail;
+    final nome = state.cloudName ?? email;
+
+    final ajustes = IconButton(
+      tooltip: ajustesAbertos ? 'Fechar ajustes' : 'Ajustes',
+      onPressed: onAjustes,
+      icon: Icon(
+        ajustesAbertos ? Icons.close_rounded : Icons.settings_outlined,
+        size: 20,
+        color: ajustesAbertos ? AppColors.accent : context.tones.muted,
+      ),
+    );
 
     final avatar = CircleAvatar(
             radius: 15,
@@ -503,13 +534,22 @@ class _Assinante extends StatelessWidget {
           );
 
     if (compacto) {
-      return Tooltip(
-        message: [nome ?? 'Sem conta', if (chave != null) 'Chave $chave']
-            .join('\n'),
-        child: Padding(
-          padding: const EdgeInsets.symmetric(vertical: 4),
-          child: avatar,
-        ),
+      return Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          ajustes,
+          const SizedBox(height: 6),
+          Tooltip(
+            message: [
+              nome ?? 'Sem conta',
+              if (email != null && email != nome) email,
+            ].join('\n'),
+            child: Padding(
+              padding: const EdgeInsets.symmetric(vertical: 4),
+              child: avatar,
+            ),
+          ),
+        ],
       );
     }
 
@@ -529,9 +569,9 @@ class _Assinante extends StatelessWidget {
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
                 ),
-                if (chave != null)
+                if (email != null && email != nome)
                   Text(
-                    'Chave $chave',
+                    email,
                     style: context.texts.bodySmall,
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,
@@ -539,6 +579,7 @@ class _Assinante extends StatelessWidget {
               ],
             ),
           ),
+          ajustes,
         ],
       ),
     );

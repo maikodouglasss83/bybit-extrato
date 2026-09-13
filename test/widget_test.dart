@@ -2580,7 +2580,20 @@ void _telas() {
       // Saiu da barra lateral.
       expect(find.text('Ajustes'), findsNothing);
 
-      await tester.tap(find.byIcon(Icons.settings_outlined));
+      // Há dois atalhos: um no pé da barra lateral e este, no topo. O do topo
+      // vem depois na árvore e fica ao lado do recarregar.
+      final doTopo = find.byIcon(Icons.settings_outlined).last;
+      final recarregar = find.byIcon(Icons.refresh_rounded);
+      expect(
+        (tester.getCenter(doTopo).dy - tester.getCenter(recarregar).dy).abs(),
+        lessThan(4),
+      );
+      expect(
+        (tester.getCenter(doTopo).dx - tester.getCenter(recarregar).dx).abs(),
+        lessThan(60),
+      );
+
+      await tester.tap(doTopo);
       await tester.pumpAndSettle();
 
       // Agora é o título da página aberta.
