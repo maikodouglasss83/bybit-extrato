@@ -91,6 +91,28 @@ String fmtCompactDate(DateTime d) {
 /// "ago/26", para eixos e comparações curtas.
 String fmtMonthShort(DateTime d) => _monthShort.format(d);
 
+/// Dia e mês, sem o ano: "2 out".
+String fmtDiaMes(DateTime d) =>
+    DateFormat('d MMM', 'pt_BR').format(d).replaceAll('.', '');
+
+/// Quando uma cobrança vence: "vence hoje", "vence amanhã" ou "vence 2 out".
+///
+/// [comPrefixo] desligado serve à coluna de uma tabela que já se chama
+/// "Vence": fica só "hoje", "amanhã" ou "2 out".
+String fmtVencimento(DateTime d, {DateTime? hoje, bool comPrefixo = true}) {
+  final agora = hoje ?? DateTime.now();
+  final dia = DateTime(d.year, d.month, d.day);
+  final base = DateTime(agora.year, agora.month, agora.day);
+  final faltam = dia.difference(base).inDays;
+
+  final quando = switch (faltam) {
+    0 => 'hoje',
+    1 => 'amanhã',
+    _ => fmtDiaMes(d),
+  };
+  return comPrefixo ? 'vence $quando' : quando;
+}
+
 /// Percentual já arredondado para exibição.
 String fmtPercent(double ratio) =>
     '${(ratio * 100).toStringAsFixed(ratio >= 0.1 ? 0 : 1)}%';

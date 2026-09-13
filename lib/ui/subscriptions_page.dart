@@ -246,7 +246,7 @@ class _Cabecalho extends StatelessWidget {
         children: [
           Expanded(flex: 5, child: rotulo('ASSINATURA')),
           Expanded(flex: 3, child: rotulo('CATEGORIA')),
-          Expanded(flex: 3, child: rotulo('ÚLTIMA COBRANÇA')),
+          Expanded(flex: 3, child: rotulo('VENCE')),
           SizedBox(
             width: 110,
             child: rotulo('POR MÊS ↓', align: TextAlign.right),
@@ -285,9 +285,10 @@ class _Linha extends StatelessWidget {
     );
 
     final categoria = assinatura.category.isEmpty ? '—' : assinatura.category;
-    final quando = assinatura.lastCharge == null
-        ? '—'
-        : fmtShortDate(assinatura.lastCharge!);
+    // O que importa numa assinatura é quando ela cai de novo, não quando caiu.
+    final vence = assinatura.proximoVencimento(DateTime.now());
+    final quando =
+        vence == null ? '—' : fmtVencimento(vence, comPrefixo: false);
 
     final valor = _Valor(
       texto: state.hideBalances
@@ -339,8 +340,11 @@ class _Linha extends StatelessWidget {
                     Text(
                       [
                         if (assinatura.category.isNotEmpty) assinatura.category,
-                        if (assinatura.lastCharge != null)
-                          fmtShortDate(assinatura.lastCharge!),
+                        if (vence != null)
+                          fmtVencimento(vence)
+                        else if (!cancelada)
+                          // Lembra que dá para informar o dia ao editar.
+                          'sem dia de vencimento',
                       ].join(' · '),
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,

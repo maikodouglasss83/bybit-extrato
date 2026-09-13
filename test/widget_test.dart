@@ -2,6 +2,7 @@ import 'package:bybit_extrato/app_state.dart';
 import 'package:bybit_extrato/budget.dart';
 import 'package:bybit_extrato/models.dart';
 import 'package:bybit_extrato/subscriptions.dart';
+import 'package:bybit_extrato/util/format.dart';
 import 'dart:math' as math;
 
 
@@ -2269,7 +2270,17 @@ void _telas() {
       expect(find.text('CLARO37'), findsOneWidget);
       // Gasto do dia a dia não é assinatura.
       expect(find.text('MERCADINHO DO TICO'), findsNothing);
-      expect(find.text('29 ago 2026'), findsNWidgets(2));
+      // A coluna mostra quando vence de novo, não quando foi cobrada: as duas
+      // caíram em 29 de agosto e voltam a cair no mesmo dia.
+      expect(find.text('VENCE'), findsOneWidget);
+      final vence = state
+          .subscriptions()
+          .firstWhere((s) => s.name == 'NETFLIX.COM')
+          .proximoVencimento(DateTime.now())!;
+      expect(
+        find.text(fmtVencimento(vence, comPrefixo: false)),
+        findsNWidgets(2),
+      );
       expect(find.text('Nova assinatura'), findsOneWidget);
     });
 

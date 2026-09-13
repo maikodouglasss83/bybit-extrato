@@ -125,4 +125,34 @@ class Subscription {
   final LedgerEntry? sample;
 
   bool get active => !cancelled;
+
+  /// Próxima data em que a cobrança deve cair, a partir de [hoje].
+  ///
+  /// Usa o dia de vencimento informado ou, sem ele, o dia da última cobrança.
+  /// Se a data deste mês já passou — ou a cobrança deste mês já caiu —, vale a
+  /// do mês seguinte. Dia 31 num mês mais curto vira o último dia dele.
+  /// Nulo quando não há como saber o dia, ou quando está cancelada.
+  DateTime? proximoVencimento(DateTime hoje) {
+    if (cancelled) return null;
+    final dia = dueDay ?? lastCharge?.day;
+    if (dia == null) return null;
+
+    final hojeSemHora = DateTime(hoje.year, hoje.month, hoje.day);
+
+    DateTime noMes(int ano, int mes) {
+      final ultimoDia = DateTime(ano, mes + 1, 0).day;
+      return DateTime(ano, mes, dia > ultimoDia ? ultimoDia : dia);
+    }
+
+    var vence = noMes(hoje.year, hoje.month);
+    final ultima = lastCharge;
+    final jaCobrouEsteMes = ultima != null &&
+        ultima.year == vence.year &&
+        ultima.month == vence.month;
+
+    if (vence.isBefore(hojeSemHora) || jaCobrouEsteMes) {
+      vence = noMes(hoje.year, hoje.month + 1);
+    }
+    return vence;
+  }
 }
