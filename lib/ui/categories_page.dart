@@ -8,6 +8,7 @@ import 'widgets/charts.dart';
 import 'widgets/common.dart';
 import 'widgets/entry_editor.dart';
 import 'widgets/ledger_tile.dart';
+import 'widgets/side_panel.dart';
 
 /// Gastos do cartão distribuídos por categoria, mês a mês.
 class CategoriesPage extends StatelessWidget {
@@ -52,7 +53,7 @@ class CategoriesPage extends StatelessWidget {
       );
     }
 
-    return RefreshIndicator(
+    final pagina = RefreshIndicator(
       onRefresh: state.refresh,
       child: ListView(
         padding: const EdgeInsets.fromLTRB(16, 8, 16, 32),
@@ -97,6 +98,8 @@ class CategoriesPage extends StatelessWidget {
         ],
       ),
     );
+
+    return PainelLateral(child: pagina);
   }
 }
 
@@ -440,6 +443,29 @@ class _CategoryRow extends StatelessWidget {
   }
 
   void _abrirCompras(BuildContext context) {
+    // Folhas e painel ficam fora da árvore que escuta o estado, então
+    // observam o AppState para refletir renomeações e trocas de categoria
+    // assim que elas acontecem.
+    Widget detalhe(ScrollController? rolagem) => AnimatedBuilder(
+          animation: state,
+          builder: (_, __) => _ComprasDaCategoria(
+            state: state,
+            categoria: categoria,
+            color: color,
+            moeda: moeda,
+            rolagem: rolagem,
+          ),
+        );
+
+    // No computador, ao lado da lista, como os detalhes do extrato.
+    final noPainel = PainelLateral.abrir(
+      context,
+      titulo: 'Categoria',
+      icone: Icons.pie_chart_outline_rounded,
+      conteudo: (_) => detalhe(null),
+    );
+    if (noPainel) return;
+
     showModalBottomSheet<void>(
       context: context,
       backgroundColor: context.colors.surface,
@@ -448,90 +474,104 @@ class _CategoryRow extends StatelessWidget {
       shape: const RoundedRectangleBorder(
         borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
       ),
-      // Folhas modais ficam fora da árvore que escuta o estado, então
-      // observam o AppState para refletir renomeações e trocas de categoria
-      // assim que elas acontecem.
-      builder: (sheetContext) => AnimatedBuilder(
-        animation: state,
-        builder: (_, __) {
-          // Recalculado a cada mudança: uma compra recategorizada sai daqui.
-          final mainId = categoria.id ?? kUncategorizedId;
-          final subcategorias =
-              state.subcategoryBreakdown(state.selectedMonth, mainId);
-          final total =
-              subcategorias.fold<double>(0, (sum, s) => sum + s.total);
-          final compras =
-              subcategorias.fold<int>(0, (sum, s) => sum + s.count);
+      builder: (_) => DraggableScrollableSheet(
+        expand: false,
+        initialChildSize: 0.6,
+        maxChildSize: 0.92,
+        builder: (_, scrollController) => detalhe(scrollController),
+      ),
+    );
+  }
+}
 
-          return DraggableScrollableSheet(
-            expand: false,
-            initialChildSize: 0.6,
-            maxChildSize: 0.92,
-            builder: (_, scrollController) => Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Padding(
-                  padding: const EdgeInsets.fromLTRB(24, 4, 24, 12),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Row(
-                        children: [
-                          Icon(mainCategoryIcon(categoria.id ?? ''),
-                              size: 20, color: color),
-                          const SizedBox(width: 10),
-                          Flexible(
-                            child: Text(
-                              categoria.label,
-                              style: context.texts.headlineSmall,
-                              overflow: TextOverflow.ellipsis,
-                            ),
-                          ),
-                        ],
-                      ),
-                      const SizedBox(height: 4),
-                      Text(
-                        '${state.formatValue(total, moeda, signed: false)} · '
-                        '$compras compras · '
-                        '${fmtMonthYear(state.selectedMonth)}',
-                        style: context.texts.bodySmall,
-                      ),
-                    ],
+/// Subcategorias e compras de uma categoria principal no mês escolhido.
+class _ComprasDaCategoria extends StatelessWidget {
+  const _ComprasDaCategoria({
+    required this.state,
+    required this.categoria,
+    required this.color,
+    required this.moeda,
+    this.rolagem,
+  });
+
+  final AppState state;
+  final CategoryTotal categoria;
+  final Color color;
+  final String moeda;
+
+  /// Da folha arrastável, no celular. No painel a lista rola sozinha.
+  final ScrollController? rolagem;
+
+  @override
+  Widget build(BuildContext context) {
+    // Recalculado a cada mudança: uma compra recategorizada sai daqui.
+    final mainId = categoria.id ?? kUncategorizedId;
+    final subcategorias =
+        state.subcategoryBreakdown(state.selectedMonth, mainId);
+    final total = subcategorias.fold<double>(0, (sum, s) => sum + s.total);
+    final compras = subcategorias.fold<int>(0, (sum, s) => sum + s.count);
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Padding(
+          padding: const EdgeInsets.fromLTRB(24, 4, 24, 12),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(
+                children: [
+                  Icon(mainCategoryIcon(categoria.id ?? ''),
+                      size: 20, color: color),
+                  const SizedBox(width: 10),
+                  Flexible(
+                    child: Text(
+                      categoria.label,
+                      style: context.texts.headlineSmall,
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 4),
+              Text(
+                '${state.hideBalances ? '••••' : state.formatValue(total, moeda, signed: false)} · '
+                '$compras ${compras == 1 ? 'compra' : 'compras'} · '
+                '${fmtMonthYear(state.selectedMonth)}',
+                style: context.texts.bodySmall,
+              ),
+            ],
+          ),
+        ),
+        const Divider(height: 1),
+        Expanded(
+          child: subcategorias.isEmpty
+              ? Center(
+                  child: Padding(
+                    padding: const EdgeInsets.all(24),
+                    child: Text(
+                      'Nenhuma compra restou nesta categoria.',
+                      style: context.texts.bodySmall,
+                      textAlign: TextAlign.center,
+                    ),
+                  ),
+                )
+              : ListView.builder(
+                  controller: rolagem,
+                  padding: const EdgeInsets.fromLTRB(12, 8, 12, 24),
+                  itemCount: subcategorias.length,
+                  itemBuilder: (_, i) => _SubcategoriaExpansivel(
+                    state: state,
+                    subcategoria: subcategorias[i],
+                    color: color,
+                    moeda: moeda,
+                    // Com uma subcategoria só, não há o que escolher:
+                    // as compras já aparecem abertas.
+                    aberta: subcategorias.length == 1,
                   ),
                 ),
-                const Divider(height: 1),
-                Expanded(
-                  child: subcategorias.isEmpty
-                      ? Center(
-                          child: Padding(
-                            padding: const EdgeInsets.all(24),
-                            child: Text(
-                              'Nenhuma compra restou nesta categoria.',
-                              style: context.texts.bodySmall,
-                              textAlign: TextAlign.center,
-                            ),
-                          ),
-                        )
-                      : ListView.builder(
-                          controller: scrollController,
-                          padding: const EdgeInsets.fromLTRB(12, 8, 12, 24),
-                          itemCount: subcategorias.length,
-                          itemBuilder: (_, i) => _SubcategoriaExpansivel(
-                            state: state,
-                            subcategoria: subcategorias[i],
-                            color: color,
-                            moeda: moeda,
-                            // Com uma subcategoria só, não há o que escolher:
-                            // as compras já aparecem abertas.
-                            aberta: subcategorias.length == 1,
-                          ),
-                        ),
-                ),
-              ],
-            ),
-          );
-        },
-      ),
+        ),
+      ],
     );
   }
 }

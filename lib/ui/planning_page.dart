@@ -7,6 +7,7 @@ import '../util/categorizer.dart';
 import '../util/format.dart';
 import 'widgets/common.dart';
 import 'widgets/ledger_tile.dart';
+import 'widgets/side_panel.dart';
 
 /// Planejamento financeiro: metas por categoria e subcategoria, comparadas
 /// com o que já foi gasto no mês.
@@ -31,7 +32,7 @@ class PlanningPage extends StatelessWidget {
     final mes = state.selectedMonth;
     final linhas = state.budgetLines(mes);
 
-    return RefreshIndicator(
+    final pagina = RefreshIndicator(
       onRefresh: state.refresh,
       child: ListView(
         padding: const EdgeInsets.fromLTRB(16, 8, 16, 32),
@@ -58,6 +59,8 @@ class PlanningPage extends StatelessWidget {
         ],
       ),
     );
+
+    return PainelLateral(child: pagina);
   }
 
   static Color colorFor(int i) => _cores[i % _cores.length];
@@ -552,6 +555,23 @@ void _abrirGastosDaSubcategoria(
   AppState state,
   BudgetNode node,
 ) {
+  // Folha e painel vivem fora da árvore que escuta o estado: sem isto,
+  // renomear ou recategorizar uma compra daqui não apareceria na hora.
+  Widget detalhe(ScrollController? rolagem) => AnimatedBuilder(
+        animation: state,
+        builder: (_, __) =>
+            _GastosDaSubcategoria(state: state, node: node, rolagem: rolagem),
+      );
+
+  // No computador, ao lado da lista, como os detalhes do extrato.
+  final noPainel = PainelLateral.abrir(
+    context,
+    titulo: 'Subcategoria',
+    icone: _iconeDoNo(node),
+    conteudo: (_) => detalhe(null),
+  );
+  if (noPainel) return;
+
   showModalBottomSheet<void>(
     context: context,
     backgroundColor: context.colors.surface,
@@ -560,74 +580,89 @@ void _abrirGastosDaSubcategoria(
     shape: const RoundedRectangleBorder(
       borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
     ),
-    // A folha vive fora da árvore que escuta o estado: sem isto, renomear ou
-    // recategorizar uma compra daqui não apareceria na hora.
-    builder: (sheetContext) => AnimatedBuilder(
-      animation: state,
-      builder: (_, __) {
-        final mes = state.selectedMonth;
-        final compras = state.purchasesOfSubcategory(mes, node.id);
-        final total = compras.fold<double>(0, (s, e) => s + e.change.abs());
-        final valor = state.hideBalances
-            ? '••••'
-            : state.formatValue(total, 'BRL', signed: false);
+    builder: (_) => DraggableScrollableSheet(
+      expand: false,
+      initialChildSize: 0.7,
+      maxChildSize: 0.92,
+      builder: (_, scrollController) => detalhe(scrollController),
+    ),
+  );
+}
 
-        return DraggableScrollableSheet(
-          expand: false,
-          initialChildSize: 0.7,
-          maxChildSize: 0.92,
-          builder: (_, scrollController) => Column(
+/// Total, quantidade e lista das compras de uma subcategoria no mês.
+class _GastosDaSubcategoria extends StatelessWidget {
+  const _GastosDaSubcategoria({
+    required this.state,
+    required this.node,
+    this.rolagem,
+  });
+
+  final AppState state;
+  final BudgetNode node;
+
+  /// Da folha arrastável, no celular. No painel a lista rola sozinha.
+  final ScrollController? rolagem;
+
+  @override
+  Widget build(BuildContext context) {
+    // Pelo identificador, para um nome trocado com o painel aberto aparecer.
+    final atual = state.budgetNodeById(node.id) ?? node;
+    final mes = state.selectedMonth;
+    final compras = state.purchasesOfSubcategory(mes, atual.id);
+    final total = compras.fold<double>(0, (s, e) => s + e.change.abs());
+    final valor = state.hideBalances
+        ? '••••'
+        : state.formatValue(total, 'BRL', signed: false);
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Padding(
+          padding: const EdgeInsets.fromLTRB(24, 4, 24, 12),
+          child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Padding(
-                padding: const EdgeInsets.fromLTRB(24, 4, 24, 12),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(node.name, style: context.texts.headlineSmall),
-                    const SizedBox(height: 4),
-                    Text(
-                      '$valor · ${compras.length} '
-                      '${compras.length == 1 ? 'compra' : 'compras'} · '
-                      '${fmtMonthYear(mes)}',
-                      style: context.texts.bodySmall,
-                    ),
-                  ],
-                ),
-              ),
-              const Divider(height: 1),
-              Expanded(
-                child: compras.isEmpty
-                    // Em lista, para a folha continuar arrastável mesmo vazia.
-                    ? ListView(
-                        controller: scrollController,
-                        children: [
-                          const SizedBox(height: 12),
-                          EmptyState(
-                            icon: Icons.receipt_long_outlined,
-                            title: 'Nenhum gasto aqui',
-                            message:
-                                'Nada caiu em ${node.name} em ${fmtMonthYear(mes)}.',
-                          ),
-                        ],
-                      )
-                    : ListView.builder(
-                        controller: scrollController,
-                        padding: const EdgeInsets.symmetric(
-                          horizontal: 20,
-                          vertical: 8,
-                        ),
-                        itemCount: compras.length,
-                        itemBuilder: (_, i) =>
-                            LedgerTile(entry: compras[i], state: state),
-                      ),
+              Text(atual.name, style: context.texts.headlineSmall),
+              const SizedBox(height: 4),
+              Text(
+                '$valor · ${compras.length} '
+                '${compras.length == 1 ? 'compra' : 'compras'} · '
+                '${fmtMonthYear(mes)}',
+                style: context.texts.bodySmall,
               ),
             ],
           ),
-        );
-      },
-    ),
-  );
+        ),
+        const Divider(height: 1),
+        Expanded(
+          child: compras.isEmpty
+              // Em lista, para a folha continuar arrastável mesmo vazia.
+              ? ListView(
+                  controller: rolagem,
+                  children: [
+                    const SizedBox(height: 12),
+                    EmptyState(
+                      icon: Icons.receipt_long_outlined,
+                      title: 'Nenhum gasto aqui',
+                      message:
+                          'Nada caiu em ${atual.name} em ${fmtMonthYear(mes)}.',
+                    ),
+                  ],
+                )
+              : ListView.builder(
+                  controller: rolagem,
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 20,
+                    vertical: 8,
+                  ),
+                  itemCount: compras.length,
+                  itemBuilder: (_, i) =>
+                      LedgerTile(entry: compras[i], state: state),
+                ),
+        ),
+      ],
+    );
+  }
 }
 
 /// Ações de uma subcategoria: meta, renomear e apagar.
