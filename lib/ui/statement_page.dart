@@ -227,7 +227,9 @@ class _StatementPageState extends State<StatementPage> {
                 itemCount: entries.length + 1,
                 separatorBuilder: (_, __) => const Divider(height: 1),
                 itemBuilder: (context, i) {
-                  if (i == entries.length) return _footer(context, state);
+                  if (i == entries.length) {
+                    return _footer(context, state, entries);
+                  }
                   final entry = entries[i];
                   return _LinhaDaTabela(
                     entry: entry,
@@ -273,7 +275,9 @@ class _StatementPageState extends State<StatementPage> {
         padding: const EdgeInsets.fromLTRB(16, 4, 16, 28),
         itemCount: rows.length + 1,
         itemBuilder: (context, i) {
-          if (i == rows.length) return _footer(context, widget.state);
+          if (i == rows.length) {
+            return _footer(context, widget.state, entries);
+          }
           final row = rows[i];
           if (row.header != null) {
             return _DayHeader(label: row.header!, total: row.dayTotalLabel);
@@ -284,35 +288,56 @@ class _StatementPageState extends State<StatementPage> {
     );
   }
 
-  Widget _footer(BuildContext context, AppState state) {
+  Widget _footer(
+    BuildContext context,
+    AppState state,
+    List<LedgerEntry> entries,
+  ) {
+    final total = _TotalDaLista(state: state, entries: entries);
+
     if (state.loadingMore) {
-      return const Padding(
-        padding: EdgeInsets.symmetric(vertical: 24),
-        child: Center(
-          child: SizedBox(
-            width: 22,
-            height: 22,
-            child: CircularProgressIndicator(strokeWidth: 2.4),
+      return Column(
+        children: [
+          total,
+          const Padding(
+            padding: EdgeInsets.symmetric(vertical: 24),
+            child: Center(
+              child: SizedBox(
+                width: 22,
+                height: 22,
+                child: CircularProgressIndicator(strokeWidth: 2.4),
+              ),
+            ),
           ),
-        ),
+        ],
       );
     }
     if (state.hasMore) {
-      return Padding(
-        padding: const EdgeInsets.symmetric(vertical: 20),
-        child: Center(
-          child: OutlinedButton(
-            onPressed: state.loadMore,
-            child: const Text('Carregar mais'),
+      return Column(
+        children: [
+          total,
+          Padding(
+            padding: const EdgeInsets.symmetric(vertical: 20),
+            child: Center(
+              child: OutlinedButton(
+                onPressed: state.loadMore,
+                child: const Text('Carregar mais'),
+              ),
+            ),
           ),
-        ),
+        ],
       );
     }
-    return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 24),
-      child: Center(
-        child: Text('Fim do extrato', style: context.texts.bodySmall),
-      ),
+    return Column(
+      children: [
+        total,
+        Padding(
+          padding: const EdgeInsets.only(top: 4, bottom: 24),
+          child: Center(
+            child: Text('Fim do extrato', style: context.texts.bodySmall),
+          ),
+        ),
+      ],
     );
   }
 
@@ -995,6 +1020,75 @@ class _PainelDeDetalhes extends StatelessWidget {
             Expanded(
               child: SingleChildScrollView(
                 child: LedgerDetails(entry: entry, state: state),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+/// Soma do que está na lista, no fim do extrato.
+///
+/// Segue a busca, o filtro e o mês: buscar um estabelecimento com "todos os
+/// meses" ligado mostra quanto já foi gasto ali desde sempre. Conta como o
+/// total do dia — transferências entre carteiras próprias e ocultos ficam fora.
+class _TotalDaLista extends StatelessWidget {
+  const _TotalDaLista({required this.state, required this.entries});
+
+  final AppState state;
+  final List<LedgerEntry> entries;
+
+  @override
+  Widget build(BuildContext context) {
+    final contam =
+        entries.where((e) => !e.neutral && !state.isHidden(e)).toList();
+    if (contam.isEmpty) return const SizedBox.shrink();
+
+    final liquido = contam.fold<double>(
+      0,
+      (soma, e) => soma + state.usdValueOf(e.coin, e.change),
+    );
+    final sinal = liquido.abs() < 0.005 ? '' : (liquido > 0 ? '+ ' : '- ');
+    final valor = state.hideBalances
+        ? '••••'
+        : '$sinal${fmtFiat(state.toDisplay(liquido.abs()), brl: state.showInBrl)}';
+
+    return Padding(
+      padding: const EdgeInsets.only(top: 16, bottom: 8),
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 14),
+        decoration: BoxDecoration(
+          color: context.tones.surfaceAlt,
+          borderRadius: BorderRadius.circular(14),
+          border: Border.all(color: context.tones.border),
+        ),
+        child: Row(
+          children: [
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text('Total', style: context.texts.titleSmall),
+                  const SizedBox(height: 2),
+                  Text(
+                    '${contam.length} '
+                    '${contam.length == 1 ? 'lançamento' : 'lançamentos'}',
+                    style: context.texts.bodySmall,
+                  ),
+                ],
+              ),
+            ),
+            Text(
+              valor,
+              style: context.texts.titleMedium?.copyWith(
+                fontWeight: FontWeight.w700,
+                color: liquido < -0.005
+                    ? context.tones.negative
+                    : liquido > 0.005
+                        ? context.tones.positive
+                        : null,
               ),
             ),
           ],
