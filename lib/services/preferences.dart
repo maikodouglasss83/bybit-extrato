@@ -23,6 +23,7 @@ class PreferencesStore {
   static const _kSkippedLogin = 'skipped_login';
   static const _kCardGoal = 'card_goal_usd';
   static const _kBudgetTree = 'budget_tree';
+  static const _kBudgetPending = 'budget_tree_pending';
   static const _kCachedEntries = 'cached_entries';
   static const _kManualSubscriptions = 'manual_subscriptions';
   static const _kCancelledSubscriptions = 'cancelled_subscriptions';
@@ -204,6 +205,31 @@ class PreferencesStore {
       );
     } catch (_) {
       // Sem cofre disponível o planejamento vale só na sessão atual.
+    }
+  }
+
+  /// Se o planejamento mudou neste aparelho e a nuvem ainda não recebeu.
+  ///
+  /// Enquanto estiver marcado, a árvore que vem da nuvem é mais velha que a
+  /// daqui e não pode substituí-la — era assim que uma subcategoria recém
+  /// criada sumia na sincronização seguinte.
+  Future<bool> loadBudgetPending() async {
+    try {
+      return (await _storage.read(key: _kBudgetPending)) == 'true';
+    } catch (_) {
+      return false;
+    }
+  }
+
+  Future<void> saveBudgetPending(bool value) async {
+    try {
+      if (!value) {
+        await _storage.delete(key: _kBudgetPending);
+        return;
+      }
+      await _storage.write(key: _kBudgetPending, value: 'true');
+    } catch (_) {
+      // Sem cofre, a marca vale só enquanto o app estiver aberto.
     }
   }
 

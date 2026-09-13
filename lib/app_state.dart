@@ -1311,10 +1311,38 @@ class AppState extends ChangeNotifier {
   Future<void> _persistBudget() async {
     notifyListeners();
     await _preferences.saveBudgetTree(budgetNodes);
-    _syncPreference(
-      _kSyncPlanejamento,
-      budgetNodes.map((n) => n.toJson()).toList(),
-    );
+    _marcarPlanejamentoPendente(true);
+    _enviarPlanejamento();
+  }
+
+  /// O planejamento daqui ainda não chegou à nuvem.
+  bool _planejamentoPendente = false;
+
+  /// Conta as mudanças do planejamento, para um envio que termina atrasado
+  /// não dar por enviada uma mudança mais nova que ele não levou.
+  int _versaoDoPlanejamento = 0;
+
+  void _marcarPlanejamentoPendente(bool pendente) {
+    if (pendente) _versaoDoPlanejamento++;
+    if (_planejamentoPendente == pendente) return;
+    _planejamentoPendente = pendente;
+    _preferences.saveBudgetPending(pendente);
+  }
+
+  /// Manda a árvore para a nuvem e só tira a marca de pendente se deu certo.
+  Future<void> _enviarPlanejamento() async {
+    if (!_cloud.available || !_cloud.signedIn) return;
+    final versao = _versaoDoPlanejamento;
+    try {
+      await _cloud.pushPreference(
+        _kSyncPlanejamento,
+        budgetNodes.map((n) => n.toJson()).toList(),
+      );
+      if (versao == _versaoDoPlanejamento) _marcarPlanejamentoPendente(false);
+    } catch (_) {
+      // Continua pendente: a próxima sincronização completa reenvia, e até lá
+      // a árvore da nuvem não substitui esta.
+    }
   }
 
   /// Quanto ainda cabe na meta de uma subcategoria, em reais.
@@ -1877,6 +1905,7 @@ class AppState extends ChangeNotifier {
     _showInBrl = await _preferences.loadShowInBrl();
     cardGoalUsd = await _preferences.loadCardGoal() ?? defaultCardGoalUsd;
     budgetNodes = await _preferences.loadBudgetTree() ?? defaultBudgetTree();
+    _planejamentoPendente = await _preferences.loadBudgetPending();
     manualSubscriptions = await _preferences.loadManualSubscriptions();
     _cancelledSubscriptions = await _preferences.loadCancelledSubscriptions();
 
@@ -2255,7 +2284,9 @@ class AppState extends ChangeNotifier {
       _hiddenIds =
           (ajustes[_kSyncOcultos] as List).map((e) => e.toString()).toSet();
     }
-    if (ajustes[_kSyncPlanejamento] is List) {
+    // Com mudança daqui ainda não enviada, a árvore da nuvem é a mais velha:
+    // fica a deste aparelho, que o envio logo em seguida leva para a nuvem.
+    if (ajustes[_kSyncPlanejamento] is List && !_planejamentoPendente) {
       final nos = (ajustes[_kSyncPlanejamento] as List)
           .map((e) => BudgetNode.fromJson(Map<String, dynamic>.from(e as Map)))
           .toList();
@@ -2301,10 +2332,12 @@ class AppState extends ChangeNotifier {
     await _cloud.pushPreference(_kSyncFixos, _fixedOverrides);
     await _cloud.pushPreference(_kSyncVencimentos, _dueDayOverrides);
     await _cloud.pushPreference(_kSyncOcultos, _hiddenIds.toList());
+    final versao = _versaoDoPlanejamento;
     await _cloud.pushPreference(
       _kSyncPlanejamento,
       budgetNodes.map((n) => n.toJson()).toList(),
     );
+    if (versao == _versaoDoPlanejamento) _marcarPlanejamentoPendente(false);
     await _cloud.pushPreference(_kSyncMetaCartao, cardGoalUsd);
     await _cloud.pushPreference(_kSyncMoeda, _showInBrl);
     await _cloud.pushPreference(

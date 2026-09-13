@@ -87,6 +87,80 @@ IconData categoryIcon(String category) {
 IconData iconForCategoryName(String nome) {
   final n = nome.toLowerCase();
   bool tem(List<String> chaves) => chaves.any(n.contains);
+  // Nomes curtos ("luz", "gás") casariam dentro de outras palavras: estes só
+  // valem como palavra inteira.
+  final palavras = n.split(RegExp(r'[^a-zà-ú0-9]+')).toSet();
+  bool palavra(List<String> chaves) => chaves.any(palavras.contains);
+
+  // Contas da casa.
+  if (palavra(['luz', 'energia', 'enel', 'cemig', 'copel', 'light', 'celpe']) ||
+      tem(['elétric', 'eletric'])) {
+    return Icons.lightbulb_outline_rounded;
+  }
+  if (palavra(['água', 'agua', 'sabesp', 'saneamento', 'esgoto'])) {
+    return Icons.water_drop_outlined;
+  }
+  if (palavra(['gás', 'gas', 'botijão', 'botijao', 'comgás', 'comgas'])) {
+    return Icons.local_fire_department_outlined;
+  }
+  if (tem(['limpeza', 'faxin', 'diarista', 'lavander'])) {
+    return Icons.cleaning_services_outlined;
+  }
+  if (tem(['manuten', 'reforma', 'conserto', 'obra', 'material de constr'])) {
+    return Icons.handyman_outlined;
+  }
+  if (tem(['móve', 'move', 'decora', 'eletrodom'])) {
+    return Icons.chair_outlined;
+  }
+  if (tem(['seguro'])) return Icons.shield_outlined;
+  if (tem(['empréstim', 'emprestim', 'financiam', 'parcela', 'dívida', 'divida'])) {
+    return Icons.account_balance_outlined;
+  }
+  if (tem(['cartão', 'cartao', 'fatura'])) return Icons.credit_card_rounded;
+  if (tem(['salário', 'salario', 'renda', 'freela'])) {
+    return Icons.payments_outlined;
+  }
+  if (tem(['uber', '99', 'táxi', 'taxi', 'aplicativo de'])) {
+    return Icons.local_taxi_outlined;
+  }
+  if (tem(['estaciona', 'pedágio', 'pedagio', 'ipva', 'multa'])) {
+    return Icons.local_parking_rounded;
+  }
+  if (tem(['metrô', 'metro', 'trem', 'bilhete'])) {
+    return Icons.directions_subway_outlined;
+  }
+  if (tem(['mercado', 'supermerc', 'atacad', 'feira', 'hortifrut', 'açougue', 'acougue'])) {
+    return Icons.shopping_cart_outlined;
+  }
+  if (tem(['restaur', 'almoço', 'almoco', 'jantar', 'comida', 'pizza', 'hamb'])) {
+    return Icons.restaurant_rounded;
+  }
+  if (tem(['doce', 'sorvet', 'confeit'])) return Icons.icecream_outlined;
+  if (tem(['music', 'música', 'spotify', 'show', 'concert'])) {
+    return Icons.music_note_rounded;
+  }
+  if (tem(['cinema', 'teatro', 'ingresso'])) return Icons.theaters_rounded;
+  if (tem(['hospital', 'exame', 'consulta', 'plano de saúde', 'plano de saude', 'clínic', 'clinic'])) {
+    return Icons.local_hospital_outlined;
+  }
+  if (tem(['ótica', 'otica', 'óculos', 'oculos'])) return Icons.visibility_outlined;
+  if (tem(['cosmét', 'cosmet', 'perfum', 'maquia', 'higiene'])) {
+    return Icons.spa_outlined;
+  }
+  if (tem(['celular novo', 'smartphone', 'iphone'])) {
+    return Icons.smartphone_rounded;
+  }
+  if (tem(['software', 'app', 'nuvem', 'icloud', 'google one', 'domínio', 'dominio', 'hospedagem'])) {
+    return Icons.cloud_outlined;
+  }
+  if (tem(['cripto', 'bitcoin', 'bybit', 'corretora', 'ações', 'acoes'])) {
+    return Icons.currency_bitcoin_rounded;
+  }
+  if (tem(['trabalho', 'escritório', 'escritorio', 'empresa', 'negócio', 'negocio'])) {
+    return Icons.work_outline_rounded;
+  }
+  if (tem(['festa', 'evento', 'casamento'])) return Icons.celebration_outlined;
+  if (tem(['creche', 'babá', 'baba', 'brinquedo'])) return Icons.toys_outlined;
 
   if (tem(['curso', 'aula', 'escol', 'facul', 'estud', 'livr', 'ensino'])) {
     return Icons.school_outlined;

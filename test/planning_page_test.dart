@@ -114,6 +114,23 @@ void main() {
       expect(iconForCategoryName('Terapia'), Icons.psychology_outlined);
     });
 
+    test('contas e gastos do dia a dia ganham ícone relacionado', () {
+      expect(iconForCategoryName('Luz'), Icons.lightbulb_outline_rounded);
+      expect(iconForCategoryName('Conta de energia'),
+          Icons.lightbulb_outline_rounded);
+      expect(iconForCategoryName('Água'), Icons.water_drop_outlined);
+      expect(iconForCategoryName('Gás'), Icons.local_fire_department_outlined);
+      expect(iconForCategoryName('Uber'), Icons.local_taxi_outlined);
+      expect(iconForCategoryName('Seguro do carro'), Icons.shield_outlined);
+      expect(iconForCategoryName('Faxina'), Icons.cleaning_services_outlined);
+      expect(iconForCategoryName('Música'), Icons.music_note_rounded);
+      // "luz" dentro de outra palavra não conta como conta de luz.
+      expect(iconForCategoryName('Luzia'), isNot(Icons.lightbulb_outline_rounded));
+      // Os ícones antigos continuam valendo.
+      expect(iconForCategoryName('Padaria'), Icons.coffee_rounded);
+      expect(iconForCategoryName('Streaming'), Icons.play_circle_outline_rounded);
+    });
+
     testWidgets('a meta continua no menu de três pontos', (tester) async {
       await abrirPlanejamento(tester);
 
