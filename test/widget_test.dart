@@ -1919,18 +1919,6 @@ void main() {
   });
 
   group('Subcategoria que ficou vazia', () {
-    LedgerEntry compra(String id, String merch, double valor, DateTime quando) =>
-        LedgerEntry.fromCardTransaction({
-          'transactionId': id,
-          'side': '1',
-          'transactionDate': '${quando.millisecondsSinceEpoch}',
-          'transactionAmount': '$valor',
-          'basicCurrency': 'BRL',
-          'merchName': merch,
-        });
-
-    final setembro = DateTime(2026, 9, 7, 14);
-
     // A árvore como ficou na conta: "Padaria" levou "Mercado", "Streaming"
     // levou "Assinaturas", e "Terapia" perdeu o próprio nome.
     List<BudgetNode> arvoreDaConta() => [
@@ -1959,83 +1947,6 @@ void main() {
 
     BudgetNode no(List<BudgetNode> arvore, String id) =>
         arvore.firstWhere((n) => n.id == id);
-
-    test('subcategoria vazia pode receber a categoria de volta', () {
-      final arvore = arvoreDaConta();
-      expect(restorableSource(arvore, no(arvore, 'alimentacao_mercado')),
-          SpendCategories.mercado);
-      expect(restorableSource(arvore, no(arvore, 'lazer_assinaturas')),
-          SpendCategories.assinaturas);
-      // A criada pela pessoa recebe de volta o próprio nome.
-      expect(restorableSource(arvore, no(arvore, 'user_terapia')), 'Terapia');
-    });
-
-    test('não oferece trazer de volta quando esvaziaria quem segura', () {
-      final arvore = [
-        for (final n in defaultBudgetTree())
-          n.id == 'alimentacao_mercado' ? n.copyWith(sources: []) : n,
-        const BudgetNode(
-          id: 'user_feira',
-          name: 'Feira',
-          parentId: 'alimentacao',
-          sources: [SpendCategories.mercado],
-        ),
-      ];
-      expect(restorableSource(arvore, no(arvore, 'alimentacao_mercado')), isNull);
-    });
-
-    test('principal e subcategoria com categoria não precisam de nada', () {
-      final arvore = arvoreDaConta();
-      expect(restorableSource(arvore, no(arvore, 'alimentacao')), isNull);
-      expect(restorableSource(arvore, no(arvore, 'alimentacao_restaurantes')),
-          isNull);
-    });
-
-    test('trazer de volta leva só aquela categoria', () {
-      final arvore = withSourceMoved(
-        arvoreDaConta(),
-        'alimentacao_mercado',
-        SpendCategories.mercado,
-      );
-      expect(no(arvore, 'alimentacao_mercado').sources, [SpendCategories.mercado]);
-      expect(no(arvore, 'user_padaria').sources, ['Padaria']);
-      // O que a pessoa fez em Lazer não é tocado.
-      expect(no(arvore, 'user_streaming').sources,
-          ['Streaming', SpendCategories.assinaturas]);
-      expect(no(arvore, 'lazer_assinaturas').sources, isEmpty);
-    });
-
-    test('depois de trazer Mercado de volta, a compra de mercado cai lá',
-        () async {
-      final mercado = compra('m', 'ATACADO E AUTO SERVICO', 68.61, setembro);
-      final padaria = compra('p', 'PANIFICADORA SOL', 37.39, setembro);
-      final state = AppState()
-        ..seedEntries([mercado, padaria])
-        ..budgetNodes = arvoreDaConta();
-      await state.setEntryOverrides(mercado, category: SpendCategories.mercado);
-      await state.setEntryOverrides(padaria, category: 'Padaria');
-
-      // Antes: tudo em Padaria, que é o que a tela mostrava.
-      expect(
-        state.subcategoryBreakdown(setembro, 'alimentacao').single.label,
-        'Padaria',
-      );
-
-      await state.restoreNodeSource('alimentacao_mercado');
-
-      final linhas = state.subcategoryBreakdown(setembro, 'alimentacao');
-      expect(
-        {for (final l in linhas) l.label: l.total},
-        {'Mercado': 68.61, 'Padaria': 37.39},
-      );
-      final planejamento = state
-          .budgetLines(setembro)
-          .firstWhere((l) => l.node.id == 'alimentacao');
-      expect(
-        planejamento.children.firstWhere((c) => c.node.name == 'Mercado').spent,
-        68.61,
-      );
-    });
 
     test('subcategoria vazia não aparece para escolher numa compra', () {
       final state = AppState()..budgetNodes = arvoreDaConta();

@@ -485,43 +485,6 @@ class _SubcategoryTile extends StatelessWidget {
                 ),
               ],
             ),
-            // Subcategoria sem nenhuma categoria de gasto ligada: aparece, mas
-            // nada consegue cair nela. Em vez de esconder, diz o que houve e
-            // oferece trazer a categoria de volta — a decisão é da pessoa.
-            if (linha.node.sources.isEmpty) ...[
-              const SizedBox(height: 6),
-              Padding(
-                padding: const EdgeInsets.only(left: 16, right: _larguraDoMenu),
-                child: Row(
-                  children: [
-                    const Icon(Icons.info_outline_rounded,
-                        size: 14, color: AppColors.warning),
-                    const SizedBox(width: 6),
-                    Expanded(
-                      child: Text(
-                        state.restorableSourceOf(linha.node) == null
-                            ? 'Nenhum gasto chega aqui. Renomeie ou apague '
-                                'pelo menu ⋮.'
-                            : 'Nenhum gasto chega aqui: '
-                                '"${state.restorableSourceOf(linha.node)}" '
-                                'está em '
-                                '${state.nodeForCategory(state.restorableSourceOf(linha.node)!)?.name ?? 'outro lugar'}.',
-                        style: context.texts.bodySmall,
-                      ),
-                    ),
-                    if (state.restorableSourceOf(linha.node) != null)
-                      TextButton(
-                        onPressed: () => state.restoreNodeSource(linha.node.id),
-                        style: TextButton.styleFrom(
-                          visualDensity: VisualDensity.compact,
-                          padding: const EdgeInsets.symmetric(horizontal: 8),
-                        ),
-                        child: const Text('Trazer de volta'),
-                      ),
-                  ],
-                ),
-              ),
-            ],
             if (linha.hasBudget) ...[
               const SizedBox(height: 4),
               Padding(

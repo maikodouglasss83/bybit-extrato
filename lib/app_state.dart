@@ -1228,8 +1228,7 @@ class AppState extends ChangeNotifier {
     final filhos = childrenOf(main.id);
     if (filhos.isEmpty) return [main];
     // Subcategoria sem categoria de gasto não recebe nada: escolhê-la mandaria
-    // a compra para outro lugar sem avisar. Ela fica fora até ser consertada
-    // no planejamento.
+    // a compra para outro lugar sem avisar. Por isso ela fica fora.
     return filhos.where((n) => n.sources.isNotEmpty).toList();
   }
 
@@ -1488,23 +1487,6 @@ class AppState extends ChangeNotifier {
         for (final n in budgetNodes)
           if (n.sources.isNotEmpty && _ficariaVazio(n)) n.sources.first: n.name,
       };
-
-  /// A categoria que pode voltar para uma subcategoria vazia, ou nulo.
-  String? restorableSourceOf(BudgetNode node) =>
-      restorableSource(budgetNodes, node);
-
-  /// Traz de volta a categoria de uma subcategoria que ficou vazia.
-  ///
-  /// Só acontece quando a pessoa pede: levar a categoria pode ter sido de
-  /// propósito, e nada muda sozinho no planejamento dela.
-  Future<void> restoreNodeSource(String nodeId) async {
-    final node = budgetNodeById(nodeId);
-    if (node == null) return;
-    final origem = restorableSource(budgetNodes, node);
-    if (origem == null) return;
-    budgetNodes = withSourceMoved(budgetNodes, nodeId, origem);
-    await _persistBudget();
-  }
 
   /// Tira as categorias de gasto informadas de todos os nós.
   List<BudgetNode> _withoutSources(List<BudgetNode> nodes, List<String> sources) {
