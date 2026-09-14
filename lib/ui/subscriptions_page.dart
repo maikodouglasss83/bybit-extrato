@@ -338,7 +338,7 @@ class _Linha extends StatelessWidget {
   }
 }
 
-/// Logo da marca, ou o ícone da categoria quando ela é desconhecida.
+/// Ícone da categoria da assinatura, como nas outras listas.
 class _Selo extends StatelessWidget {
   const _Selo({required this.state, required this.assinatura});
 
@@ -347,17 +347,11 @@ class _Selo extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final compra = assinatura.sample;
-    if (compra != null) {
-      return MerchantAvatar(entry: compra, state: state, size: 38);
-    }
     return BrandAvatar(
       name: assinatura.name,
       state: state,
+      category: assinatura.category,
       size: 38,
-      fallbackIcon: assinatura.category.isEmpty
-          ? Icons.autorenew_rounded
-          : categoryIcon(assinatura.category),
     );
   }
 }

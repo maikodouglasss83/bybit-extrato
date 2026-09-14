@@ -463,14 +463,8 @@ class _SeletorDeCategoriaState extends State<_SeletorDeCategoria> {
   }
 
   /// O mesmo ícone que a categoria tem no planejamento.
-  static IconData _iconeDe(AppState state, BudgetNode node) {
-    if (node.isMain) return mainCategoryIcon(node.id);
-    if (node.sources.isEmpty) return iconForCategoryName(node.name);
-    final valor = node.sources.first;
-    return state.isCustomCategory(valor)
-        ? iconForCategoryName(node.name)
-        : categoryIcon(valor);
-  }
+  static IconData _iconeDe(AppState state, BudgetNode node) =>
+      iconForBudgetNode(node);
 }
 
 /// Chip de criar, no fim de cada lista: parece com as opções, mas traz o "+"

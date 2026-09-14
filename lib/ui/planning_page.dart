@@ -420,15 +420,7 @@ class _CategoryTile extends StatelessWidget {
 }
 
 /// Ícone de uma linha do planejamento, principal ou subcategoria.
-IconData _iconeDoNo(BudgetNode node) {
-  if (node.isMain) return mainCategoryIcon(node.id);
-  if (node.sources.isEmpty) return iconForCategoryName(node.name);
-
-  final valor = node.sources.first;
-  return SpendCategories.all.contains(valor)
-      ? categoryIcon(valor)
-      : iconForCategoryName(node.name);
-}
+IconData _iconeDoNo(BudgetNode node) => iconForBudgetNode(node);
 
 /// Espaço reservado ao menu de opções da subcategoria. A linha de baixo usa
 /// o mesmo valor, para o saldo terminar onde o valor termina.

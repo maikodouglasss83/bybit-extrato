@@ -42,6 +42,65 @@ IconData mainCategoryIcon(String nodeId) {
   }
 }
 
+/// Ícone de um nó do planejamento, principal ou subcategoria.
+///
+/// Um lugar só para o planejamento, o editor de compra e os selos das listas
+/// mostrarem o mesmo desenho para a mesma categoria.
+IconData iconForBudgetNode(BudgetNode node) {
+  if (node.isMain) {
+    // A principal criada pelo usuário não tem ícone próprio: sai do nome.
+    return node.builtIn
+        ? mainCategoryIcon(node.id)
+        : iconForCategoryName(node.name);
+  }
+  if (node.sources.isEmpty) return iconForCategoryName(node.name);
+
+  final valor = node.sources.first;
+  return SpendCategories.all.contains(valor)
+      ? categoryIcon(valor)
+      : iconForCategoryName(node.name);
+}
+
+/// Cor de uma categoria principal, a mesma em todas as listas.
+///
+/// Fixa por categoria, e não pela posição no ranking do mês: o transporte é
+/// azul hoje e continua azul no mês em que gastar mais com mercado.
+Color mainCategoryColor(String nodeId) {
+  switch (nodeId) {
+    case 'casa':
+      return const Color(0xFFFB923C);
+    case 'educacao':
+      return const Color(0xFFA78BFA);
+    case 'lazer':
+      return const Color(0xFF38BDF8);
+    case 'saude':
+      return const Color(0xFFF4436B);
+    case 'alimentacao':
+      return const Color(0xFFF5A524);
+    case 'transporte':
+      return const Color(0xFF6C8CFF);
+    case 'pessoais':
+      return const Color(0xFF22D3A6);
+    case 'comunicacao':
+      return const Color(0xFF4ADE80);
+    case 'tarifas':
+      return const Color(0xFF818CF8);
+    case 'outros':
+    case kUncategorizedId:
+      return const Color(0xFF94A3B8);
+    default:
+      // Criada pelo usuário: uma cor da paleta, sempre a mesma para ela.
+      const paleta = [
+        Color(0xFF2DD4BF),
+        Color(0xFFF472B6),
+        Color(0xFFFACC15),
+        Color(0xFF60A5FA),
+        Color(0xFFC084FC),
+      ];
+      return paleta[nodeId.hashCode.abs() % paleta.length];
+  }
+}
+
 /// Ícone que representa cada categoria de gasto.
 IconData categoryIcon(String category) {
   switch (category) {

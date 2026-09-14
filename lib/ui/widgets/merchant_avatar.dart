@@ -6,11 +6,12 @@ import '../../theme.dart';
 import '../../util/brands.dart';
 import 'common.dart';
 
-/// Selo do estabelecimento numa compra do cartão.
+/// Selo de um lançamento: o ícone da categoria dele, na cor dela.
 ///
-/// A ordem é: logo baixado (só se o usuário permitir), monograma na cor da
-/// marca, e por fim o ícone da categoria. Assim a lista fica reconhecível de
-/// relance mesmo sem nenhuma requisição à internet.
+/// É o mesmo desenho do planejamento, então a lista se lê pelo tipo de gasto —
+/// mercado, transporte, streaming — em vez de uma coluna de iniciais que não
+/// dizem nada. O logo da marca só entra quando o usuário liga os logos
+/// baixados; enquanto carrega, ou se falhar, o selo da categoria fica no lugar.
 class MerchantAvatar extends StatelessWidget {
   const MerchantAvatar({
     super.key,
@@ -25,77 +26,115 @@ class MerchantAvatar extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final brand = brandFor(entry.note);
-    if (brand != null) {
-      return _BrandBadge(
-        brand: brand,
-        size: size,
-        useOnlineLogos: state.useOnlineLogos,
-      );
+    // Depósito, saque e transferência não têm categoria: o desenho é o do tipo.
+    if (entry.kind != LedgerKind.cardPurchase) {
+      return KindAvatar(kind: entry.kind, isIn: entry.isIn, size: size);
     }
 
-    // Numa compra, o que identifica a linha é o lugar onde ela aconteceu.
-    // Sem marca conhecida, as iniciais do estabelecimento distinguem uma da
-    // outra muito melhor do que o mesmo ícone repetido em todas.
-    if (entry.kind == LedgerKind.cardPurchase) {
-      final nome = state.displayNameOf(entry);
-      final iniciais = initialsFor(nome);
-      if (iniciais.isNotEmpty) {
-        return _Monogram(
-          label: iniciais,
-          color: colorForMerchant(AppState.merchantKeyFor(entry.note)),
-          size: size,
-          radius: BorderRadius.circular(size / 3),
-        );
-      }
-    }
-
-    return KindAvatar(
-      kind: entry.kind,
-      isIn: entry.isIn,
+    return BrandAvatar(
+      name: entry.note ?? '',
+      state: state,
+      category: state.categoryOf(entry),
       size: size,
-      overrideIcon: entry.kind == LedgerKind.cardPurchase
-          ? categoryIcon(state.categoryOf(entry))
-          : null,
     );
   }
 }
 
-/// Iniciais de um estabelecimento, para o selo de quem não tem marca
-/// conhecida: "Hashtag Treinamentos" vira HT, "Bumper" vira BU.
-///
-/// Os pedaços que a maquininha acrescenta — PAG, LTDA, a cidade, o número do
-/// terminal — não identificam nada e ficam de fora.
-String initialsFor(String nome) {
-  const ruido = {
-    'pag', 'pagto', 'pgto', 'pagamento', 'compra', 'cartao', 'cartão',
-    'ltda', 'me', 'mei', 'eireli', 'sa', 'br', 'bra', 'com', 'www',
-    'do', 'da', 'de', 'dos', 'das', 'e',
-  };
+/// Logo da marca, quando os logos baixados estão ligados e a marca é
+/// conhecida; senão, o selo da categoria.
+class BrandAvatar extends StatelessWidget {
+  const BrandAvatar({
+    super.key,
+    required this.name,
+    required this.state,
+    required this.category,
+    this.size = 42,
+  });
 
-  final limpo = nome.replaceAll(RegExp(r'[^\p{L}\p{N} ]', unicode: true), ' ');
-  final palavras = limpo
-      .split(RegExp(r'\s+'))
-      .where((p) => p.isNotEmpty)
-      .where((p) => !ruido.contains(p.toLowerCase()))
-      .where((p) => !RegExp(r'^\d+$').hasMatch(p))
-      .toList();
+  final String name;
+  final AppState state;
 
-  if (palavras.isEmpty) {
-    final letra = nome.replaceAll(RegExp(r'\s'), '');
-    return letra.isEmpty ? '' : letra.substring(0, 1).toUpperCase();
+  /// Categoria de gasto que dá o ícone e a cor do selo.
+  final String category;
+  final double size;
+
+  @override
+  Widget build(BuildContext context) {
+    final selo = CategoryBadge(state: state, category: category, size: size);
+
+    final dominio = brandFor(name)?.domain;
+    if (!state.useOnlineLogos || dominio == null) return selo;
+
+    return ClipRRect(
+      borderRadius: BorderRadius.circular(size / 3),
+      child: Image.network(
+        'https://favicone.com/$dominio?s=128',
+        width: size,
+        height: size,
+        fit: BoxFit.cover,
+        // Enquanto baixa, e se falhar, o selo segura o lugar sem piscar.
+        loadingBuilder: (_, child, progress) => progress == null ? child : selo,
+        errorBuilder: (_, __, ___) => selo,
+      ),
+    );
   }
-  if (palavras.length == 1) {
-    final unica = palavras.first;
-    return (unica.length == 1 ? unica : unica.substring(0, 2)).toUpperCase();
-  }
-  return (palavras[0][0] + palavras[1][0]).toUpperCase();
 }
 
-/// Cor do selo de um estabelecimento sem marca conhecida.
+/// Quadrado arredondado com o ícone da categoria, na cor da principal.
+class CategoryBadge extends StatelessWidget {
+  const CategoryBadge({
+    super.key,
+    required this.state,
+    required this.category,
+    this.size = 42,
+  });
+
+  final AppState state;
+  final String category;
+  final double size;
+
+  @override
+  Widget build(BuildContext context) {
+    final (icone, cor) = categoryVisual(state, category, context.tones.muted);
+
+    return Container(
+      width: size,
+      height: size,
+      alignment: Alignment.center,
+      decoration: BoxDecoration(
+        color: cor.withValues(alpha: 0.15),
+        borderRadius: BorderRadius.circular(size / 3),
+      ),
+      child: Icon(icone, size: size * 0.48, color: cor),
+    );
+  }
+}
+
+/// Ícone e cor de uma categoria de gasto, como no planejamento.
 ///
-/// Sai da chave do estabelecimento, e não do nome exibido: renomear a compra
-/// não muda a cor com que você já se acostumou.
+/// O ícone é o da subcategoria que recebe a compra; a cor, a da categoria
+/// principal acima dela. Categoria fora do planejamento — a de uma assinatura
+/// cadastrada à mão, por exemplo — ganha o ícone pelo nome e uma cor fixa.
+(IconData, Color) categoryVisual(
+  AppState state,
+  String category,
+  Color semCategoria,
+) {
+  if (category.trim().isEmpty) return (Icons.autorenew_rounded, semCategoria);
+
+  final no = state.nodeForCategory(category);
+  final principal = state.mainCategoryOf(category);
+
+  final icone = no != null ? iconForBudgetNode(no) : categoryIcon(category);
+  final cor = principal != null
+      ? mainCategoryColor(principal.id)
+      : colorForMerchant(category);
+  return (icone, cor);
+}
+
+/// Cor fixa para um nome sem categoria principal conhecida.
+///
+/// Sai do próprio nome: a mesma categoria tem sempre a mesma cor.
 Color colorForMerchant(String chave) {
   const paleta = [
     Color(0xFF22D3A6),
@@ -111,124 +150,4 @@ Color colorForMerchant(String chave) {
   ];
   if (chave.isEmpty) return paleta.first;
   return paleta[chave.hashCode.abs() % paleta.length];
-}
-
-/// Selo de uma marca reconhecida pelo nome.
-///
-/// Serve para o que não tem uma compra por trás — uma assinatura cadastrada à
-/// mão, por exemplo — e cai num ícone quando a marca é desconhecida.
-class BrandAvatar extends StatelessWidget {
-  const BrandAvatar({
-    super.key,
-    required this.name,
-    required this.state,
-    this.fallbackIcon = Icons.autorenew_rounded,
-    this.size = 42,
-  });
-
-  final String name;
-  final AppState state;
-  final IconData fallbackIcon;
-  final double size;
-
-  @override
-  Widget build(BuildContext context) {
-    final brand = brandFor(name);
-    if (brand != null) {
-      return _BrandBadge(
-        brand: brand,
-        size: size,
-        useOnlineLogos: state.useOnlineLogos,
-      );
-    }
-
-    final cor = context.tones.muted;
-    return Container(
-      width: size,
-      height: size,
-      alignment: Alignment.center,
-      decoration: BoxDecoration(
-        color: cor.withValues(alpha: 0.14),
-        borderRadius: BorderRadius.circular(size / 3),
-      ),
-      child: Icon(fallbackIcon, size: size * 0.5, color: cor),
-    );
-  }
-}
-
-class _BrandBadge extends StatelessWidget {
-  const _BrandBadge({
-    required this.brand,
-    required this.size,
-    required this.useOnlineLogos,
-  });
-
-  final Brand brand;
-  final double size;
-  final bool useOnlineLogos;
-
-  @override
-  Widget build(BuildContext context) {
-    final radius = BorderRadius.circular(size / 3);
-    final monograma = _Monogram(
-      label: brand.label,
-      color: brand.color,
-      size: size,
-      radius: radius,
-    );
-
-    if (!useOnlineLogos || brand.domain == null) return monograma;
-
-    return ClipRRect(
-      borderRadius: radius,
-      child: Image.network(
-        'https://favicone.com/${brand.domain}?s=128',
-        width: size,
-        height: size,
-        fit: BoxFit.cover,
-        // Enquanto baixa, e se falhar, o monograma segura o lugar sem piscar.
-        loadingBuilder: (_, child, progress) =>
-            progress == null ? child : monograma,
-        errorBuilder: (_, __, ___) => monograma,
-      ),
-    );
-  }
-}
-
-/// Selo com uma ou duas letras sobre a cor de quem ele representa.
-class _Monogram extends StatelessWidget {
-  const _Monogram({
-    required this.label,
-    required this.color,
-    required this.size,
-    required this.radius,
-  });
-
-  final String label;
-  final Color color;
-  final double size;
-  final BorderRadius radius;
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      width: size,
-      height: size,
-      alignment: Alignment.center,
-      decoration: BoxDecoration(
-        color: color.withValues(alpha: 0.16),
-        borderRadius: radius,
-        border: Border.all(color: color.withValues(alpha: 0.35)),
-      ),
-      child: Text(
-        label,
-        style: TextStyle(
-          color: color,
-          fontWeight: FontWeight.w800,
-          fontSize: label.length >= 2 ? size * 0.34 : size * 0.44,
-          letterSpacing: -0.5,
-        ),
-      ),
-    );
-  }
 }

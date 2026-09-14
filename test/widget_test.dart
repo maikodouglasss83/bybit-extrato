@@ -1674,15 +1674,6 @@ void main() {
   });
 
   group('Desenho de cada gasto', () {
-    test('as iniciais saem do nome, sem o ruído da maquininha', () {
-      expect(initialsFor('Hashtag Treinamentos'), 'HT');
-      expect(initialsFor('Bumper'), 'BU');
-      expect(initialsFor('MERCADINHO DO TICO'), 'MT'); // "do" não conta
-      expect(initialsFor('PAG*77231 SAO PAULO'), 'SP'); // nem "PAG" nem o número
-      expect(initialsFor('X'), 'X');
-      expect(initialsFor('   '), '');
-    });
-
     test('a cor do selo é estável e vem da chave do estabelecimento', () {
       final cor = colorForMerchant('bumper');
       expect(colorForMerchant('bumper'), cor);
