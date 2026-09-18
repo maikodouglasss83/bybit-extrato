@@ -1234,9 +1234,41 @@ class AppState extends ChangeNotifier {
   List<BudgetNode> subcategoriesFor(BudgetNode main) {
     final filhos = childrenOf(main.id);
     if (filhos.isEmpty) return [main];
-    // Subcategoria sem categoria de gasto não recebe nada: escolhê-la mandaria
-    // a compra para outro lugar sem avisar. Por isso ela fica fora.
-    return filhos.where((n) => n.sources.isNotEmpty).toList();
+    // Todas aparecem, inclusive a que ficou sem categoria de gasto: ao ser
+    // escolhida, [garantirCategoriaPropria] dá a ela uma, e a compra cai nela.
+    return filhos;
+  }
+
+  /// O valor de categoria que faz uma compra cair exatamente neste nó.
+  ///
+  /// Nó sem categoria de gasto — porque outra subcategoria levou a dele —
+  /// devolveria o próprio nome, e o nome pode ser justamente o que a outra
+  /// levou: a compra iria parar lá. Aqui ele ganha uma categoria só dele: o
+  /// nome, se ninguém o usa; senão o nome com a principal ("Assinaturas ·
+  /// Lazer"). Quem levou a categoria original continua com ela.
+  Future<String> garantirCategoriaPropria(BudgetNode node) async {
+    if (node.sources.isNotEmpty) return node.sources.first;
+
+    bool livre(String valor) {
+      final chave = valor.trim().toLowerCase();
+      return !budgetNodes
+          .any((n) => n.sources.any((s) => s.trim().toLowerCase() == chave));
+    }
+
+    final pai = node.parentId == null ? null : budgetNodeById(node.parentId!);
+    final candidatos = [
+      node.name,
+      if (pai != null) '${node.name} · ${pai.name}',
+      '${node.name} · ${node.id}',
+    ];
+    final valor = candidatos.firstWhere(livre, orElse: () => candidatos.last);
+
+    budgetNodes = [
+      for (final n in budgetNodes)
+        n.id == node.id ? n.copyWith(sources: [valor]) : n,
+    ];
+    await _persistBudget();
+    return valor;
   }
 
   /// Gasto do mês que cai direto neste nó, sem contar as subcategorias.

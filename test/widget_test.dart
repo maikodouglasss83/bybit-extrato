@@ -1945,12 +1945,33 @@ void main() {
     BudgetNode no(List<BudgetNode> arvore, String id) =>
         arvore.firstWhere((n) => n.id == id);
 
-    test('subcategoria vazia não aparece para escolher numa compra', () {
+    test('subcategoria vazia aparece e, escolhida, ganha categoria própria',
+        () async {
       final state = AppState()..budgetNodes = arvoreDaConta();
       final alimentacao = no(state.budgetNodes, 'alimentacao');
       final nomes = state.subcategoriesFor(alimentacao).map((n) => n.name);
-      expect(nomes, isNot(contains('Mercado')));
-      expect(nomes, containsAll(<String>['Padaria', 'Restaurantes e delivery']));
+      expect(nomes,
+          containsAll(<String>['Mercado', 'Padaria', 'Restaurantes e delivery']));
+
+      // "Mercado" é da Padaria: a vazia ganha uma categoria só dela, e a
+      // Padaria continua recebendo o que recebia.
+      final valor = await state
+          .garantirCategoriaPropria(no(state.budgetNodes, 'alimentacao_mercado'));
+      expect(valor, 'Mercado · Alimentação');
+      expect(no(state.budgetNodes, 'alimentacao_mercado').sources, [valor]);
+      expect(state.nodeForCategory(valor)?.id, 'alimentacao_mercado');
+      expect(state.categoryLabelOf(valor), 'Mercado');
+      expect(
+        state.budgetNodes.firstWhere((n) => n.name == 'Padaria').sources,
+        contains(SpendCategories.mercado),
+      );
+
+      // Escolher de novo não inventa outra.
+      expect(
+        await state.garantirCategoriaPropria(
+            no(state.budgetNodes, 'alimentacao_mercado')),
+        valor,
+      );
     });
 
     test('categoria única de uma principal com subcategorias pode ser levada',

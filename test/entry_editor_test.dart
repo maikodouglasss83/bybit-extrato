@@ -1,4 +1,5 @@
 import 'package:bybit_extrato/app_state.dart';
+import 'package:bybit_extrato/budget.dart';
 import 'package:bybit_extrato/models.dart';
 import 'package:bybit_extrato/theme.dart';
 import 'package:bybit_extrato/ui/widgets/entry_editor.dart';
@@ -155,6 +156,43 @@ void main() {
       ]) {
         expect(find.byIcon(icone), findsWidgets, reason: '$icone');
       }
+    });
+
+    testWidgets('subcategoria que ficou vazia aparece e recebe a compra',
+        (tester) async {
+      // Como na conta real: a Streaming passou a receber "Assinaturas", e a
+      // subcategoria Assinaturas ficou sem nada.
+      final state = AppState()
+        ..budgetNodes = [
+          for (final n in defaultBudgetTree())
+            if (n.id == 'lazer_assinaturas')
+              n.copyWith(sources: const [])
+            else
+              n,
+          const BudgetNode(
+            id: 'user_streaming',
+            name: 'Streaming',
+            parentId: 'lazer',
+            sources: ['Streaming', SpendCategories.assinaturas],
+          ),
+        ];
+      final entry = compra();
+      await abrirEditor(tester, state, entry);
+
+      await tocar(tester, find.text('Lazer'));
+      expect(find.text('Assinaturas'), findsOneWidget);
+      expect(find.text('Streaming'), findsOneWidget);
+
+      await tocar(tester, find.text('Assinaturas'));
+      await tocar(tester, find.text('Salvar'));
+
+      expect(state.nodeForCategory(state.categoryOf(entry))?.id,
+          'lazer_assinaturas');
+      // A Streaming segue com o que tinha.
+      expect(
+        state.budgetNodeById('user_streaming')!.sources,
+        ['Streaming', SpendCategories.assinaturas],
+      );
     });
 
     testWidgets('nome repetido mostra o motivo no próprio diálogo',

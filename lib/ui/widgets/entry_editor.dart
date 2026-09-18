@@ -423,9 +423,14 @@ class _SeletorDeCategoriaState extends State<_SeletorDeCategoria> {
                 _CategoryChip(
                   label: sub.name,
                   icon: _iconeDe(state, sub),
-                  selected: state.categoryValueOf(sub) == widget.selecionada,
-                  onTap: () =>
-                      widget.onChanged(state.categoryValueOf(sub)),
+                  // Sem categoria própria o valor seria o nome, que pode ser o
+                  // de outra subcategoria: marcaria as duas.
+                  selected: sub.sources.isNotEmpty &&
+                      state.categoryValueOf(sub) == widget.selecionada,
+                  onTap: () async {
+                    final valor = await state.garantirCategoriaPropria(sub);
+                    if (mounted) widget.onChanged(valor);
+                  },
                 ),
               _AdicionarChip(
                 label: 'Nova subcategoria',
