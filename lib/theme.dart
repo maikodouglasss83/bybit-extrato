@@ -1,11 +1,10 @@
 import 'package:flutter/material.dart';
 
-/// Paleta do app. Fundo escuro azulado com o laranja da marca como única cor
-/// de ação — o mesmo da página de apresentação, para o app e o site parecerem
-/// a mesma coisa.
+/// Paleta do app. Um tom escuro azulado com acento verde-água, no espírito
+/// dos apps de finanças que serviram de referência.
 class AppColors {
-  static const accent = Color(0xFFFF9F1A);
-  static const accentSoft = Color(0xFFE08308);
+  static const accent = Color(0xFF22D3A6);
+  static const accentSoft = Color(0xFF14B88A);
   static const positive = Color(0xFF22C55E);
   static const negative = Color(0xFFF4436B);
   static const warning = Color(0xFFF5A524);
@@ -91,7 +90,7 @@ ThemeData buildTheme(Brightness brightness) {
   final scheme = ColorScheme(
     brightness: brightness,
     primary: AppColors.accent,
-    onPrimary: const Color(0xFF1A1206),
+    onPrimary: const Color(0xFF04211A),
     secondary: AppColors.accentSoft,
     onSecondary: Colors.white,
     error: AppColors.negative,
@@ -168,7 +167,7 @@ ThemeData buildTheme(Brightness brightness) {
     filledButtonTheme: FilledButtonThemeData(
       style: FilledButton.styleFrom(
         backgroundColor: AppColors.accent,
-        foregroundColor: const Color(0xFF1A1206),
+        foregroundColor: const Color(0xFF04211A),
         minimumSize: const Size(0, 52),
         textStyle: const TextStyle(fontSize: 15, fontWeight: FontWeight.w700),
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),

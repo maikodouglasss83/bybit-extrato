@@ -257,7 +257,7 @@ class _CloudCardState extends State<CloudCard> {
                   height: 20,
                   child: CircularProgressIndicator(
                     strokeWidth: 2.4,
-                    color: Color(0xFF1A1206),
+                    color: Color(0xFF04211A),
                   ),
                 )
               : const Text('Receber link de acesso'),
