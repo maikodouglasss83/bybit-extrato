@@ -1,10 +1,13 @@
 // Servidor estático para testar o build web localmente.
-// Uso: node tool/serve.js [porta]
+// Uso: node tool/serve.js [porta] [pasta]
+// Sem pasta, serve o build web; com ela, qualquer outra — a landing, por exemplo.
 const http = require('http');
 const fs = require('fs');
 const path = require('path');
 
-const root = path.join(__dirname, '..', 'build', 'web');
+const root = process.argv[3]
+  ? path.resolve(process.argv[3])
+  : path.join(__dirname, '..', 'build', 'web');
 const port = Number(process.argv[2] || 8099);
 
 const types = {
