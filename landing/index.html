@@ -364,6 +364,54 @@ input[type="range"] { width: 100%; margin-top: 14px; accent-color: var(--orange)
 .trust-card h3 { margin-top: 20px; }
 .trust-card p { margin-top: 10px; color: var(--text-2); }
 
+/* Planos */
+.toggle {
+  margin: 32px auto 0; display: inline-flex; gap: 4px; padding: 5px;
+  background: var(--paper-2); border: 1px solid var(--paper-line); border-radius: 999px;
+}
+.toggle button {
+  border: 0; background: transparent; color: var(--text-2); cursor: pointer;
+  font: inherit; font-weight: 700; font-size: .95rem; padding: 10px 22px; border-radius: 999px;
+  display: inline-flex; align-items: center; gap: 8px;
+}
+.toggle button[aria-pressed="true"] { background: var(--ink); color: var(--on-ink); }
+.toggle .save {
+  background: rgba(255, 159, 26, .18); color: #8A5300;
+  font-size: .72rem; font-weight: 800; border-radius: 999px; padding: 3px 8px;
+}
+.toggle button[aria-pressed="true"] .save { background: var(--orange); color: var(--orange-ink); }
+
+.plan {
+  margin: 36px auto 0; max-width: 520px;
+  background: var(--ink); color: var(--on-ink);
+  border-radius: 28px; padding: clamp(28px, 4vw, 40px);
+  box-shadow: 0 40px 80px -40px rgba(11, 13, 16, .6);
+  position: relative; overflow: hidden;
+}
+.plan::before {
+  content: ""; position: absolute; inset: -60% -30% auto auto; width: 70%; height: 130%;
+  background: radial-gradient(closest-side, rgba(255, 159, 26, .25), transparent 70%);
+}
+.plan > * { position: relative; }
+.plan .name { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+.plan .name h3 { font-size: 1.1rem; }
+.plan .badge {
+  font-size: .72rem; font-weight: 800; letter-spacing: .1em; text-transform: uppercase;
+  color: var(--orange); background: rgba(255, 159, 26, .14); border-radius: 999px; padding: 6px 12px;
+}
+.price { display: flex; align-items: baseline; gap: 10px; margin-top: 22px; flex-wrap: wrap; }
+.price .v { font-size: clamp(3rem, 8vw, 4rem); font-weight: 900; letter-spacing: -.05em; line-height: 1; }
+.price .per { color: var(--on-ink-2); font-weight: 600; }
+.price .was { color: var(--on-ink-3); text-decoration: line-through; font-size: 1rem; }
+.plan .cobra { margin-top: 10px; color: var(--on-ink-2); font-size: .95rem; min-height: 1.5em; }
+.plan .cobra b { color: var(--orange); }
+.plan ul { list-style: none; margin: 26px 0 0; padding: 0; display: grid; gap: 12px; }
+.plan li { display: flex; gap: 11px; align-items: flex-start; font-size: .97rem; color: var(--on-ink-2); }
+.plan li svg { width: 19px; height: 19px; color: var(--good); flex: none; margin-top: 2px; }
+.plan li b { color: var(--on-ink); font-weight: 600; }
+.plan .btn { width: 100%; margin-top: 28px; }
+.plan .fine { margin-top: 14px; text-align: center; font-size: .82rem; color: var(--on-ink-3); }
+
 /* Perguntas */
 .faq { margin-top: 48px; max-width: 860px; margin-inline: auto; }
 details { border-bottom: 1px solid var(--paper-line); }
@@ -426,6 +474,7 @@ footer p { max-width: 80ch; margin-top: 18px; }
     <nav aria-label="Seções">
       <a href="#como-funciona">Como funciona</a>
       <a href="#calculadora">Calculadora</a>
+      <a href="#preco">Preço</a>
       <a href="#seguranca">Segurança</a>
       <a href="#perguntas">Perguntas</a>
     </nav>
@@ -745,6 +794,49 @@ footer p { max-width: 80ch; margin-top: 18px; }
     </div>
   </section>
 
+  <!-- ======================= PLANO ======================= -->
+  <section class="light" id="preco">
+    <div class="wrap">
+      <div class="sec-head center reveal">
+        <p class="kicker">Plano</p>
+        <h2>Menos de um cafezinho por semana.</h2>
+        <p>Um plano só, com tudo incluído. Se o Nível te ajudar a manter um nível de cashback por mês, ele já se paga.</p>
+      </div>
+
+      <div style="text-align:center">
+        <div class="toggle reveal" role="group" aria-label="Escolha como pagar">
+          <button type="button" id="btnMensal" aria-pressed="true">Mensal</button>
+          <button type="button" id="btnAnual" aria-pressed="false">Anual <span class="save">−15%</span></button>
+        </div>
+      </div>
+
+      <div class="plan reveal">
+        <div class="name">
+          <h3>Nível completo</h3>
+          <span class="badge" id="planoBadge">Mensal</span>
+        </div>
+
+        <div class="price">
+          <span class="v num" id="planoValor">R$ 19,90</span>
+          <span class="per">/mês</span>
+          <span class="was num" id="planoDe" hidden>R$ 19,90</span>
+        </div>
+        <p class="cobra" id="planoCobra">Cobrado todo mês. Cancele quando quiser.</p>
+
+        <ul>
+          <li><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" aria-hidden="true"><path d="M5 12.5l4.5 4.5L19 7.5"/></svg><span><b>Meta do mês</b> com quanto falta e quantos dias restam</span></li>
+          <li><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" aria-hidden="true"><path d="M5 12.5l4.5 4.5L19 7.5"/></svg><span><b>Assinaturas</b> reconhecidas, com data de vencimento e total do ano</span></li>
+          <li><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" aria-hidden="true"><path d="M5 12.5l4.5 4.5L19 7.5"/></svg><span><b>Categorias automáticas</b> e planejamento por categoria</span></li>
+          <li><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" aria-hidden="true"><path d="M5 12.5l4.5 4.5L19 7.5"/></svg><span><b>Histórico que não some</b>, inclusive o que a corretora já apagou</span></li>
+          <li><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" aria-hidden="true"><path d="M5 12.5l4.5 4.5L19 7.5"/></svg><span><b>Celular e computador</b> sincronizados, sem instalar nada</span></li>
+        </ul>
+
+        <a class="btn btn-orange" href="#lista">Entrar na lista e usar grátis</a>
+        <p class="fine">Quem entra pela lista de espera usa grátis durante o acesso antecipado.</p>
+      </div>
+    </div>
+  </section>
+
   <!-- ======================= PERGUNTAS ======================= -->
   <section class="light" id="perguntas">
     <div class="wrap">
@@ -767,7 +859,7 @@ footer p { max-width: 80ch; margin-top: 18px; }
         </details>
         <details>
           <summary>Quanto vai custar?<span class="plus"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4"><path d="M12 5v14M5 12h14"/></svg></span></summary>
-          <p class="ans">Quem entrar agora pela lista usa grátis durante o acesso antecipado. Quando houver plano pago, você fica sabendo antes — e decide se continua.</p>
+          <p class="ans">O plano é de R$ 19,90 por mês, ou R$ 202,98 por ano — 15% de desconto, o que dá R$ 16,92 por mês. Quem entrar agora pela lista usa grátis durante o acesso antecipado e só decide depois, sabendo o preço com antecedência.</p>
         </details>
         <details>
           <summary>Funciona com outros cartões?<span class="plus"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4"><path d="M12 5v14M5 12h14"/></svg></span></summary>
@@ -915,6 +1007,32 @@ document.querySelectorAll(".chip").forEach(function (chip) {
   });
 });
 calcular();
+
+/* ---------- Plano: mensal ou anual ---------- */
+const MENSAL = 19.90;
+const DESCONTO = 0.15;
+const reaisCent = new Intl.NumberFormat("pt-BR", { style: "currency", currency: "BRL" });
+const anualTotal = MENSAL * 12 * (1 - DESCONTO);
+const anualPorMes = anualTotal / 12;
+
+function mostrarPlano(anual) {
+  document.getElementById("btnMensal").setAttribute("aria-pressed", String(!anual));
+  document.getElementById("btnAnual").setAttribute("aria-pressed", String(anual));
+  document.getElementById("planoBadge").textContent = anual ? "Anual · −15%" : "Mensal";
+  document.getElementById("planoValor").textContent = reaisCent.format(anual ? anualPorMes : MENSAL);
+
+  const de = document.getElementById("planoDe");
+  de.hidden = !anual;
+  de.textContent = reaisCent.format(MENSAL);
+
+  document.getElementById("planoCobra").innerHTML = anual
+    ? "Cobrado " + reaisCent.format(anualTotal) + " por ano. Você economiza <b>" +
+      reaisCent.format(MENSAL * 12 - anualTotal) + "</b>."
+    : "Cobrado todo mês. Cancele quando quiser.";
+}
+document.getElementById("btnMensal").addEventListener("click", function () { mostrarPlano(false); });
+document.getElementById("btnAnual").addEventListener("click", function () { mostrarPlano(true); });
+mostrarPlano(false);
 
 /* ---------- Passo a passo que avança sozinho ---------- */
 const passos = Array.from(document.querySelectorAll(".step"));
