@@ -629,7 +629,7 @@ class _CartaoDoTopo extends StatelessWidget {
     const tinta = Color(0xFF12181F);
 
     return Container(
-      height: 88,
+      height: 56,
       decoration: BoxDecoration(
         borderRadius: BorderRadius.circular(18),
         gradient: const LinearGradient(
@@ -655,10 +655,8 @@ class _CartaoDoTopo extends StatelessWidget {
             child: InkWell(
               onTap: onSeeAll,
               child: Padding(
-                padding: const EdgeInsets.fromLTRB(18, 14, 18, 14),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.stretch,
-                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                padding: const EdgeInsets.symmetric(horizontal: 18),
+                child: Row(
                   children: [
                     const Text(
                       'BYBIT CARD',
@@ -669,17 +667,20 @@ class _CartaoDoTopo extends StatelessWidget {
                         color: Color(0xFF3B434E),
                       ),
                     ),
-                    // Do outro lado, como no cartão de verdade.
-                    Text(
-                      digitos == null ? 'Cartão conectado' : '•••• $digitos',
-                      textAlign: TextAlign.right,
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                      style: const TextStyle(
-                        fontSize: 16,
-                        fontWeight: FontWeight.w700,
-                        letterSpacing: 1.6,
-                        color: tinta,
+                    const SizedBox(width: 12),
+                    // Na outra ponta da mesma linha, como no cartão de verdade.
+                    Expanded(
+                      child: Text(
+                        digitos == null ? 'Cartão conectado' : '•••• $digitos',
+                        textAlign: TextAlign.right,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: const TextStyle(
+                          fontSize: 15,
+                          fontWeight: FontWeight.w700,
+                          letterSpacing: 1.4,
+                          color: tinta,
+                        ),
                       ),
                     ),
                   ],
