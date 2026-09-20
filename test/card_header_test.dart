@@ -96,7 +96,9 @@ void main() {
         onSeeCategories: () => abriu = true,
       );
 
-      await tester.tap(find.text('Ver gastos'));
+      // Sem botão: o cartão inteiro é o atalho.
+      expect(find.text('Ver gastos'), findsNothing);
+      await tester.tap(find.text('BYBIT CARD'));
       await tester.pumpAndSettle();
       expect(abriu, isTrue);
     });

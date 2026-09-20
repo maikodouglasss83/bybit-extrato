@@ -649,92 +649,43 @@ class _CartaoDoTopo extends StatelessWidget {
         borderRadius: BorderRadius.circular(18),
         child: CustomPaint(
           painter: _OndasDoCartao(),
-          child: Padding(
-            padding: const EdgeInsets.fromLTRB(18, 12, 12, 12),
-            child: Row(
-              children: [
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                    children: [
-                      const Text(
-                        'BYBIT CARD',
-                        style: TextStyle(
-                          fontSize: 10.5,
-                          fontWeight: FontWeight.w800,
-                          letterSpacing: 1.8,
-                          color: Color(0xFF3B434E),
-                        ),
+          // O cartão inteiro é o atalho: sem botão por cima do desenho.
+          child: Material(
+            color: Colors.transparent,
+            child: InkWell(
+              onTap: onSeeAll,
+              child: Padding(
+                padding: const EdgeInsets.fromLTRB(18, 14, 18, 14),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    const Text(
+                      'BYBIT CARD',
+                      style: TextStyle(
+                        fontSize: 10.5,
+                        fontWeight: FontWeight.w800,
+                        letterSpacing: 1.8,
+                        color: Color(0xFF3B434E),
                       ),
-                      Text(
-                        digitos == null ? 'Cartão conectado' : '•••• $digitos',
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                        style: const TextStyle(
-                          fontSize: 15,
-                          fontWeight: FontWeight.w700,
-                          letterSpacing: 1.4,
-                          color: tinta,
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-                if (onSeeAll != null)
-                  Flexible(child: _BotaoNoCartao(onTap: onSeeAll!))
-                else
-                  Text(
-                    '${state.cardEntries.length} compras',
-                    style: const TextStyle(
-                      fontSize: 12,
-                      fontWeight: FontWeight.w600,
-                      color: Color(0xFF3B434E),
                     ),
-                  ),
-              ],
-            ),
-          ),
-        ),
-      ),
-    );
-  }
-}
-
-/// Atalho escuro sobre o prateado do cartão.
-class _BotaoNoCartao extends StatelessWidget {
-  const _BotaoNoCartao({required this.onTap});
-
-  final VoidCallback onTap;
-
-  @override
-  Widget build(BuildContext context) {
-    return Material(
-      color: const Color(0xFF12181F),
-      borderRadius: BorderRadius.circular(999),
-      child: InkWell(
-        borderRadius: BorderRadius.circular(999),
-        onTap: onTap,
-        child: const Padding(
-          padding: EdgeInsets.fromLTRB(14, 8, 10, 8),
-          child: Row(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Flexible(
-                child: Text(
-                  'Ver gastos',
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                  style: TextStyle(
-                    fontSize: 12.5,
-                    fontWeight: FontWeight.w700,
-                    color: Color(0xFFE9EFF6),
-                  ),
+                    // Do outro lado, como no cartão de verdade.
+                    Text(
+                      digitos == null ? 'Cartão conectado' : '•••• $digitos',
+                      textAlign: TextAlign.right,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: const TextStyle(
+                        fontSize: 16,
+                        fontWeight: FontWeight.w700,
+                        letterSpacing: 1.6,
+                        color: tinta,
+                      ),
+                    ),
+                  ],
                 ),
               ),
-              Icon(Icons.chevron_right_rounded,
-                  size: 17, color: Color(0xFFE9EFF6)),
-            ],
+            ),
           ),
         ),
       ),
