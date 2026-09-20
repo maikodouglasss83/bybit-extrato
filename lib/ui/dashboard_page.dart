@@ -494,18 +494,8 @@ class _CardSpendingCard extends StatelessWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          SectionLabel(
-            'Bybit Card',
-            trailing: onSeeAll == null
-                ? Text(
-                    '${state.cardEntries.length} compras',
-                    style: context.texts.bodySmall,
-                  )
-                : TextButton(
-                    onPressed: onSeeAll,
-                    child: const Text('Ver gastos'),
-                  ),
-          ),
+          _CartaoDoTopo(state: state, onSeeAll: onSeeAll),
+          const SizedBox(height: 18),
           Row(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
@@ -620,6 +610,173 @@ class _CardSpendingCard extends StatelessWidget {
       ),
     );
   }
+}
+
+/// O cartão desenhado no topo do bloco, como nos apps de banco.
+///
+/// Dá rosto ao cartão de verdade: prateado, com as ondas e os últimos dígitos
+/// das compras. Não é o logo da Bybit — é o nome escrito, que é o que
+/// identifica de qual cartão são os números logo abaixo.
+class _CartaoDoTopo extends StatelessWidget {
+  const _CartaoDoTopo({required this.state, this.onSeeAll});
+
+  final AppState state;
+  final VoidCallback? onSeeAll;
+
+  @override
+  Widget build(BuildContext context) {
+    final digitos = state.cardLast4;
+    const tinta = Color(0xFF12181F);
+
+    return Container(
+      height: 88,
+      decoration: BoxDecoration(
+        borderRadius: BorderRadius.circular(18),
+        gradient: const LinearGradient(
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+          colors: [Color(0xFFF8F9FB), Color(0xFFDCE0E7), Color(0xFFC0C6D1)],
+        ),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withValues(alpha: 0.32),
+            blurRadius: 18,
+            offset: const Offset(0, 8),
+          ),
+        ],
+      ),
+      child: ClipRRect(
+        borderRadius: BorderRadius.circular(18),
+        child: CustomPaint(
+          painter: _OndasDoCartao(),
+          child: Padding(
+            padding: const EdgeInsets.fromLTRB(18, 12, 12, 12),
+            child: Row(
+              children: [
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      const Text(
+                        'BYBIT CARD',
+                        style: TextStyle(
+                          fontSize: 10.5,
+                          fontWeight: FontWeight.w800,
+                          letterSpacing: 1.8,
+                          color: Color(0xFF3B434E),
+                        ),
+                      ),
+                      Text(
+                        digitos == null ? 'Cartão conectado' : '•••• $digitos',
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: const TextStyle(
+                          fontSize: 15,
+                          fontWeight: FontWeight.w700,
+                          letterSpacing: 1.4,
+                          color: tinta,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                if (onSeeAll != null)
+                  Flexible(child: _BotaoNoCartao(onTap: onSeeAll!))
+                else
+                  Text(
+                    '${state.cardEntries.length} compras',
+                    style: const TextStyle(
+                      fontSize: 12,
+                      fontWeight: FontWeight.w600,
+                      color: Color(0xFF3B434E),
+                    ),
+                  ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+/// Atalho escuro sobre o prateado do cartão.
+class _BotaoNoCartao extends StatelessWidget {
+  const _BotaoNoCartao({required this.onTap});
+
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    return Material(
+      color: const Color(0xFF12181F),
+      borderRadius: BorderRadius.circular(999),
+      child: InkWell(
+        borderRadius: BorderRadius.circular(999),
+        onTap: onTap,
+        child: const Padding(
+          padding: EdgeInsets.fromLTRB(14, 8, 10, 8),
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Flexible(
+                child: Text(
+                  'Ver gastos',
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: TextStyle(
+                    fontSize: 12.5,
+                    fontWeight: FontWeight.w700,
+                    color: Color(0xFFE9EFF6),
+                  ),
+                ),
+              ),
+              Icon(Icons.chevron_right_rounded,
+                  size: 17, color: Color(0xFFE9EFF6)),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+/// As ondas claras que atravessam o cartão prateado.
+class _OndasDoCartao extends CustomPainter {
+  @override
+  void paint(Canvas canvas, Size size) {
+    void feixe(Color cor, double deslocamento) {
+      final pincel = Paint()
+        ..style = PaintingStyle.stroke
+        ..strokeWidth = 1
+        ..color = cor;
+
+      for (var i = 0; i < 9; i++) {
+        final d = deslocamento + i * 7.0;
+        canvas.drawPath(
+          Path()
+            ..moveTo(size.width * 0.30 + d, size.height + 12)
+            ..cubicTo(
+              size.width * 0.52 + d,
+              size.height * 0.62,
+              size.width * 0.58 + d,
+              size.height * 0.22,
+              size.width + 24,
+              -14 + i * 3.0,
+            ),
+          pincel,
+        );
+      }
+    }
+
+    // Duas passadas: a cinza dá profundidade, a branca dá o brilho.
+    feixe(const Color(0xFF9AA3B0).withValues(alpha: 0.35), 0);
+    feixe(Colors.white.withValues(alpha: 0.75), 3);
+  }
+
+  @override
+  bool shouldRepaint(_OndasDoCartao old) => false;
 }
 
 /// Escolha do período mostrado no gráfico de evolução.

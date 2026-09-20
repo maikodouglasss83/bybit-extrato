@@ -1958,6 +1958,13 @@ class AppState extends ChangeNotifier {
     return cardSpentInMonth(DateTime(now.year, now.month));
   }
 
+  /// Últimos quatro dígitos do cartão, como vêm nas compras.
+  String? get cardLast4 => cardEntries
+      .map((e) => e.cardLast4)
+      .whereType<String>()
+      .where((d) => d.isNotEmpty)
+      .firstOrNull;
+
   /// Moeda predominante das compras do cartão, para rotular os totais.
   String get cardCurrency =>
       cardEntries.isEmpty ? 'BRL' : cardEntries.first.coin;
