@@ -381,17 +381,27 @@ input[type="range"] { width: 100%; margin-top: 14px; accent-color: var(--orange)
 }
 .toggle button[aria-pressed="true"] .save { background: var(--orange); color: var(--orange-ink); }
 
+.planos { margin: 36px auto 0; max-width: 1000px; display: grid; gap: 20px; align-items: start; }
+@media (min-width: 900px) { .planos { grid-template-columns: 1fr 1fr; } }
 .plan {
-  margin: 36px auto 0; max-width: 520px;
   background: var(--ink); color: var(--on-ink);
-  border-radius: 28px; padding: clamp(28px, 4vw, 40px);
+  border-radius: 28px; padding: clamp(26px, 3.4vw, 36px);
   box-shadow: 0 40px 80px -40px rgba(11, 13, 16, .6);
-  position: relative; overflow: hidden;
+  position: relative; overflow: hidden; height: 100%;
 }
 .plan::before {
   content: ""; position: absolute; inset: -60% -30% auto auto; width: 70%; height: 130%;
   background: radial-gradient(closest-side, rgba(255, 159, 26, .25), transparent 70%);
 }
+.plan.free {
+  background: var(--paper); color: var(--text);
+  border: 1px solid var(--paper-line); box-shadow: none;
+}
+.plan.free::before { display: none; }
+.plan.free .badge { color: #1E7A4E; background: rgba(34, 197, 139, .16); }
+.plan.free .price .per, .plan.free .cobra, .plan.free li { color: var(--text-2); }
+.plan.free li b { color: var(--text); }
+.plan.free .fine { color: var(--text-3); }
 .plan > * { position: relative; }
 .plan .name { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
 .plan .name h3 { font-size: 1.1rem; }
@@ -411,6 +421,33 @@ input[type="range"] { width: 100%; margin-top: 14px; accent-color: var(--orange)
 .plan li b { color: var(--on-ink); font-weight: 600; }
 .plan .btn { width: 100%; margin-top: 28px; }
 .plan .fine { margin-top: 14px; text-align: center; font-size: .82rem; color: var(--on-ink-3); }
+.plan .soon {
+  display: inline-flex; align-items: center; gap: 7px; margin-top: 18px;
+  font-size: .8rem; font-weight: 700; color: var(--orange);
+  background: rgba(255, 159, 26, .12); border-radius: 999px; padding: 7px 13px;
+}
+
+/* Bônus de indicação */
+.ref {
+  margin: 24px auto 0; max-width: 1000px; border-radius: 28px;
+  background: linear-gradient(135deg, #FFB03A 0%, #FF8A00 60%, #F97316 100%);
+  color: #1A1206; padding: clamp(26px, 3.4vw, 40px);
+  display: grid; gap: 24px; align-items: center;
+}
+@media (min-width: 860px) { .ref { grid-template-columns: 1.15fr .85fr; } }
+.ref h3 { font-size: clamp(1.5rem, 3.2vw, 2.1rem); font-weight: 900; letter-spacing: -.04em; }
+.ref h3 span { display: block; font-size: .8rem; font-weight: 800; letter-spacing: .14em; text-transform: uppercase; opacity: .72; margin-bottom: 8px; }
+.ref p { margin-top: 12px; color: rgba(26, 18, 6, .82); }
+.ref ol { margin: 16px 0 0; padding-left: 20px; color: rgba(26, 18, 6, .86); font-size: .95rem; display: grid; gap: 6px; }
+.ref .fine { margin-top: 16px; font-size: .76rem; line-height: 1.5; color: rgba(26, 18, 6, .68); }
+.ref .fine a { color: inherit; }
+.code { background: rgba(26, 18, 6, .1); border: 1.5px dashed rgba(26, 18, 6, .4); border-radius: 20px; padding: 22px; text-align: center; }
+.code .k { font-size: .74rem; font-weight: 800; letter-spacing: .14em; text-transform: uppercase; opacity: .7; }
+.code .v { font-size: clamp(1.9rem, 5vw, 2.4rem); font-weight: 900; letter-spacing: .14em; margin-top: 6px; }
+.code .btn { width: 100%; margin-top: 14px; }
+.code .btn-ink { background: #1A1206; color: #FFC470; }
+.code .btn-ink:hover { background: #2A1D0C; }
+.code .copiado { margin-top: 10px; font-size: .8rem; font-weight: 700; min-height: 1.2em; }
 
 /* Perguntas */
 .faq { margin-top: 48px; max-width: 860px; margin-inline: auto; }
@@ -502,7 +539,7 @@ footer p { max-width: 80ch; margin-top: 18px; }
             <button class="btn btn-orange" type="submit">Quero acesso antecipado</button>
           </div>
           <p class="form-note">
-            <span><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" aria-hidden="true"><path d="M5 12.5l4.5 4.5L19 7.5"/></svg>Grátis no acesso antecipado</span>
+            <span><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" aria-hidden="true"><path d="M5 12.5l4.5 4.5L19 7.5"/></svg>Grátis com o Bybit Card</span>
             <span><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" aria-hidden="true"><path d="M5 12.5l4.5 4.5L19 7.5"/></svg>Chave só de leitura</span>
             <span><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" aria-hidden="true"><path d="M5 12.5l4.5 4.5L19 7.5"/></svg>Sem spam</span>
           </p>
@@ -798,41 +835,105 @@ footer p { max-width: 80ch; margin-top: 18px; }
   <section class="light" id="preco">
     <div class="wrap">
       <div class="sec-head center reveal">
-        <p class="kicker">Plano</p>
-        <h2>Menos de um cafezinho por semana.</h2>
-        <p>Um plano só, com tudo incluído. Se o Nível te ajudar a manter um nível de cashback por mês, ele já se paga.</p>
+        <p class="kicker">Planos</p>
+        <h2>Com o Bybit Card, é grátis.</h2>
+        <p>Tudo o que você viu até aqui funciona sem pagar nada. O plano pago é para quem quer juntar as outras plataformas no mesmo extrato.</p>
       </div>
 
       <div style="text-align:center">
-        <div class="toggle reveal" role="group" aria-label="Escolha como pagar">
+        <div class="toggle reveal" role="group" aria-label="Escolha como pagar o plano Conectado">
           <button type="button" id="btnMensal" aria-pressed="true">Mensal</button>
           <button type="button" id="btnAnual" aria-pressed="false">Anual <span class="save">−15%</span></button>
         </div>
       </div>
 
-      <div class="plan reveal">
-        <div class="name">
-          <h3>Nível completo</h3>
-          <span class="badge" id="planoBadge">Mensal</span>
+      <div class="planos">
+        <div class="plan free reveal">
+          <div class="name">
+            <h3>Bybit Card</h3>
+            <span class="badge">Grátis para sempre</span>
+          </div>
+
+          <div class="price">
+            <span class="v num">R$ 0</span>
+            <span class="per">/mês</span>
+          </div>
+          <p class="cobra">Sem cartão de crédito, sem prazo para acabar.</p>
+
+          <ul>
+            <li><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" aria-hidden="true"><path d="M5 12.5l4.5 4.5L19 7.5"/></svg><span><b>Meta do mês</b> com quanto falta e quantos dias restam</span></li>
+            <li><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" aria-hidden="true"><path d="M5 12.5l4.5 4.5L19 7.5"/></svg><span><b>Assinaturas</b> reconhecidas, com data de vencimento e total do ano</span></li>
+            <li><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" aria-hidden="true"><path d="M5 12.5l4.5 4.5L19 7.5"/></svg><span><b>Categorias automáticas</b> e planejamento por categoria</span></li>
+            <li><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" aria-hidden="true"><path d="M5 12.5l4.5 4.5L19 7.5"/></svg><span><b>Histórico que não some</b>, inclusive o que a corretora já apagou</span></li>
+            <li><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" aria-hidden="true"><path d="M5 12.5l4.5 4.5L19 7.5"/></svg><span><b>Celular e computador</b> sincronizados, sem instalar nada</span></li>
+          </ul>
+
+          <a class="btn btn-dark" href="#lista">Começar de graça</a>
+          <p class="fine">Basta uma chave de leitura do seu Bybit Card.</p>
         </div>
 
-        <div class="price">
-          <span class="v num" id="planoValor">R$ 19,90</span>
-          <span class="per">/mês</span>
-          <span class="was num" id="planoDe" hidden>R$ 19,90</span>
+        <div class="plan pro reveal">
+          <div class="name">
+            <h3>Conectado</h3>
+            <span class="badge" id="planoBadge">Mensal</span>
+          </div>
+
+          <div class="price">
+            <span class="v num" id="planoValor">R$ 19,90</span>
+            <span class="per">/mês</span>
+            <span class="was num" id="planoDe" hidden>R$ 19,90</span>
+          </div>
+          <p class="cobra" id="planoCobra">Cobrado todo mês. Cancele quando quiser.</p>
+
+          <ul>
+            <li><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" aria-hidden="true"><path d="M5 12.5l4.5 4.5L19 7.5"/></svg><span><b>Tudo do plano grátis</b>, mais o que vem abaixo</span></li>
+            <li><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" aria-hidden="true"><path d="M5 12.5l4.5 4.5L19 7.5"/></svg><span><b>Outras plataformas no mesmo extrato:</b> Ripio, OKX, Bitget Wallet, Ether.fi e P2P</span></li>
+            <li><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" aria-hidden="true"><path d="M5 12.5l4.5 4.5L19 7.5"/></svg><span>Conexão por <b>API ou login seguro</b>, sempre só de leitura</span></li>
+            <li><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" aria-hidden="true"><path d="M5 12.5l4.5 4.5L19 7.5"/></svg><span><b>Saldo e gastos somados</b> de todas as contas, num lugar só</span></li>
+            <li><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" aria-hidden="true"><path d="M5 12.5l4.5 4.5L19 7.5"/></svg><span>Cada <b>plataforma nova</b> entra no plano, sem custo extra</span></li>
+          </ul>
+
+          <span class="soon">
+            <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2.2" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></svg>
+            Em construção — as conexões abrem aos poucos
+          </span>
+
+          <a class="btn btn-orange" href="#lista">Quero ser avisado</a>
+          <p class="fine">Quem está na lista escolhe as próximas plataformas e trava este preço.</p>
         </div>
-        <p class="cobra" id="planoCobra">Cobrado todo mês. Cancele quando quiser.</p>
+      </div>
 
-        <ul>
-          <li><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" aria-hidden="true"><path d="M5 12.5l4.5 4.5L19 7.5"/></svg><span><b>Meta do mês</b> com quanto falta e quantos dias restam</span></li>
-          <li><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" aria-hidden="true"><path d="M5 12.5l4.5 4.5L19 7.5"/></svg><span><b>Assinaturas</b> reconhecidas, com data de vencimento e total do ano</span></li>
-          <li><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" aria-hidden="true"><path d="M5 12.5l4.5 4.5L19 7.5"/></svg><span><b>Categorias automáticas</b> e planejamento por categoria</span></li>
-          <li><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" aria-hidden="true"><path d="M5 12.5l4.5 4.5L19 7.5"/></svg><span><b>Histórico que não some</b>, inclusive o que a corretora já apagou</span></li>
-          <li><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" aria-hidden="true"><path d="M5 12.5l4.5 4.5L19 7.5"/></svg><span><b>Celular e computador</b> sincronizados, sem instalar nada</span></li>
-        </ul>
+      <!-- Bônus de indicação do cartão -->
+      <div class="ref reveal">
+        <div>
+          <h3><span>Ainda não tem o cartão?</span>10 USDT pelo código — e até 120 USDT de boas-vindas.</h3>
+          <p>O Nível é grátis para quem tem o Bybit Card. Se você ainda não tem, dá para começar ganhando duas vezes: o programa de indicação dá 10 USDT a quem entra pelo código, e o pacote de boas-vindas devolve 10% das compras qualificadas nos primeiros 30 dias, até 120 USDT.</p>
+          <ol>
+            <li>Cadastre-se na Bybit com o código abaixo.</li>
+            <li>Peça o cartão virtual e conclua a verificação de identidade.</li>
+            <li>Deposite 100 USDT em até 30 dias: destrava os 10% de boas-vindas.</li>
+            <li>Gaste 100 USDT em até 30 dias após a aprovação: libera os 10 USDT da indicação.</li>
+          </ol>
+          <p class="fine">
+            São duas promoções da Bybit, com regras próprias, que podem mudar ou acabar. A indicação
+            paga 10 USDT ao indicado e 20 USDT a quem indicou, em até 10 dias após a tarefa; o código
+            não pode ser trocado depois do pedido, e recargas de carteiras e transferências pessoais
+            não contam no gasto. O cashback de boas-vindas é só para quem nunca teve o Bybit Card,
+            exige verificação de identidade e vale para categorias específicas, como transporte,
+            restaurantes, moda, beleza e viagens. Nenhuma das duas vale para o Espaço Econômico
+            Europeu nem para países restritos.
+            <a href="https://www.bybit.com/pt-PT/help-center/article/FAQ-Bybit-Card-Referral-Program" target="_blank" rel="noopener">Regras da indicação</a> ·
+            <a href="https://www.bybit.com/pt-BR/cards/welcome-package/" target="_blank" rel="noopener">Regras das boas-vindas</a>.
+          </p>
+        </div>
 
-        <a class="btn btn-orange" href="#lista">Entrar na lista e usar grátis</a>
-        <p class="fine">Quem entra pela lista de espera usa grátis durante o acesso antecipado.</p>
+        <div class="code">
+          <p class="k">Código de indicação</p>
+          <p class="v" id="codigoRef">PMLANBD</p>
+          <button type="button" class="btn btn-ink" id="btnCopiar">Copiar código</button>
+          <a class="btn btn-ghost" href="https://www.bybit.com/pt-BR/cards/referral/" target="_blank" rel="noopener" style="width:100%;margin-top:10px;color:#1A1206;border-color:rgba(26,18,6,.4)">Pedir meu cartão</a>
+          <p class="copiado" id="avisoCopia" role="status"></p>
+        </div>
       </div>
     </div>
   </section>
@@ -859,11 +960,15 @@ footer p { max-width: 80ch; margin-top: 18px; }
         </details>
         <details>
           <summary>Quanto vai custar?<span class="plus"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4"><path d="M12 5v14M5 12h14"/></svg></span></summary>
-          <p class="ans">O plano é de R$ 19,90 por mês, ou R$ 202,98 por ano — 15% de desconto, o que dá R$ 16,92 por mês. Quem entrar agora pela lista usa grátis durante o acesso antecipado e só decide depois, sabendo o preço com antecedência.</p>
+          <p class="ans">Com o Bybit Card, nada: o Nível é grátis e continua grátis. O plano <b>Conectado</b>, de R$ 19,90 por mês (ou R$ 202,98 por ano, 15% de desconto, o que dá R$ 16,92 por mês), é para quem quiser juntar outras plataformas no mesmo extrato quando essas conexões abrirem.</p>
         </details>
         <details>
-          <summary>Funciona com outros cartões?<span class="plus"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4"><path d="M12 5v14M5 12h14"/></svg></span></summary>
-          <p class="ans">Por enquanto, só com o Bybit Card. Outros cartões cripto e bancos entram depois, conforme o pedido de quem está na lista.</p>
+          <summary>Funciona com outras plataformas?<span class="plus"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4"><path d="M12 5v14M5 12h14"/></svg></span></summary>
+          <p class="ans">Hoje, só com o Bybit Card. Ripio, OKX, Bitget Wallet, Ether.fi e P2P estão em construção e entram no plano Conectado conforme cada conexão fica pronta — por API ou login seguro, sempre só de leitura. Quem está na lista escolhe a ordem.</p>
+        </details>
+        <details>
+          <summary>Como funciona o bônus de 10 USDT?<span class="plus"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4"><path d="M12 5v14M5 12h14"/></svg></span></summary>
+          <p class="ans">É o programa de indicação do Bybit Card, da própria Bybit: você se cadastra com o código <b>PMLANBD</b>, pede o cartão virtual e gasta 100 USDT (ou equivalente) em até 30 dias após a aprovação. O bônus cai em até 10 dias. Quem indica recebe 20 USDT — é assim que o plano grátis se paga aqui. Recargas de carteiras e transferências pessoais não contam no gasto, e o programa não vale para o Espaço Econômico Europeu nem para países restritos.</p>
         </details>
         <details>
           <summary>O que acontece com meu histórico?<span class="plus"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4"><path d="M12 5v14M5 12h14"/></svg></span></summary>
@@ -1033,6 +1138,19 @@ function mostrarPlano(anual) {
 document.getElementById("btnMensal").addEventListener("click", function () { mostrarPlano(false); });
 document.getElementById("btnAnual").addEventListener("click", function () { mostrarPlano(true); });
 mostrarPlano(false);
+
+/* ---------- Código de indicação ---------- */
+document.getElementById("btnCopiar").addEventListener("click", async function () {
+  const codigo = document.getElementById("codigoRef").textContent.trim();
+  const aviso = document.getElementById("avisoCopia");
+  try {
+    await navigator.clipboard.writeText(codigo);
+    aviso.textContent = "Código copiado!";
+  } catch (erro) {
+    // Sem permissão para a área de transferência: o código já está à vista.
+    aviso.textContent = "Copie o código acima: " + codigo;
+  }
+});
 
 /* ---------- Passo a passo que avança sozinho ---------- */
 const passos = Array.from(document.querySelectorAll(".step"));
