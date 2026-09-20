@@ -1,21 +1,21 @@
 import 'package:flutter/material.dart';
 
-/// Paleta do app. Um tom escuro azulado com acento verde-água, no espírito
-/// dos apps de finanças que serviram de referência.
+/// Paleta do app: preto com laranja, a mesma da página de apresentação, para
+/// o site e o app parecerem a mesma coisa.
 class AppColors {
-  static const accent = Color(0xFF22D3A6);
-  static const accentSoft = Color(0xFF14B88A);
+  static const accent = Color(0xFFFF9F1A);
+  static const accentSoft = Color(0xFFE08308);
   static const positive = Color(0xFF22C55E);
   static const negative = Color(0xFFF4436B);
   static const warning = Color(0xFFF5A524);
 
   // Escuro
-  static const darkBg = Color(0xFF0A0E14);
-  static const darkSurface = Color(0xFF121A23);
-  static const darkSurfaceAlt = Color(0xFF1A2430);
-  static const darkBorder = Color(0xFF243040);
-  static const darkText = Color(0xFFE9EFF6);
-  static const darkMuted = Color(0xFF8798AB);
+  static const darkBg = Color(0xFF0B0D10);
+  static const darkSurface = Color(0xFF14171C);
+  static const darkSurfaceAlt = Color(0xFF1D2128);
+  static const darkBorder = Color(0xFF262B33);
+  static const darkText = Color(0xFFF4F5F7);
+  static const darkMuted = Color(0xFF8A92A0);
 
   // Claro
   static const lightBg = Color(0xFFF4F6FA);
@@ -90,7 +90,7 @@ ThemeData buildTheme(Brightness brightness) {
   final scheme = ColorScheme(
     brightness: brightness,
     primary: AppColors.accent,
-    onPrimary: const Color(0xFF04211A),
+    onPrimary: const Color(0xFF1A1206),
     secondary: AppColors.accentSoft,
     onSecondary: Colors.white,
     error: AppColors.negative,
@@ -167,7 +167,7 @@ ThemeData buildTheme(Brightness brightness) {
     filledButtonTheme: FilledButtonThemeData(
       style: FilledButton.styleFrom(
         backgroundColor: AppColors.accent,
-        foregroundColor: const Color(0xFF04211A),
+        foregroundColor: const Color(0xFF1A1206),
         minimumSize: const Size(0, 52),
         textStyle: const TextStyle(fontSize: 15, fontWeight: FontWeight.w700),
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),

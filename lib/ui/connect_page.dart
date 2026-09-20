@@ -238,7 +238,7 @@ class _ConnectPageState extends State<ConnectPage> {
                       height: 20,
                       child: CircularProgressIndicator(
                         strokeWidth: 2.4,
-                        color: Color(0xFF04211A),
+                        color: Color(0xFF1A1206),
                       ),
                     )
                   : const Text('Conectar'),
