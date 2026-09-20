@@ -1048,7 +1048,6 @@ class _CompromissosState extends State<_Compromissos> {
   @override
   Widget build(BuildContext context) {
     final state = widget.state;
-    final tones = context.tones;
     final agora = DateTime.now();
     final mes = DateTime(agora.year, agora.month);
     final previsoes = state.fixedForecast(mes);
@@ -1109,21 +1108,6 @@ class _CompromissosState extends State<_Compromissos> {
               ),
             ),
           ),
-        const SizedBox(height: 4),
-        Row(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Icon(Icons.auto_awesome_outlined, size: 13, color: tones.muted),
-            const SizedBox(width: 6),
-            Expanded(
-              child: Text(
-                'As datas vêm do seu histórico. Para acertar uma, segure a '
-                'compra no extrato e defina o dia do vencimento.',
-                style: context.texts.bodySmall,
-              ),
-            ),
-          ],
-        ),
       ],
     );
   }
