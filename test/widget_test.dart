@@ -2583,13 +2583,41 @@ void _telas() {
       expect(find.text('SUAS ASSINATURAS CUSTAM'), findsOneWidget);
     });
 
+    testWidgets('a dock de vidro troca de aba ao tocar', (tester) async {
+      final state = comAssinaturas();
+      await montar(tester, shellDe(state), const Size(360, 800));
+
+      final dock = find.byKey(const Key('dock-abas'));
+      expect(dock, findsOneWidget);
+      // A pílula fica solta das bordas e do fim da tela, como no iOS.
+      final pilula = find
+          .descendant(of: dock, matching: find.byType(ClipRRect))
+          .first;
+      final caixa = tester.getRect(pilula);
+      expect(caixa.left, greaterThan(0));
+      expect(caixa.right, lessThan(360));
+      expect(caixa.bottom, lessThan(800));
+
+      await tester.tap(find.descendant(of: dock, matching: find.text('Extrato')));
+      await tester.pumpAndSettle();
+
+      expect(find.widgetWithText(AppBar, 'Extrato'), findsOneWidget);
+      expect(tester.takeException(), isNull);
+    });
+
     testWidgets('no celular os ajustes abrem pelo botão do topo',
         (tester) async {
       final state = comAssinaturas();
       await montar(tester, shellDe(state), const Size(360, 800));
 
       // Deixaram de ser uma aba: só o botão ao lado do recarregar leva lá.
-      expect(find.widgetWithText(NavigationBar, 'Ajustes'), findsNothing);
+      expect(
+        find.descendant(
+          of: find.byKey(const Key('dock-abas')),
+          matching: find.text('Ajustes'),
+        ),
+        findsNothing,
+      );
 
       await tester.tap(find.byIcon(Icons.settings_outlined));
       await tester.pumpAndSettle();

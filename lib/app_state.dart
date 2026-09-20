@@ -816,6 +816,19 @@ class AppState extends ChangeNotifier {
   /// Continuam na lista, riscadas, mas fora do total.
   Set<String> _cancelledSubscriptions = {};
 
+  /// Garante que o identificador não repita um que já existe.
+  ///
+  /// O relógio sozinho não basta: dois cadastros no mesmo microssegundo
+  /// ganhariam o mesmo identificador, e mexer em um mexeria no outro.
+  static String _idUnico(String base, Iterable<String> usados) {
+    final existentes = usados.toSet();
+    if (!existentes.contains(base)) return base;
+    for (var n = 2;; n++) {
+      final candidato = '$base-$n';
+      if (!existentes.contains(candidato)) return candidato;
+    }
+  }
+
   /// Chave de uma assinatura cadastrada à mão.
   static String manualSubscriptionKey(String id) => 'manual:$id';
 
@@ -912,7 +925,10 @@ class AppState extends ChangeNotifier {
     if (nome.isEmpty) return;
 
     final nova = ManualSubscription(
-      id: DateTime.now().microsecondsSinceEpoch.toString(),
+      id: _idUnico(
+        DateTime.now().microsecondsSinceEpoch.toString(),
+        manualSubscriptions.map((m) => m.id),
+      ),
       name: nome,
       monthlyBrl: monthlyBrl,
       category: category,
@@ -1489,7 +1505,10 @@ class AppState extends ChangeNotifier {
       return 'Já existe uma categoria chamada "$limpo". Escolha outro nome.';
     }
 
-    final id = 'user_${DateTime.now().microsecondsSinceEpoch}';
+    final id = _idUnico(
+      'user_${DateTime.now().microsecondsSinceEpoch}',
+      budgetNodes.map((n) => n.id),
+    );
     final (arvore, levadas) = _claimSources(budgetNodes, sources);
 
     budgetNodes = [

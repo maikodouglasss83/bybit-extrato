@@ -1,3 +1,5 @@
+import 'dart:ui' show ImageFilter;
+
 import 'package:flutter/material.dart';
 
 import '../app_state.dart';
@@ -161,39 +163,24 @@ class _AppShellState extends State<AppShell> {
           const SizedBox(width: 4),
         ],
       ),
-      body: SafeArea(child: body),
-      bottomNavigationBar: NavigationBar(
-        // Nos ajustes a barra mostra de onde se veio: eles não são uma aba,
-        // e nenhum destino aceso seria pior do que o anterior aceso.
-        selectedIndex: naDefinicoes ? _antesDosAjustes : _index,
-        onDestinationSelected: (i) => setState(() => _index = i),
-        destinations: const [
-          NavigationDestination(
-            icon: Icon(Icons.dashboard_outlined),
-            selectedIcon: Icon(Icons.dashboard_rounded),
-            label: 'Resumo',
-          ),
-          NavigationDestination(
-            icon: Icon(Icons.pie_chart_outline_rounded),
-            selectedIcon: Icon(Icons.pie_chart_rounded),
-            label: 'Gastos',
-          ),
-          NavigationDestination(
-            icon: Icon(Icons.autorenew_outlined),
-            selectedIcon: Icon(Icons.autorenew_rounded),
-            label: 'Assinaturas',
-          ),
-          NavigationDestination(
-            icon: Icon(Icons.flag_outlined),
-            selectedIcon: Icon(Icons.flag_rounded),
-            label: 'Planos',
-          ),
-          NavigationDestination(
-            icon: Icon(Icons.receipt_long_outlined),
-            selectedIcon: Icon(Icons.receipt_long_rounded),
-            label: 'Extrato',
-          ),
-        ],
+      // A página vai até embaixo e passa por baixo da dock: é o que dá ao
+      // vidro alguma coisa para desfocar enquanto a lista rola.
+      extendBody: true,
+      body: SafeArea(
+        bottom: false,
+        child: Padding(
+          // Quase toda a altura da dock: o conteúdo para antes dela, e só a
+          // borda de cima fica sobre o que está rolando.
+          padding: const EdgeInsets.only(bottom: _DockDeVidro.altura - 14),
+          child: body,
+        ),
+      ),
+      bottomNavigationBar: _DockDeVidro(
+        key: const Key('dock-abas'),
+        // Nos ajustes a dock mostra de onde se veio: eles não são uma aba,
+        // e nenhuma aba acesa seria pior do que a anterior acesa.
+        selecionada: naDefinicoes ? _antesDosAjustes : _index,
+        onSelect: (i) => setState(() => _index = i),
       ),
     );
   }
@@ -239,6 +226,155 @@ class _AppShellState extends State<AppShell> {
           onThemeModeChanged: widget.onThemeModeChanged,
         );
     }
+  }
+}
+
+/// Barra de abas do celular, no estilo das docks de vidro do iOS.
+///
+/// Uma pílula solta das bordas, translúcida, com o conteúdo da página
+/// passando por baixo — em vez da barra opaca colada no fim da tela.
+class _DockDeVidro extends StatelessWidget {
+  const _DockDeVidro({
+    super.key,
+    required this.selecionada,
+    required this.onSelect,
+  });
+
+  final int selecionada;
+  final ValueChanged<int> onSelect;
+
+  /// Altura da pílula, sem a margem de baixo nem a área segura do aparelho.
+  static const altura = 62.0;
+
+  static const _abas = <(IconData, IconData, String)>[
+    (Icons.dashboard_outlined, Icons.dashboard_rounded, 'Resumo'),
+    (Icons.pie_chart_outline_rounded, Icons.pie_chart_rounded, 'Gastos'),
+    (Icons.autorenew_outlined, Icons.autorenew_rounded, 'Assinaturas'),
+    (Icons.flag_outlined, Icons.flag_rounded, 'Planos'),
+    (Icons.receipt_long_outlined, Icons.receipt_long_rounded, 'Extrato'),
+  ];
+
+  @override
+  Widget build(BuildContext context) {
+    final escuro = Theme.of(context).brightness == Brightness.dark;
+    final raio = BorderRadius.circular(26);
+
+    return SafeArea(
+      top: false,
+      child: Padding(
+        padding: const EdgeInsets.fromLTRB(12, 0, 12, 10),
+        child: DecoratedBox(
+          // A sombra fica fora do recorte, senão ela seria cortada junto.
+          decoration: BoxDecoration(
+            borderRadius: raio,
+            boxShadow: [
+              BoxShadow(
+                color: Colors.black.withValues(alpha: escuro ? 0.45 : 0.16),
+                blurRadius: 26,
+                offset: const Offset(0, 10),
+              ),
+            ],
+          ),
+          child: ClipRRect(
+            borderRadius: raio,
+            child: BackdropFilter(
+              filter: ImageFilter.blur(sigmaX: 22, sigmaY: 22),
+              child: Container(
+                height: altura,
+                padding: const EdgeInsets.symmetric(horizontal: 6),
+                decoration: BoxDecoration(
+                  borderRadius: raio,
+                  // Translúcida o bastante para o desfoque aparecer, opaca o
+                  // bastante para os rótulos continuarem legíveis.
+                  color: context.colors.surface
+                      .withValues(alpha: escuro ? 0.62 : 0.76),
+                  border: Border.all(
+                    color: escuro
+                        ? Colors.white.withValues(alpha: 0.10)
+                        : Colors.black.withValues(alpha: 0.06),
+                  ),
+                ),
+                child: Row(
+                  children: [
+                    for (var i = 0; i < _abas.length; i++)
+                      Expanded(
+                        child: _AbaDaDock(
+                          icone: _abas[i].$1,
+                          iconeAtivo: _abas[i].$2,
+                          rotulo: _abas[i].$3,
+                          ativa: selecionada == i,
+                          onTap: () => onSelect(i),
+                        ),
+                      ),
+                  ],
+                ),
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _AbaDaDock extends StatelessWidget {
+  const _AbaDaDock({
+    required this.icone,
+    required this.iconeAtivo,
+    required this.rotulo,
+    required this.ativa,
+    required this.onTap,
+  });
+
+  final IconData icone;
+  final IconData iconeAtivo;
+  final String rotulo;
+  final bool ativa;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    final cor = ativa ? AppColors.accent : context.tones.muted;
+
+    return Semantics(
+      button: true,
+      selected: ativa,
+      label: rotulo,
+      child: GestureDetector(
+        behavior: HitTestBehavior.opaque,
+        onTap: onTap,
+        child: AnimatedContainer(
+          duration: const Duration(milliseconds: 220),
+          curve: Curves.easeOut,
+          margin: const EdgeInsets.symmetric(vertical: 7, horizontal: 2),
+          decoration: BoxDecoration(
+            color: ativa
+                ? AppColors.accent.withValues(alpha: 0.16)
+                : Colors.transparent,
+            borderRadius: BorderRadius.circular(18),
+          ),
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              Icon(ativa ? iconeAtivo : icone, size: 21, color: cor),
+              const SizedBox(height: 2),
+              Text(
+                rotulo,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                textAlign: TextAlign.center,
+                style: TextStyle(
+                  fontSize: 10,
+                  height: 1.1,
+                  fontWeight: ativa ? FontWeight.w700 : FontWeight.w500,
+                  color: ativa ? context.colors.onSurface : cor,
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
   }
 }
 
