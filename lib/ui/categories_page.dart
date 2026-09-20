@@ -16,20 +16,6 @@ class CategoriesPage extends StatelessWidget {
 
   final AppState state;
 
-  /// Cores das fatias, reaproveitadas na rosca e na lista.
-  static const palette = [
-    AppColors.accent,
-    Color(0xFF627EEA),
-    Color(0xFFF5A524),
-    Color(0xFFA78BFA),
-    Color(0xFF38BDF8),
-    Color(0xFFF4436B),
-    Color(0xFF34D399),
-    Color(0xFFFB923C),
-  ];
-
-  static Color colorFor(int index) => palette[index % palette.length];
-
   @override
   Widget build(BuildContext context) {
     final mes = state.selectedMonth;
@@ -230,14 +216,20 @@ class _DistributionCardState extends State<_DistributionCard> {
 
     final slices = <Slice>[
       for (var i = 0; i < visiveis.length; i++)
-        Slice(visiveis[i].label, visiveis[i].total, CategoriesPage.colorFor(i)),
+        // A cor é da categoria, não da posição: a fatia de Transporte é azul
+        // no mês em que ela lidera e no mês em que ela é a última.
+        Slice(
+          visiveis[i].label,
+          visiveis[i].total,
+          mainCategoryColor(visiveis[i].id ?? ''),
+        ),
       if (resto > 0) Slice('Demais categorias', resto, context.tones.muted),
     ];
 
     final legendas = <(Color, String, String)>[
       for (var i = 0; i < visiveis.length; i++)
         (
-          CategoriesPage.colorFor(i),
+          mainCategoryColor(visiveis[i].id ?? ''),
           visiveis[i].label,
           fmtPercent(visiveis[i].share),
         ),
@@ -397,7 +389,7 @@ class _CategoryList extends StatelessWidget {
           for (var i = 0; i < categorias.length; i++)
             _CategoryRow(
               categoria: categorias[i],
-              color: CategoriesPage.colorFor(i),
+              color: mainCategoryColor(categorias[i].id ?? ''),
               proporcao: maior == 0 ? 0 : categorias[i].total / maior,
               moeda: moeda,
               state: state,

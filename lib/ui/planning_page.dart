@@ -16,17 +16,6 @@ class PlanningPage extends StatelessWidget {
 
   final AppState state;
 
-  static const _cores = [
-    AppColors.accent,
-    Color(0xFF627EEA),
-    Color(0xFFF5A524),
-    Color(0xFFA78BFA),
-    Color(0xFF38BDF8),
-    Color(0xFFF4436B),
-    Color(0xFF34D399),
-    Color(0xFFFB923C),
-  ];
-
   @override
   Widget build(BuildContext context) {
     final mes = state.selectedMonth;
@@ -62,8 +51,6 @@ class PlanningPage extends StatelessWidget {
 
     return PainelLateral(child: pagina);
   }
-
-  static Color colorFor(int i) => _cores[i % _cores.length];
 }
 
 /// Cartão do topo: gasto, meta e quanto resta.
@@ -230,7 +217,9 @@ class _CategoryList extends StatelessWidget {
             _CategoryTile(
               state: state,
               linha: linhas[i],
-              color: PlanningPage.colorFor(i),
+              // Cor fixa da categoria, e não a posição no ranking: assim ela é
+              // a mesma aqui, nos ícones das listas e nos gráficos.
+              color: mainCategoryColor(linhas[i].node.id),
             ),
         ],
       ),

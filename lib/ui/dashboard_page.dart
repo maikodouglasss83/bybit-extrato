@@ -472,8 +472,10 @@ class _CardSpendingCard extends StatelessWidget {
   final AppState state;
   final VoidCallback? onSeeAll;
 
+  // Sem o laranja da marca: ele é a cor de ação do app, e no gráfico se
+  // confundiria com as categorias que já puxam para o alaranjado.
   static const _categoryColors = [
-    AppColors.accent,
+    Color(0xFF22D3A6),
     Color(0xFF627EEA),
     Color(0xFFF5A524),
     Color(0xFFA78BFA),
