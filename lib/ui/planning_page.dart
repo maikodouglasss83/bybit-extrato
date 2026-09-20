@@ -77,15 +77,9 @@ class _Summary extends StatelessWidget {
       decoration: BoxDecoration(
         borderRadius: BorderRadius.circular(24),
         border: Border.all(color: tones.border),
-        gradient: LinearGradient(
-          begin: Alignment.topLeft,
-          end: Alignment.bottomRight,
-          colors: [
-            cor.withValues(alpha: 0.16),
-            context.colors.surface,
-            context.colors.surface,
-          ],
-        ),
+        // Sem lavagem de cor no fundo: o cartão é escuro como os outros, e a
+        // cor fica onde ela informa alguma coisa — na barra do progresso.
+        color: context.colors.surface,
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
