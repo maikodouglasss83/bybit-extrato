@@ -47,12 +47,15 @@ class _EntryEditorState extends State<_EntryEditor> {
   late bool _fixo = widget.state.isFixed(widget.entry);
   late int? _diaVencimento = widget.state.dueDayOf(widget.entry);
 
-  /// Onde o novo nome vale. O padrão é só nesta compra: duas compras no mesmo
-  /// lugar costumam ser coisas diferentes, e mexer nas duas de uma vez é a
-  /// exceção — que fica a um toque de distância.
-  late bool _soEstaCompra =
-      widget.state.hasEntryName(widget.entry) ||
-          !widget.state.hasCustomName(widget.entry);
+  /// Onde a alteração vale — nome, categoria e tipo de gasto. O padrão é só
+  /// nesta compra: duas compras no mesmo lugar costumam ser coisas
+  /// diferentes, e mexer em todas de uma vez é a exceção — que fica a um
+  /// toque de distância.
+  late bool _soEstaCompra = widget.state.hasEntryName(widget.entry) ||
+      widget.state.hasEntryAdjustments(widget.entry) ||
+      !widget.state.hasCustomName(widget.entry);
+
+  late final bool _fixoAntes = widget.state.isFixed(widget.entry);
 
   @override
   void dispose() {
@@ -72,11 +75,20 @@ class _EntryEditorState extends State<_EntryEditor> {
       widget.entry,
       name: _nameController.text,
       category: _category,
-      nameOnlyThis: _soEstaCompra,
+      onlyThis: _soEstaCompra,
     );
-    await widget.state.setFixed(widget.entry, _fixo);
-    // O dia só faz sentido em compromisso mensal.
-    await widget.state.setDueDay(widget.entry, _fixo ? _diaVencimento : null);
+    // Só esta compra: grava o tipo apenas se ele mudou. O lugar todo: grava
+    // sempre, para as outras compras de lá ficarem iguais a esta.
+    if (_fixo != _fixoAntes || !_soEstaCompra) {
+      await widget.state.setFixed(widget.entry, _fixo, onlyThis: _soEstaCompra);
+    }
+    // O dia é do compromisso do lugar. Marcar uma compra só como variável não
+    // apaga o vencimento das outras.
+    if (_fixo) {
+      await widget.state.setDueDay(widget.entry, _diaVencimento);
+    } else if (!_soEstaCompra) {
+      await widget.state.setDueDay(widget.entry, null);
+    }
     if (!mounted) return;
     Navigator.of(context).maybePop();
   }
@@ -100,8 +112,11 @@ class _EntryEditorState extends State<_EntryEditor> {
                 Text('Editar', style: context.texts.headlineSmall),
                 const SizedBox(height: 6),
                 Text(
-                  'Vale para todas as compras neste estabelecimento, '
-                  'inclusive as próximas.',
+                  _soEstaCompra && irmas > 1
+                      ? 'Muda só esta compra. As outras deste lugar continuam '
+                          'como estão.'
+                      : 'Vale para todas as compras neste estabelecimento, '
+                          'inclusive as próximas.',
                   style: context.texts.bodySmall,
                 ),
                 const SizedBox(height: 22),
@@ -149,7 +164,8 @@ class _EntryEditorState extends State<_EntryEditor> {
                 ],
                 if (irmas > 1) ...[
                   const SizedBox(height: 22),
-                  Text('Este nome vale para', style: context.texts.titleSmall),
+                  Text('Esta alteração vale para',
+                      style: context.texts.titleSmall),
                   const SizedBox(height: 10),
                   Row(
                     children: [
@@ -158,7 +174,7 @@ class _EntryEditorState extends State<_EntryEditor> {
                           selecionada: _soEstaCompra,
                           icone: Icons.receipt_long_rounded,
                           titulo: 'Só esta compra',
-                          descricao: 'As outras não mudam',
+                          descricao: 'Nome, categoria e tipo',
                           onTap: () => setState(() => _soEstaCompra = true),
                         ),
                       ),

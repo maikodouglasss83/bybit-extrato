@@ -15,6 +15,8 @@ class PreferencesStore {
   static const _kCategoryOverrides = 'category_overrides';
   static const _kNameOverrides = 'name_overrides';
   static const _kEntryNameOverrides = 'entry_name_overrides';
+  static const _kEntryCategoryOverrides = 'entry_category_overrides';
+  static const _kEntryFixedOverrides = 'entry_fixed_overrides';
   static const _kFixedOverrides = 'fixed_overrides';
   static const _kDueDays = 'due_days';
   static const _kHiddenEntries = 'hidden_entries';
@@ -46,6 +48,24 @@ class PreferencesStore {
 
   Future<void> saveEntryNameOverrides(Map<String, String> overrides) =>
       _saveMap(_kEntryNameOverrides, overrides);
+
+  /// Categoria escolhida para uma compra só, pelo identificador dela.
+  Future<Map<String, String>> loadEntryCategoryOverrides() =>
+      _loadMap(_kEntryCategoryOverrides);
+
+  Future<void> saveEntryCategoryOverrides(Map<String, String> overrides) =>
+      _saveMap(_kEntryCategoryOverrides, overrides);
+
+  /// Fixo ou variável escolhido para uma compra só.
+  Future<Map<String, bool>> loadEntryFixedOverrides() async {
+    final bruto = await _loadMap(_kEntryFixedOverrides);
+    return bruto.map((id, v) => MapEntry(id, v == 'true'));
+  }
+
+  Future<void> saveEntryFixedOverrides(Map<String, bool> overrides) => _saveMap(
+        _kEntryFixedOverrides,
+        overrides.map((id, fixo) => MapEntry(id, '$fixo')),
+      );
 
   /// Estabelecimentos marcados à mão como gasto fixo ou variável.
   Future<Map<String, bool>> loadFixedOverrides() async {

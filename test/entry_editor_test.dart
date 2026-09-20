@@ -195,6 +195,31 @@ void main() {
       );
     });
 
+    testWidgets('só esta compra: marcar como fixo não mexe nas outras',
+        (tester) async {
+      final entry = compra();
+      final outra = LedgerEntry.fromCardTransaction({
+        'transactionId': 'c2',
+        'side': '1',
+        'transactionDate': '${DateTime(2026, 8, 7, 14).millisecondsSinceEpoch}',
+        'transactionAmount': '68.61',
+        'basicCurrency': 'BRL',
+        'merchName': 'ATACADO E AUTO SERVICO',
+      });
+      final state = AppState()..seedEntries([entry, outra]);
+      final antes = state.isFixed(outra);
+      await abrirEditor(tester, state, entry);
+
+      // Com duas compras no lugar, a escolha aparece e começa em "só esta".
+      expect(find.text('Esta alteração vale para'), findsOneWidget);
+
+      await tocar(tester, find.text(antes ? 'Variável' : 'Fixo'));
+      await tocar(tester, find.text('Salvar'));
+
+      expect(state.isFixed(entry), !antes);
+      expect(state.isFixed(outra), antes);
+    });
+
     testWidgets('nome repetido mostra o motivo no próprio diálogo',
         (tester) async {
       final state = AppState();
