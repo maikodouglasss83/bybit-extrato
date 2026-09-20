@@ -97,15 +97,8 @@ class _BalanceHero extends StatelessWidget {
       decoration: BoxDecoration(
         borderRadius: BorderRadius.circular(24),
         border: Border.all(color: tones.border),
-        gradient: LinearGradient(
-          begin: Alignment.topLeft,
-          end: Alignment.bottomRight,
-          colors: [
-            AppColors.accent.withValues(alpha: 0.16),
-            context.colors.surface,
-            context.colors.surface,
-          ],
-        ),
+        // Fundo escuro como os outros cartões: a cor fica para os números.
+        color: context.colors.surface,
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,

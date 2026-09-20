@@ -74,11 +74,6 @@ class _Resumo extends StatelessWidget {
   final AppState state;
   final List<Subscription> assinaturas;
 
-  /// O azul não é o acento do app de propósito: esta faixa é o número que
-  /// resume a página, e destacá-la do resto é o ponto.
-  static const _de = Color(0xFF2E6BE6);
-  static const _para = Color(0xFF1B3F9E);
-
   @override
   Widget build(BuildContext context) {
     final ativas = assinaturas.where((s) => s.active).length;
@@ -93,21 +88,14 @@ class _Resumo extends StatelessWidget {
       padding: const EdgeInsets.fromLTRB(22, 20, 22, 22),
       decoration: BoxDecoration(
         borderRadius: BorderRadius.circular(20),
-        gradient: const LinearGradient(
-          colors: [_de, _para],
-          begin: Alignment.centerLeft,
-          end: Alignment.centerRight,
-        ),
+        // O número já é o destaque da página; o fundo acompanha os demais.
+        color: context.colors.surface,
+        border: Border.all(color: context.tones.border),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text(
-            'SUAS ASSINATURAS CUSTAM',
-            style: context.texts.labelSmall?.copyWith(
-              color: Colors.white.withValues(alpha: 0.82),
-            ),
-          ),
+          Text('SUAS ASSINATURAS CUSTAM', style: context.texts.labelSmall),
           const SizedBox(height: 8),
           Row(
             crossAxisAlignment: CrossAxisAlignment.baseline,
@@ -119,10 +107,10 @@ class _Resumo extends StatelessWidget {
                   alignment: Alignment.centerLeft,
                   child: Text(
                     porMes,
-                    style: const TextStyle(
+                    style: TextStyle(
                       fontSize: 38,
                       fontWeight: FontWeight.w800,
-                      color: Colors.white,
+                      color: context.colors.onSurface,
                       letterSpacing: -1,
                     ),
                   ),
@@ -134,7 +122,7 @@ class _Resumo extends StatelessWidget {
                 style: TextStyle(
                   fontSize: 17,
                   fontWeight: FontWeight.w600,
-                  color: Colors.white.withValues(alpha: 0.75),
+                  color: context.tones.muted,
                 ),
               ),
             ],
@@ -142,10 +130,7 @@ class _Resumo extends StatelessWidget {
           const SizedBox(height: 6),
           Text.rich(
             TextSpan(
-              style: TextStyle(
-                fontSize: 13,
-                color: Colors.white.withValues(alpha: 0.85),
-              ),
+              style: TextStyle(fontSize: 13, color: context.tones.muted),
               children: [
                 const TextSpan(text: 'isso dá '),
                 TextSpan(
