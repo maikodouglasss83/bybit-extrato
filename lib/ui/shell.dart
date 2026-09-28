@@ -506,7 +506,7 @@ class _SideNav extends StatelessWidget {
           const SizedBox(width: 10),
           Expanded(
             child: Text(
-              'Extrato Bybit',
+              'Nível Finance',
               style: context.texts.titleMedium,
               maxLines: 1,
               overflow: TextOverflow.ellipsis,
@@ -685,11 +685,21 @@ class _Assinante extends StatelessWidget {
               child: avatar,
             ),
           ),
+          if (state.cloudSignedIn)
+            IconButton(
+              tooltip: 'Sair',
+              onPressed: () => _confirmarSaida(context, state),
+              icon: Icon(
+                Icons.logout_rounded,
+                size: 20,
+                color: context.tones.negative,
+              ),
+            ),
         ],
       );
     }
 
-    return Padding(
+    final linha = Padding(
       padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
       child: Row(
         children: [
@@ -719,7 +729,87 @@ class _Assinante extends StatelessWidget {
         ],
       ),
     );
+
+    return Column(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        linha,
+        // Só com conta conectada: sem ela não há de onde sair.
+        if (state.cloudSignedIn) ...[
+          const SizedBox(height: 10),
+          _BotaoSair(onTap: () => _confirmarSaida(context, state)),
+        ],
+      ],
+    );
   }
+}
+
+/// Botão de sair no pé do menu: vermelho, entre duas linhas finas.
+class _BotaoSair extends StatelessWidget {
+  const _BotaoSair({required this.onTap});
+
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    final vermelho = context.tones.negative;
+    final linha = BorderSide(color: vermelho.withValues(alpha: 0.45));
+
+    return Material(
+      color: Colors.transparent,
+      child: InkWell(
+        onTap: onTap,
+        child: Container(
+          height: 44,
+          decoration: BoxDecoration(border: Border(top: linha, bottom: linha)),
+          child: Row(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              Icon(Icons.logout_rounded, size: 19, color: vermelho),
+              const SizedBox(width: 10),
+              Text(
+                'Sair',
+                style: TextStyle(
+                  fontSize: 15,
+                  fontWeight: FontWeight.w600,
+                  color: vermelho,
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+/// Pergunta antes de sair: um toque sem querer não deveria tirar ninguém da
+/// conta.
+Future<void> _confirmarSaida(BuildContext context, AppState state) async {
+  final sair = await showDialog<bool>(
+    context: context,
+    builder: (dialogo) => AlertDialog(
+      title: const Text('Sair da conta?'),
+      content: const Text(
+        'Seus ajustes e o histórico continuam salvos na nuvem. É só entrar '
+        'de novo para ver tudo.',
+      ),
+      actions: [
+        TextButton(
+          onPressed: () => Navigator.of(dialogo).pop(false),
+          child: const Text('Cancelar'),
+        ),
+        TextButton(
+          onPressed: () => Navigator.of(dialogo).pop(true),
+          style: TextButton.styleFrom(
+            foregroundColor: dialogo.tones.negative,
+          ),
+          child: const Text('Sair'),
+        ),
+      ],
+    ),
+  );
+  if (sair == true) await state.signOut();
 }
 
 /// Faixa superior das telas largas: título à esquerda, ações à direita.

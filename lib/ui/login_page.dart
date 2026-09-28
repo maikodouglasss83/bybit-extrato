@@ -70,7 +70,7 @@ class _LoginPageState extends State<LoginPage> {
                   ),
                   const SizedBox(height: 26),
                   Text(
-                    'Extrato Bybit',
+                    'Nível Finance',
                     textAlign: TextAlign.center,
                     style: context.texts.displaySmall,
                   ),

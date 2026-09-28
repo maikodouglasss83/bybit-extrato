@@ -13,10 +13,18 @@ const _cofre = MethodChannel('plugins.it_nomads.com/flutter_secure_storage');
 
 /// Conta conectada, sem ir à rede.
 class _ContaConectada extends CloudSync {
+  bool conectada = true;
+  int saidas = 0;
+
   @override
   bool get available => true;
   @override
-  bool get signedIn => true;
+  bool get signedIn => conectada;
+  @override
+  Future<void> signOut() async {
+    saidas++;
+    conectada = false;
+  }
   @override
   String? get userEmail => 'maiko@exemplo.com';
   @override
@@ -65,10 +73,43 @@ void main() {
   }
 
   group('Menu lateral no computador', () {
+    testWidgets('o botão Sair fica sob o e-mail e pede confirmação',
+        (tester) async {
+      final conta = _ContaConectada();
+      await abrirNoComputador(tester, cloud: conta);
+
+      final sair = find.widgetWithText(InkWell, 'Sair');
+      expect(sair, findsOneWidget);
+      expect(
+        tester.getTopLeft(sair).dy,
+        greaterThan(tester.getBottomLeft(find.text('maiko@exemplo.com')).dy),
+      );
+
+      // Cancelar não tira ninguém da conta.
+      await tester.tap(sair);
+      await tester.pumpAndSettle();
+      expect(find.text('Sair da conta?'), findsOneWidget);
+      await tester.tap(find.text('Cancelar'));
+      await tester.pumpAndSettle();
+      expect(conta.saidas, 0);
+
+      await tester.tap(sair);
+      await tester.pumpAndSettle();
+      await tester.tap(find.widgetWithText(TextButton, 'Sair'));
+      await tester.pumpAndSettle();
+      expect(conta.saidas, 1);
+      expect(tester.takeException(), isNull);
+    });
+
+    testWidgets('sem conta conectada não há botão Sair', (tester) async {
+      await abrirNoComputador(tester);
+      expect(find.widgetWithText(InkWell, 'Sair'), findsNothing);
+    });
+
     testWidgets('recolhe para só os ícones e expande de volta', (tester) async {
       await abrirNoComputador(tester);
 
-      expect(find.text('Extrato Bybit'), findsOneWidget);
+      expect(find.text('Nível Finance'), findsOneWidget);
       expect(find.text('Gastos por categoria'), findsOneWidget);
 
       // O botão fica no topo, logo antes do título da página.
@@ -78,13 +119,13 @@ void main() {
       expect((botao.dy - titulo.dy).abs(), lessThan(12));
       expect(
         tester.getTopLeft(find.byTooltip('Recolher menu')).dx,
-        greaterThan(tester.getTopRight(find.text('Extrato Bybit')).dx),
+        greaterThan(tester.getTopRight(find.text('Nível Finance')).dx),
       );
 
       await tester.tap(find.byTooltip('Recolher menu'));
       await tester.pumpAndSettle();
 
-      expect(find.text('Extrato Bybit'), findsNothing);
+      expect(find.text('Nível Finance'), findsNothing);
       expect(find.text('Gastos por categoria'), findsNothing);
       expect(find.text('GERAL'), findsNothing);
       // Os ícones continuam navegando.

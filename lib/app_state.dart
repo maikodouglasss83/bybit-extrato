@@ -163,6 +163,13 @@ class AppState extends ChangeNotifier {
     await _cloud.signInWithGoogle(redirectTo: _redirectUrl);
   }
 
+  /// Sai da conta. Os dados continuam na nuvem para quando entrar de novo, e
+  /// a tela de entrada volta sozinha.
+  Future<void> signOut() async {
+    await _cloud.signOut();
+    notifyListeners();
+  }
+
   /// Para onde o provedor devolve o usuário depois de entrar.
   String? _redirectUrl;
   set redirectUrl(String? value) => _redirectUrl = value;

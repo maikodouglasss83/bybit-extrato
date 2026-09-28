@@ -51,7 +51,7 @@ class _BybitStatementAppState extends State<BybitStatementApp>
   @override
   Widget build(BuildContext context) {
     return MaterialApp(
-      title: 'Extrato Bybit',
+      title: 'Nível Finance',
       debugShowCheckedModeBanner: false,
       theme: buildTheme(Brightness.light),
       darkTheme: buildTheme(Brightness.dark),
