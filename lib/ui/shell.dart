@@ -14,6 +14,7 @@ import 'settings_page.dart';
 import 'statement_page.dart';
 import 'subscriptions_page.dart';
 import 'widgets/common.dart';
+import 'widgets/logo.dart';
 import 'widgets/side_panel.dart';
 
 /// Estrutura de navegação: barra inferior no celular, lateral no computador.
@@ -490,17 +491,7 @@ class _SideNav extends StatelessWidget {
   }
 
   Widget _cabecalho(BuildContext context, bool compacto) {
-    final logo = Container(
-      width: 34,
-      height: 34,
-      alignment: Alignment.center,
-      decoration: BoxDecoration(
-        color: AppColors.accent.withValues(alpha: 0.16),
-        borderRadius: BorderRadius.circular(11),
-      ),
-      child: const Icon(Icons.account_balance_wallet_rounded,
-          size: 18, color: AppColors.accent),
-    );
+    const logo = LogoExtratoCripto(size: 34);
 
     if (compacto) return logo;
 
@@ -512,7 +503,7 @@ class _SideNav extends StatelessWidget {
           const SizedBox(width: 10),
           Expanded(
             child: Text(
-              'Nível Finance',
+              'ExtratoCripto',
               style: context.texts.titleMedium,
               maxLines: 1,
               overflow: TextOverflow.ellipsis,

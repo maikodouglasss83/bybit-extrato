@@ -1,4 +1,4 @@
-# Extrato Bybit
+# ExtratoCripto
 
 App de finanças pessoais que lê a conta e o cartão da Bybit pela API v5.
 Um único código roda no navegador, no celular e no computador.

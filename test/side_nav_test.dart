@@ -109,7 +109,7 @@ void main() {
     testWidgets('recolhe para só os ícones e expande de volta', (tester) async {
       await abrirNoComputador(tester);
 
-      expect(find.text('Nível Finance'), findsOneWidget);
+      expect(find.text('ExtratoCripto'), findsOneWidget);
       expect(find.text('Gastos por categoria'), findsOneWidget);
 
       // O botão fica no topo, logo antes do título da página.
@@ -119,13 +119,13 @@ void main() {
       expect((botao.dy - titulo.dy).abs(), lessThan(12));
       expect(
         tester.getTopLeft(find.byTooltip('Recolher menu')).dx,
-        greaterThan(tester.getTopRight(find.text('Nível Finance')).dx),
+        greaterThan(tester.getTopRight(find.text('ExtratoCripto')).dx),
       );
 
       await tester.tap(find.byTooltip('Recolher menu'));
       await tester.pumpAndSettle();
 
-      expect(find.text('Nível Finance'), findsNothing);
+      expect(find.text('ExtratoCripto'), findsNothing);
       expect(find.text('Gastos por categoria'), findsNothing);
       expect(find.text('GERAL'), findsNothing);
       // Os ícones continuam navegando.

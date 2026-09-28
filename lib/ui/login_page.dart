@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import '../app_state.dart';
 import '../theme.dart';
 import 'widgets/common.dart';
+import 'widgets/logo.dart';
 
 /// Tela de entrada.
 ///
@@ -52,25 +53,10 @@ class _LoginPageState extends State<LoginPage> {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: [
-                  Center(
-                    child: Container(
-                      width: 68,
-                      height: 68,
-                      alignment: Alignment.center,
-                      decoration: BoxDecoration(
-                        color: AppColors.accent.withValues(alpha: 0.14),
-                        borderRadius: BorderRadius.circular(22),
-                      ),
-                      child: const Icon(
-                        Icons.account_balance_wallet_rounded,
-                        color: AppColors.accent,
-                        size: 32,
-                      ),
-                    ),
-                  ),
+                  const Center(child: LogoExtratoCripto(size: 68)),
                   const SizedBox(height: 26),
                   Text(
-                    'Nível Finance',
+                    'ExtratoCripto',
                     textAlign: TextAlign.center,
                     style: context.texts.displaySmall,
                   ),

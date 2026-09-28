@@ -250,7 +250,7 @@ class SettingsPage extends StatelessWidget {
         const SizedBox(height: 16),
         Center(
           child: Text(
-            'Nível Finance · versão 1.0',
+            'ExtratoCripto · versão 1.0',
             style: context.texts.bodySmall,
           ),
         ),

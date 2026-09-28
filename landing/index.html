@@ -3,12 +3,13 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Nível — não perca seu cashback</title>
+<title>ExtratoCripto — não perca seu cashback</title>
 <meta name="description" content="Acompanhe quanto falta para manter o nível de cashback do seu cartão cripto, suas assinaturas reembolsadas e cada gasto por categoria.">
-<meta property="og:title" content="Nível — não perca seu cashback">
-<meta property="og:description" content="Seu cashback depende de uma conta que ninguém te mostra. O Nível mostra.">
+<meta property="og:title" content="ExtratoCripto — não perca seu cashback">
+<meta property="og:description" content="Seu cashback depende de uma conta que ninguém te mostra. O ExtratoCripto mostra.">
 <meta name="theme-color" content="#0B0D10">
-<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' rx='16' fill='%23FF9F1A'/%3E%3Cpath d='M18 44V20h6l16 15V20h6v24h-6L24 29v15z' fill='%230B0D10'/%3E%3C/svg%3E">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'%3E%3Crect width='24' height='24' rx='6' fill='%23FF9F1A'/%3E%3Cpath fill='%231A1206' fill-rule='evenodd' d='M6 3h12v18l-2-1.5-2 1.5-2-1.5-2 1.5-2-1.5-2 1.5zM9.8 8h4.4a.8.8 0 0 1 0 1.6H9.8a.8.8 0 0 1 0-1.6zm0 3.5h4.4a.8.8 0 0 1 0 1.6H9.8a.8.8 0 0 1 0-1.6zm0 3.5h2.4a.8.8 0 0 1 0 1.6H9.8a.8.8 0 0 1 0-1.6z'/%3E%3C/svg%3E">
+<link rel="apple-touch-icon" href="../icons/Icon-192.png">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&display=swap">
@@ -95,7 +96,8 @@ header.top {
   width: 30px; height: 30px; border-radius: 9px; background: var(--orange);
   display: grid; place-items: center;
 }
-.brand-mark svg { width: 18px; height: 18px; }
+/* O desenho ocupa o quadrado todo, com a mesma folga do ícone do app. */
+.brand-mark svg { width: 30px; height: 30px; }
 .top nav { display: none; gap: 26px; font-size: .94rem; color: var(--on-ink-2); }
 .top nav a { text-decoration: none; }
 .top nav a:hover { color: var(--on-ink); }
@@ -108,6 +110,11 @@ header.top {
 @media (max-width: 480px) {
   .top .bar { gap: 8px; }
   .top .btn { padding: 9px 13px; font-size: .84rem; }
+}
+/* Em telefone estreito o nome não cabe ao lado dos dois botões: fica o logo,
+   e o nome aparece logo abaixo, no texto do topo. */
+@media (max-width: 400px) {
+  .top .brand-nome { display: none; }
 }
 
 /* ---------- Herói ---------- */
@@ -515,9 +522,9 @@ footer p { max-width: 80ch; margin-top: 18px; }
 
 <header class="top">
   <div class="wrap bar">
-    <a class="brand" href="#topo" aria-label="Nível, início">
-      <span class="brand-mark"><svg viewBox="0 0 24 24" fill="#0B0D10" aria-hidden="true"><path d="M5 20V4h3.2l7.6 10.6V4H19v16h-3.2L8.2 9.4V20z"/></svg></span>
-      Nível
+    <a class="brand" href="#topo" aria-label="ExtratoCripto, início">
+      <span class="brand-mark"><svg viewBox="0 0 24 24" aria-hidden="true"><path fill="#1A1206" fill-rule="evenodd" d="M6 3h12v18l-2-1.5-2 1.5-2-1.5-2 1.5-2-1.5-2 1.5zM9.8 8h4.4a.8.8 0 0 1 0 1.6H9.8a.8.8 0 0 1 0-1.6zm0 3.5h4.4a.8.8 0 0 1 0 1.6H9.8a.8.8 0 0 1 0-1.6zm0 3.5h2.4a.8.8 0 0 1 0 1.6H9.8a.8.8 0 0 1 0-1.6z"/></svg></span>
+      <span class="brand-nome">ExtratoCripto</span>
     </a>
     <nav aria-label="Seções">
       <a href="#como-funciona">Como funciona</a>
@@ -541,7 +548,7 @@ footer p { max-width: 80ch; margin-top: 18px; }
         <span class="pill"><b>Novo</b> Para quem usa o Bybit Card</span>
         <h1>Não perca seu <span class="big">cashback de até 10%</span> por falta de conta.</h1>
         <p class="lead">
-          Seu nível de cashback depende de quanto você gasta no mês. O Nível mostra
+          Seu nível de cashback depende de quanto você gasta no mês. O ExtratoCripto mostra
           quanto falta para manter o seu, quais assinaturas estão sendo reembolsadas
           e para onde foi cada real — antes de o mês virar.
         </p>
@@ -606,9 +613,9 @@ footer p { max-width: 80ch; margin-top: 18px; }
   <section class="light">
     <div class="wrap">
       <div class="sec-head reveal">
-        <p class="kicker">Por que o Nível</p>
+        <p class="kicker">Por que o ExtratoCripto</p>
         <h2>O extrato que o seu cartão deveria ter.</h2>
-        <p>O app do cartão lista as compras e para por aí. O Nível transforma essa lista na conta que decide quanto dinheiro volta para você.</p>
+        <p>O app do cartão lista as compras e para por aí. O ExtratoCripto transforma essa lista na conta que decide quanto dinheiro volta para você.</p>
       </div>
 
       <div class="benefits">
@@ -707,14 +714,14 @@ footer p { max-width: 80ch; margin-top: 18px; }
             <span class="n num">01</span>
             <div>
               <h3>Crie uma chave só de leitura</h3>
-              <p>Na corretora, gere uma chave de API com permissão apenas de leitura. O Nível mostra o passo a passo, tela por tela.</p>
+              <p>Na corretora, gere uma chave de API com permissão apenas de leitura. O ExtratoCripto mostra o passo a passo, tela por tela.</p>
             </div>
             <span class="prog"><i></i></span>
           </button>
           <button type="button" class="step" data-i="1">
             <span class="n num">02</span>
             <div>
-              <h3>Cole a chave no Nível</h3>
+              <h3>Cole a chave no ExtratoCripto</h3>
               <p>O app confere na hora se a chave é mesmo só de leitura e recusa qualquer uma que permita sacar ou negociar.</p>
             </div>
             <span class="prog"><i></i></span>
@@ -795,7 +802,7 @@ footer p { max-width: 80ch; margin-top: 18px; }
         <div class="feature">
           <span class="ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 7h16M4 12h16M4 17h10"/></svg></span>
           <h3>Histórico que não some</h3>
-          <p>A corretora guarda uns seis meses. O Nível mantém tudo o que já viu, inclusive o que ela já apagou.</p>
+          <p>A corretora guarda uns seis meses. O ExtratoCripto mantém tudo o que já viu, inclusive o que ela já apagou.</p>
         </div>
         <div class="feature">
           <span class="ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 20h9M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4z"/></svg></span>
@@ -822,7 +829,7 @@ footer p { max-width: 80ch; margin-top: 18px; }
       <div class="sec-head center reveal">
         <p class="kicker">Segurança</p>
         <h2>Seu dinheiro não passa por aqui.</h2>
-        <p>O Nível só lê. Não guarda sua chave em servidor, não movimenta nada, não vê sua senha.</p>
+        <p>O ExtratoCripto só lê. Não guarda sua chave em servidor, não movimenta nada, não vê sua senha.</p>
       </div>
       <div class="trust">
         <div class="trust-card reveal">
@@ -838,7 +845,7 @@ footer p { max-width: 80ch; margin-top: 18px; }
         <div class="trust-card reveal">
           <span class="ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="9"/><path d="M12 7v6M12 16.5v.01"/></svg></span>
           <h3>Aviso antes de vencer</h3>
-          <p>Chaves de leitura expiram. O Nível avisa com antecedência para você renovar sem perder nenhum dia de histórico.</p>
+          <p>Chaves de leitura expiram. O ExtratoCripto avisa com antecedência para você renovar sem perder nenhum dia de histórico.</p>
         </div>
       </div>
     </div>
@@ -924,7 +931,7 @@ footer p { max-width: 80ch; margin-top: 18px; }
       <div class="ref reveal">
         <div>
           <h3><span>Ainda não tem o cartão?</span>10 USDT pelo código — e até 120 USDT de boas-vindas.</h3>
-          <p>O Nível é grátis para quem tem o Bybit Card. Se você ainda não tem, dá para começar ganhando duas vezes: o programa de indicação dá 10 USDT a quem entra pelo código, e o pacote de boas-vindas devolve 10% das compras qualificadas nos primeiros 30 dias, até 120 USDT.</p>
+          <p>O ExtratoCripto é grátis para quem tem o Bybit Card. Se você ainda não tem, dá para começar ganhando duas vezes: o programa de indicação dá 10 USDT a quem entra pelo código, e o pacote de boas-vindas devolve 10% das compras qualificadas nos primeiros 30 dias, até 120 USDT.</p>
           <ol>
             <li>Cadastre-se pelo botão ao lado: o código já vai preenchido.</li>
             <li>Peça o cartão virtual e conclua a verificação de identidade.</li>
@@ -966,7 +973,7 @@ footer p { max-width: 80ch; margin-top: 18px; }
       </div>
       <div class="faq">
         <details>
-          <summary>O Nível é da Bybit?<span class="plus"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4"><path d="M12 5v14M5 12h14"/></svg></span></summary>
+          <summary>O ExtratoCripto é da Bybit?<span class="plus"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4"><path d="M12 5v14M5 12h14"/></svg></span></summary>
           <p class="ans">Não. É um projeto independente, feito por um usuário do cartão que cansou de fazer essa conta na planilha. Ele usa a API oficial de leitura da corretora, com a chave que você mesmo cria.</p>
         </details>
         <details>
@@ -975,11 +982,11 @@ footer p { max-width: 80ch; margin-top: 18px; }
         </details>
         <details>
           <summary>Preciso instalar alguma coisa?<span class="plus"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4"><path d="M12 5v14M5 12h14"/></svg></span></summary>
-          <p class="ans">Não. O Nível abre no navegador, no celular e no computador. No celular dá para adicionar à tela inicial e usar como um app.</p>
+          <p class="ans">Não. O ExtratoCripto abre no navegador, no celular e no computador. No celular dá para adicionar à tela inicial e usar como um app.</p>
         </details>
         <details>
           <summary>Quanto vai custar?<span class="plus"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4"><path d="M12 5v14M5 12h14"/></svg></span></summary>
-          <p class="ans">Com o Bybit Card, nada: o Nível é grátis e continua grátis. O plano <b>Conectado</b>, de R$ 19,90 por mês (ou R$ 202,98 por ano, 15% de desconto, o que dá R$ 16,92 por mês), é para quem quiser juntar outras plataformas no mesmo extrato quando essas conexões abrirem.</p>
+          <p class="ans">Com o Bybit Card, nada: o ExtratoCripto é grátis e continua grátis. O plano <b>Conectado</b>, de R$ 19,90 por mês (ou R$ 202,98 por ano, 15% de desconto, o que dá R$ 16,92 por mês), é para quem quiser juntar outras plataformas no mesmo extrato quando essas conexões abrirem.</p>
         </details>
         <details>
           <summary>Funciona com outras plataformas?<span class="plus"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4"><path d="M12 5v14M5 12h14"/></svg></span></summary>
@@ -991,7 +998,7 @@ footer p { max-width: 80ch; margin-top: 18px; }
         </details>
         <details>
           <summary>O que acontece com meu histórico?<span class="plus"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4"><path d="M12 5v14M5 12h14"/></svg></span></summary>
-          <p class="ans">Tudo o que o Nível já viu fica guardado no seu aparelho — e, se você entrar com o Google, sincronizado entre eles. Inclusive os meses que a corretora não mostra mais.</p>
+          <p class="ans">Tudo o que o ExtratoCripto já viu fica guardado no seu aparelho — e, se você entrar com o Google, sincronizado entre eles. Inclusive os meses que a corretora não mostra mais.</p>
         </details>
       </div>
     </div>
@@ -1018,12 +1025,12 @@ footer p { max-width: 80ch; margin-top: 18px; }
   <div class="wrap">
     <div class="row">
       <a class="brand" href="#topo" style="color:var(--on-ink)">
-        <span class="brand-mark"><svg viewBox="0 0 24 24" fill="#0B0D10" aria-hidden="true"><path d="M5 20V4h3.2l7.6 10.6V4H19v16h-3.2L8.2 9.4V20z"/></svg></span>
-        Nível
+        <span class="brand-mark"><svg viewBox="0 0 24 24" aria-hidden="true"><path fill="#1A1206" fill-rule="evenodd" d="M6 3h12v18l-2-1.5-2 1.5-2-1.5-2 1.5-2-1.5-2 1.5zM9.8 8h4.4a.8.8 0 0 1 0 1.6H9.8a.8.8 0 0 1 0-1.6zm0 3.5h4.4a.8.8 0 0 1 0 1.6H9.8a.8.8 0 0 1 0-1.6zm0 3.5h2.4a.8.8 0 0 1 0 1.6H9.8a.8.8 0 0 1 0-1.6z"/></svg></span>
+        ExtratoCripto
       </a>
-      <span>© 2026 Nível</span>
+      <span>© 2026 ExtratoCripto</span>
     </div>
-    <p><strong>Nível</strong> é um projeto independente, sem qualquer vínculo, patrocínio ou aprovação da Bybit. “Bybit” e “Bybit Card” são marcas de seus respectivos donos e aparecem aqui apenas para indicar compatibilidade.</p>
+    <p><strong>ExtratoCripto</strong> é um projeto independente, sem qualquer vínculo, patrocínio ou aprovação da Bybit. “Bybit” e “Bybit Card” são marcas de seus respectivos donos e aparecem aqui apenas para indicar compatibilidade.</p>
     <p>Cashback, níveis e regras de reembolso são definidos pela emissora do cartão e podem mudar sem aviso. Os valores desta página são ilustrativos. Este site não é recomendação financeira.</p>
   </div>
 </footer>
@@ -1053,7 +1060,7 @@ document.querySelectorAll("form.signup").forEach(function (form) {
     }
 
     if (!DESTINO) {
-      const assunto = encodeURIComponent("Quero entrar na lista do Nível");
+      const assunto = encodeURIComponent("Quero entrar na lista do ExtratoCripto");
       const corpo = encodeURIComponent("Meu e-mail: " + email);
       window.location.href = "mailto:" + EMAIL_DONO + "?subject=" + assunto + "&body=" + corpo;
       mostrar(form, "Abrindo seu e-mail. É só enviar a mensagem.", true);
@@ -1117,7 +1124,7 @@ function calcular() {
   } else {
     document.getElementById("rPerda").textContent = "Você está no primeiro nível";
     document.getElementById("rPerdaTxt").textContent =
-      "Daqui para cima, cada nível a mais multiplica o que volta. O Nível mostra quanto falta para subir.";
+      "Daqui para cima, cada nível a mais multiplica o que volta. O ExtratoCripto mostra quanto falta para subir.";
   }
 }
 gasto.addEventListener("input", calcular);
