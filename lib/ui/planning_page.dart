@@ -838,20 +838,15 @@ Future<void> showBudgetNodeEditor(
   String? parentId,
   String? parentName,
 }) {
-  return showModalBottomSheet<void>(
-    context: context,
-    backgroundColor: context.colors.surface,
-    showDragHandle: true,
-    isScrollControlled: true,
-    shape: const RoundedRectangleBorder(
-      borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
-    ),
-    builder: (_) => AcimaDoTeclado(
-      child: _NodeEditor(
-        state: state,
-        parentId: parentId,
-        parentName: parentName,
-      ),
+  return abrirAoLado(
+    context,
+    titulo: parentId == null ? 'Nova categoria' : 'Nova subcategoria',
+    icone: Icons.add_rounded,
+    comTeclado: true,
+    conteudo: (_) => _NodeEditor(
+      state: state,
+      parentId: parentId,
+      parentName: parentName,
     ),
   );
 }
@@ -900,18 +895,17 @@ class _NodeEditorState extends State<_NodeEditor> {
       setState(() => _erro = erro);
       return;
     }
-    Navigator.of(context).maybePop();
+    fecharDetalhe(context);
   }
 
   @override
   Widget build(BuildContext context) {
     final ehSub = widget.parentId != null;
 
-    return DraggableScrollableSheet(
-      expand: false,
-      initialChildSize: 0.8,
-      maxChildSize: 0.95,
-      builder: (_, scrollController) => Column(
+    return FolhaOuPainel(
+      inicial: 0.8,
+      maximo: 0.95,
+      builder: (scrollController) => Column(
         children: [
           Expanded(
             child: ListView(

@@ -14,6 +14,7 @@ import 'settings_page.dart';
 import 'statement_page.dart';
 import 'subscriptions_page.dart';
 import 'widgets/common.dart';
+import 'widgets/side_panel.dart';
 
 /// Estrutura de navegação: barra inferior no celular, lateral no computador.
 class AppShell extends StatefulWidget {
@@ -121,7 +122,12 @@ class _AppShellState extends State<AppShell> {
                       child: Center(
                         child: ConstrainedBox(
                           constraints: const BoxConstraints(maxWidth: 1440),
-                          child: body,
+                          // Tudo o que as páginas abrem vai para o painel ao
+                          // lado. A chave fecha o painel ao trocar de página.
+                          child: PainelLateral(
+                            key: ValueKey(_index),
+                            child: body,
+                          ),
                         ),
                       ),
                     ),

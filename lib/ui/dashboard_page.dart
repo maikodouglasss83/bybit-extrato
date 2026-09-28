@@ -9,6 +9,7 @@ import '../util/format.dart';
 import 'connect_page.dart';
 import 'widgets/charts.dart';
 import 'widgets/common.dart';
+import 'widgets/side_panel.dart';
 import 'widgets/entry_editor.dart';
 import 'widgets/ledger_tile.dart';
 
@@ -1120,25 +1121,20 @@ void _abrirCompromisso(
   AppState state,
   FixedForecast previsao,
 ) {
-  showModalBottomSheet<void>(
-    context: context,
-    backgroundColor: context.colors.surface,
-    showDragHandle: true,
-    isScrollControlled: true,
-    shape: const RoundedRectangleBorder(
-      borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
-    ),
-    builder: (sheetContext) => AnimatedBuilder(
+  abrirAoLado(
+    context,
+    titulo: 'Compromisso',
+    icone: Icons.event_repeat_rounded,
+    conteudo: (_) => AnimatedBuilder(
       animation: state,
       builder: (_, __) {
         final compras = state.entriesOfMerchant(previsao.merchantKey);
         final moeda = state.cardCurrency;
 
-        return DraggableScrollableSheet(
-          expand: false,
-          initialChildSize: 0.7,
-          maxChildSize: 0.92,
-          builder: (_, scrollController) => Column(
+        return FolhaOuPainel(
+          inicial: 0.7,
+          maximo: 0.92,
+          builder: (scrollController) => Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               Padding(

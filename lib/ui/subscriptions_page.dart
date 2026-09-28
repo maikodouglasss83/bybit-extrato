@@ -5,6 +5,7 @@ import '../subscriptions.dart';
 import '../theme.dart';
 import '../util/format.dart';
 import 'widgets/common.dart';
+import 'widgets/side_panel.dart';
 import 'widgets/entry_editor.dart';
 import 'widgets/merchant_avatar.dart';
 
@@ -442,15 +443,11 @@ void _abrirAssinatura(
   AppState state,
   Subscription assinatura,
 ) {
-  showModalBottomSheet<void>(
-    context: context,
-    backgroundColor: context.colors.surface,
-    showDragHandle: true,
-    isScrollControlled: true,
-    shape: const RoundedRectangleBorder(
-      borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
-    ),
-    builder: (sheetContext) => AnimatedBuilder(
+  abrirAoLado(
+    context,
+    titulo: 'Assinatura',
+    icone: Icons.autorenew_rounded,
+    conteudo: (sheetContext) => AnimatedBuilder(
       animation: state,
       builder: (_, __) {
         // A lista é recalculada a cada mudança: pega a versão atual desta
@@ -513,7 +510,7 @@ void _abrirAssinatura(
                         : 'Nome, categoria e dia do vencimento',
                   ),
                   onTap: () {
-                    Navigator.of(sheetContext).pop();
+                    fecharDetalhe(sheetContext);
                     if (atual.manual) {
                       _editarManual(context, state, atual);
                     } else if (atual.sample != null) {
@@ -547,7 +544,7 @@ void _abrirAssinatura(
                       !atual.cancelled,
                     );
                     if (sheetContext.mounted) {
-                      Navigator.of(sheetContext).pop();
+                      fecharDetalhe(sheetContext);
                     }
                   },
                 ),
@@ -567,7 +564,7 @@ void _abrirAssinatura(
                   onTap: () async {
                     await state.removeSubscription(atual);
                     if (sheetContext.mounted) {
-                      Navigator.of(sheetContext).pop();
+                      fecharDetalhe(sheetContext);
                     }
                   },
                 ),
@@ -600,20 +597,15 @@ void _abrirEditorManual(
   AppState state,
   ManualSubscription? existente,
 ) {
-  showModalBottomSheet<void>(
-    context: context,
-    backgroundColor: context.colors.surface,
-    showDragHandle: true,
-    isScrollControlled: true,
-    shape: const RoundedRectangleBorder(
-      borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
-    ),
+  abrirAoLado(
+    context,
+    titulo: existente == null ? 'Nova assinatura' : 'Editar assinatura',
+    icone: existente == null ? Icons.add_rounded : Icons.edit_outlined,
     // Com o teclado aberto o formulário não cabe inteiro: rola, e o campo
     // tocado é trazido para cima do teclado.
-    builder: (_) => AcimaDoTeclado(
-      child: SingleChildScrollView(
-        child: _EditorManual(state: state, existente: existente),
-      ),
+    comTeclado: true,
+    conteudo: (_) => SingleChildScrollView(
+      child: _EditorManual(state: state, existente: existente),
     ),
   );
 }
@@ -681,7 +673,7 @@ class _EditorManualState extends State<_EditorManual> {
       );
     }
 
-    if (mounted) Navigator.of(context).maybePop();
+    if (mounted) fecharDetalhe(context);
   }
 
   @override

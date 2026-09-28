@@ -339,7 +339,11 @@ class AppState extends ChangeNotifier {
   /// As metas do planejamento são guardadas em reais, que é a moeda das
   /// compras. Estes dois conversores deixam a edição acontecer na moeda que
   /// está na tela, sem o usuário ter que fazer a conta de cabeça.
-  double brlToDisplay(double brl) => displayValueOf('BRL', brl);
+  /// Sem cotação não há conversão possível: o valor fica em reais, como está.
+  /// É o inverso exato de [displayToBrl], então abrir um cadastro e salvar sem
+  /// mexer nunca muda nem zera o valor.
+  double brlToDisplay(double brl) =>
+      usdBrl == null ? brl : displayValueOf('BRL', brl);
 
   double displayToBrl(double value) {
     if (showInBrl || usdBrl == null) return value;

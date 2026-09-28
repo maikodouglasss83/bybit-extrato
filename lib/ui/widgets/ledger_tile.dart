@@ -5,6 +5,7 @@ import '../../models.dart';
 import '../../theme.dart';
 import '../../util/format.dart';
 import 'common.dart';
+import 'side_panel.dart';
 import 'entry_editor.dart';
 import 'merchant_avatar.dart';
 
@@ -199,25 +200,23 @@ class LedgerTile extends StatelessWidget {
       showLedgerDetails(context, state: state, entry: entry);
 }
 
-/// Abre os detalhes de um lançamento como folha.
+/// Abre os detalhes de um lançamento: ao lado no computador, folha no celular.
 void showLedgerDetails(
   BuildContext context, {
   required AppState state,
   required LedgerEntry entry,
 }) {
-  showModalBottomSheet<void>(
-    context: context,
-    backgroundColor: context.colors.surface,
-    showDragHandle: true,
-    isScrollControlled: true,
-    shape: const RoundedRectangleBorder(
-      borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
-    ),
-    // Folhas modais vivem fora da árvore que escuta o estado, então
-    // precisam observar o AppState para refletir renomeações na hora.
-    builder: (sheetContext) => AnimatedBuilder(
+  abrirAoLado(
+    context,
+    titulo: 'Detalhes',
+    icone: Icons.description_outlined,
+    // O conteúdo vive fora da árvore que escuta o estado, então observa o
+    // AppState para refletir renomeações na hora.
+    conteudo: (_) => AnimatedBuilder(
       animation: state,
-      builder: (_, __) => LedgerDetails(entry: entry, state: state),
+      builder: (_, __) => SingleChildScrollView(
+        child: LedgerDetails(entry: entry, state: state),
+      ),
     ),
   );
 }

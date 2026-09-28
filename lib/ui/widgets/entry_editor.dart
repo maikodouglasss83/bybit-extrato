@@ -5,6 +5,7 @@ import '../../budget.dart';
 import '../../models.dart';
 import '../../theme.dart';
 import 'common.dart';
+import 'side_panel.dart';
 
 /// Folha para renomear um estabelecimento e ajustar a categoria dele.
 ///
@@ -15,17 +16,12 @@ Future<void> showEntryEditor(
   required AppState state,
   required LedgerEntry entry,
 }) {
-  return showModalBottomSheet<void>(
-    context: context,
-    backgroundColor: context.colors.surface,
-    showDragHandle: true,
-    isScrollControlled: true,
-    shape: const RoundedRectangleBorder(
-      borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
-    ),
-    builder: (sheetContext) => AcimaDoTeclado(
-      child: _EntryEditor(state: state, entry: entry),
-    ),
+  return abrirAoLado(
+    context,
+    titulo: 'Editar compra',
+    icone: Icons.edit_outlined,
+    comTeclado: true,
+    conteudo: (_) => _EntryEditor(state: state, entry: entry),
   );
 }
 
@@ -90,7 +86,7 @@ class _EntryEditorState extends State<_EntryEditor> {
       await widget.state.setDueDay(widget.entry, null);
     }
     if (!mounted) return;
-    Navigator.of(context).maybePop();
+    fecharDetalhe(context);
   }
 
   @override
@@ -98,11 +94,10 @@ class _EntryEditorState extends State<_EntryEditor> {
     final original = widget.state.originalNameOf(widget.entry);
     final irmas = widget.state.merchantEntryCount(widget.entry);
 
-    return DraggableScrollableSheet(
-      expand: false,
-      initialChildSize: 0.78,
-      maxChildSize: 0.95,
-      builder: (_, scrollController) => Column(
+    return FolhaOuPainel(
+      inicial: 0.78,
+      maximo: 0.95,
+      builder: (scrollController) => Column(
         children: [
           Expanded(
             child: ListView(
@@ -259,7 +254,7 @@ class _EntryEditorState extends State<_EntryEditor> {
                     width: double.infinity,
                     child: TextButton(
                       // Fecha sem salvar e volta para a tela de onde veio.
-                      onPressed: () => Navigator.of(context).maybePop(),
+                      onPressed: () => fecharDetalhe(context),
                       child: const Text('Cancelar'),
                     ),
                   ),
@@ -658,11 +653,18 @@ class _CategoryChip extends StatelessWidget {
           children: [
             Icon(icon, size: 16, color: cor),
             const SizedBox(width: 8),
-            Text(
-              label,
-              style: context.texts.bodySmall?.copyWith(
-                color: selected ? context.colors.onSurface : context.tones.muted,
-                fontWeight: selected ? FontWeight.w600 : FontWeight.w400,
+            // No painel lateral a largura é curta: nome comprido encolhe com
+            // reticências em vez de passar da borda.
+            Flexible(
+              child: Text(
+                label,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: context.texts.bodySmall?.copyWith(
+                  color:
+                      selected ? context.colors.onSurface : context.tones.muted,
+                  fontWeight: selected ? FontWeight.w600 : FontWeight.w400,
+                ),
               ),
             ),
             if (trailing != null) ...[

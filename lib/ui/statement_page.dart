@@ -5,6 +5,7 @@ import '../models.dart';
 import '../theme.dart';
 import '../util/format.dart';
 import 'widgets/common.dart';
+import 'widgets/side_panel.dart';
 import 'widgets/entry_editor.dart';
 import 'widgets/ledger_tile.dart';
 import 'widgets/merchant_avatar.dart';
@@ -21,12 +22,6 @@ class StatementPage extends StatefulWidget {
 
   /// A partir daqui as colunas da tabela cabem.
   static const larguraDaTabela = 860.0;
-
-  /// E a partir daqui ainda sobra espaço para o painel de detalhes ao lado.
-  /// Abaixo disso o detalhe volta a abrir como folha, que é o que cabe.
-  static const larguraDoPainel = 1040.0;
-
-  static const _larguraDoPainelLateral = 340.0;
 
   @override
   State<StatementPage> createState() => _StatementPageState();
@@ -84,15 +79,15 @@ class _StatementPageState extends State<StatementPage> {
 
     return LayoutBuilder(
       builder: (context, constraints) {
-        final tabela = constraints.maxWidth >= StatementPage.larguraDaTabela;
-        final cabePainel = constraints.maxWidth >= StatementPage.larguraDoPainel;
-        if (!cabePainel && _selecionado != null) _selecionado = null;
+        // Com o painel aberto ao lado, a tabela perde colunas para caber — mas
+        // continua tabela: a decisão conta a largura que o painel tomou, senão
+        // abrir um detalhe trocaria a tabela pela lista do celular.
+        final compacta = PainelLateral.aberto(context);
+        final larguraDaPagina = constraints.maxWidth +
+            (compacta ? PainelLateral.largura + 20 : 0);
+        final tabela = larguraDaPagina >= StatementPage.larguraDaTabela;
 
-        final selecionada = _selecionado == null
-            ? null
-            : entries.where((e) => e.id == _selecionado).firstOrNull;
-
-        final lista = Column(
+        return Column(
           children: [
             Padding(
               padding: const EdgeInsets.fromLTRB(8, 4, 8, 0),
@@ -131,34 +126,41 @@ class _StatementPageState extends State<StatementPage> {
               child: entries.isEmpty
                   ? _vazio(state)
                   : tabela
-                      ? _tabela(entries,
-                          cabePainel: cabePainel,
-                          compacta: selecionada != null)
+                      ? _tabela(entries, compacta: compacta)
                       : _listaDoCelular(entries),
             ),
           ],
         );
-
-        if (selecionada == null) return lista;
-
-        return Row(
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: [
-            Expanded(child: lista),
-            const SizedBox(width: 16),
-            SizedBox(
-              width: StatementPage._larguraDoPainelLateral,
-              child: _PainelDeDetalhes(
-                entry: selecionada,
-                state: state,
-                onFechar: () => setState(() => _selecionado = null),
-              ),
-            ),
-            const SizedBox(width: 16),
-          ],
-        );
       },
     );
+  }
+
+  /// Abre o lançamento no painel ao lado; tocar de novo nele fecha.
+  void _abrirDetalhe(LedgerEntry entry) {
+    final state = widget.state;
+    if (_selecionado == entry.id && PainelLateral.fechar(context)) return;
+
+    final abriu = PainelLateral.abrir(
+      context,
+      titulo: 'Detalhes',
+      icone: Icons.description_outlined,
+      aoFechar: () {
+        if (mounted) setState(() => _selecionado = null);
+      },
+      conteudo: (_) => AnimatedBuilder(
+        animation: state,
+        builder: (_, __) => SingleChildScrollView(
+          child: LedgerDetails(entry: entry, state: state),
+        ),
+      ),
+    );
+    if (abriu) {
+      setState(() => _selecionado = entry.id);
+    } else {
+      // Sem espaço para o painel, o detalhe abre como folha — é o mesmo
+      // conteúdo, no lugar que cabe.
+      showLedgerDetails(context, state: state, entry: entry);
+    }
   }
 
   Widget _vazio(AppState state) {
@@ -199,7 +201,6 @@ class _StatementPageState extends State<StatementPage> {
 
   Widget _tabela(
     List<LedgerEntry> entries, {
-    required bool cabePainel,
     required bool compacta,
   }) {
     final state = widget.state;
@@ -244,14 +245,7 @@ class _StatementPageState extends State<StatementPage> {
                         _marcados.remove(entry.id);
                       }
                     }),
-                    // Sem espaço para o painel, o detalhe abre como folha —
-                    // é o mesmo conteúdo, no lugar que cabe.
-                    onAbrir: () => cabePainel
-                        ? setState(
-                            () => _selecionado =
-                                _selecionado == entry.id ? null : entry.id,
-                          )
-                        : showLedgerDetails(context, state: state, entry: entry),
+                    onAbrir: () => _abrirDetalhe(entry),
                   );
                 },
               ),
@@ -974,57 +968,6 @@ class _Situacao extends StatelessWidget {
           ),
         ),
       ],
-    );
-  }
-}
-
-/// Painel lateral do computador com os detalhes do lançamento aberto.
-class _PainelDeDetalhes extends StatelessWidget {
-  const _PainelDeDetalhes({
-    required this.entry,
-    required this.state,
-    required this.onFechar,
-  });
-
-  final LedgerEntry entry;
-  final AppState state;
-  final VoidCallback onFechar;
-
-  @override
-  Widget build(BuildContext context) {
-    return Padding(
-      padding: const EdgeInsets.only(bottom: 16),
-      child: Card(
-        clipBehavior: Clip.antiAlias,
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: [
-            Padding(
-              padding: const EdgeInsets.fromLTRB(20, 14, 10, 6),
-              child: Row(
-                children: [
-                  Icon(Icons.description_outlined,
-                      size: 16, color: context.tones.muted),
-                  const SizedBox(width: 10),
-                  Expanded(
-                    child: Text('Detalhes', style: context.texts.labelSmall),
-                  ),
-                  IconButton(
-                    tooltip: 'Fechar',
-                    onPressed: onFechar,
-                    icon: const Icon(Icons.close_rounded, size: 18),
-                  ),
-                ],
-              ),
-            ),
-            Expanded(
-              child: SingleChildScrollView(
-                child: LedgerDetails(entry: entry, state: state),
-              ),
-            ),
-          ],
-        ),
-      ),
     );
   }
 }
