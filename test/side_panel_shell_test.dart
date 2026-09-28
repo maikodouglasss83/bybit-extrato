@@ -87,14 +87,21 @@ void main() {
       expect(painelAberto, findsOneWidget);
       expect(find.text('Marcar como cancelada'), findsOneWidget);
 
-      // Editar troca o conteúdo do mesmo painel pelo formulário.
+      // Sem nada por baixo, não há para onde voltar.
+      expect(find.byTooltip('Voltar'), findsNothing);
+
+      // Editar entra por cima do menu, no mesmo painel, com a seta de voltar.
       await tocar(tester, find.text('Editar'));
       expect(find.byType(BottomSheet), findsNothing);
       expect(painelAberto, findsOneWidget);
+      expect(find.byTooltip('Voltar'), findsOneWidget);
       expect(find.text('Salvar'), findsOneWidget);
 
+      // Salvar volta para o menu, em vez de fechar tudo.
       await tocar(tester, find.text('Salvar'));
-      expect(painelAberto, findsNothing);
+      expect(painelAberto, findsOneWidget);
+      expect(find.text('Marcar como cancelada'), findsOneWidget);
+      expect(find.byTooltip('Voltar'), findsNothing);
       // Sem cotação carregada, salvar sem mexer não pode zerar o valor.
       expect(state.manualSubscriptions.single.monthlyBrl, closeTo(149.90, 0.001));
       expect(tester.takeException(), isNull);
@@ -111,19 +118,29 @@ void main() {
       // Com o painel aberto a tabela continua tabela, só mais enxuta.
       expect(find.text('DESCRIÇÃO'), findsOneWidget);
 
-      // O lápis troca os detalhes pelo editor, sem abrir folha.
+      // O lápis põe o editor por cima dos detalhes, sem abrir folha.
       await tocar(tester, find.byTooltip('Editar nome e categoria'));
       expect(find.byType(BottomSheet), findsNothing);
       expect(find.text('Editar compra'), findsOneWidget);
+      expect(find.byTooltip('Voltar'), findsOneWidget);
 
+      // A seta volta para os detalhes.
+      await tocar(tester, find.byTooltip('Voltar'));
+      expect(find.text('Detalhes'), findsOneWidget);
+      expect(find.text('Editar compra'), findsNothing);
+      expect(find.byTooltip('Voltar'), findsNothing);
+
+      // Cancelar no editor também volta, em vez de fechar tudo.
+      await tocar(tester, find.byTooltip('Editar nome e categoria'));
       await tocar(tester, find.text('Cancelar'));
-      expect(painelAberto, findsNothing);
+      expect(painelAberto, findsOneWidget);
+      expect(find.text('Detalhes'), findsOneWidget);
 
-      // Tocar duas vezes na mesma linha abre e fecha.
+      // Tocar de novo na mesma linha fecha; outra vez, abre.
+      await tocar(tester, find.text('MERCADINHO DO TICO').first);
+      expect(painelAberto, findsNothing);
       await tocar(tester, find.text('MERCADINHO DO TICO').first);
       expect(painelAberto, findsOneWidget);
-      await tocar(tester, find.text('MERCADINHO DO TICO').first);
-      expect(painelAberto, findsNothing);
       expect(tester.takeException(), isNull);
     });
 

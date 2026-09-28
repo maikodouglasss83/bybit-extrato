@@ -510,12 +510,16 @@ void _abrirAssinatura(
                         : 'Nome, categoria e dia do vencimento',
                   ),
                   onTap: () {
-                    fecharDetalhe(sheetContext);
+                    // No painel, o editor entra por cima do menu, e voltar
+                    // traz o menu de novo. Na folha, a folha fecha antes.
+                    final noPainel = PainelLateral.dentro(sheetContext);
+                    if (!noPainel) fecharDetalhe(sheetContext);
+                    final origem = noPainel ? sheetContext : context;
                     if (atual.manual) {
-                      _editarManual(context, state, atual);
+                      _editarManual(origem, state, atual);
                     } else if (atual.sample != null) {
                       showEntryEditor(
-                        context,
+                        origem,
                         state: state,
                         entry: atual.sample!,
                       );

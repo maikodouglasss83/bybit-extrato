@@ -105,6 +105,27 @@ void main() {
       expect(tester.takeException(), isNull);
     });
 
+    testWidgets('compra aberta dentro da categoria tem seta de voltar',
+        (tester) async {
+      await montar(tester, (s) => CategoriesPage(state: s), computador);
+
+      await tocar(tester, find.text('Lazer').last);
+      expect(find.byTooltip('Voltar'), findsNothing);
+
+      // A compra entra por cima da lista da categoria.
+      await tocar(tester, find.text('NETFLIX.COM').last);
+      expect(find.byType(BottomSheet), findsNothing);
+      expect(find.text('Detalhes'), findsOneWidget);
+      expect(find.byTooltip('Voltar'), findsOneWidget);
+
+      // Voltar traz a lista da categoria, não fecha o painel.
+      await tocar(tester, find.byTooltip('Voltar'));
+      expect(find.text('Detalhes'), findsNothing);
+      expect(find.byTooltip('Fechar'), findsOneWidget);
+      expect(find.textContaining('da categoria'), findsWidgets);
+      expect(tester.takeException(), isNull);
+    });
+
     testWidgets('subcategoria do planejamento abre à direita, sem folha',
         (tester) async {
       await montar(tester, (s) => PlanningPage(state: s), computador);

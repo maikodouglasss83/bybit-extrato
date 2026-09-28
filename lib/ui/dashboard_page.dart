@@ -1125,7 +1125,8 @@ void _abrirCompromisso(
     context,
     titulo: 'Compromisso',
     icone: Icons.event_repeat_rounded,
-    conteudo: (_) => AnimatedBuilder(
+    // Editar a partir daqui empilha sobre o histórico: voltar traz ele de novo.
+    conteudo: (dentro) => AnimatedBuilder(
       animation: state,
       builder: (_, __) {
         final compras = state.entriesOfMerchant(previsao.merchantKey);
@@ -1163,7 +1164,7 @@ void _abrirCompromisso(
                       IconButton(
                         tooltip: 'Editar nome, categoria e vencimento',
                         onPressed: () => showEntryEditor(
-                          context,
+                          dentro,
                           state: state,
                           entry: compras.first,
                         ),
@@ -1183,7 +1184,7 @@ void _abrirCompromisso(
                     entry: compras[i],
                     state: state,
                     onLongPress: () => showEntryEditor(
-                      context,
+                      dentro,
                       state: state,
                       entry: compras[i],
                     ),

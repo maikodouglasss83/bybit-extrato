@@ -18,10 +18,15 @@ class PainelLateral extends StatefulWidget {
 
   static const largura = 360.0;
 
-  /// Mostra [conteudo] no painel mais próximo, trocando o que estiver aberto.
+  /// Mostra [conteudo] no painel mais próximo.
   ///
-  /// [aoFechar] roda quando o conteúdo sai do painel: fechado, trocado por
-  /// outro ou tirado por falta de espaço. Devolve `false` quando não coube.
+  /// Aberto pela página, começa do zero. Aberto de dentro do próprio painel —
+  /// uma compra dentro da categoria, o editor dentro dos detalhes —, empilha
+  /// sobre o que estava, e a seta de voltar leva de volta a ele.
+  ///
+  /// [aoFechar] roda quando o conteúdo sai do painel de vez: fechado, trocado
+  /// por outro da página, desempilhado ou tirado por falta de espaço.
+  /// Devolve `false` quando não coube.
   static bool abrir(
     BuildContext context, {
     required String titulo,
@@ -31,15 +36,27 @@ class PainelLateral extends StatefulWidget {
   }) {
     final painel = context.findAncestorStateOfType<_PainelLateralState>();
     if (painel == null || !painel._cabe) return false;
-    painel._mostrar(_Aberto(titulo, icone, conteudo, aoFechar));
+    painel._mostrar(
+      _Aberto(titulo, icone, conteudo, aoFechar),
+      empilhar: dentro(context),
+    );
     return true;
   }
 
-  /// Fecha o painel mais próximo. Devolve `false` se não havia o que fechar.
+  /// Fecha o painel mais próximo, com tudo o que estava empilhado.
+  /// Devolve `false` se não havia o que fechar.
   static bool fechar(BuildContext context) {
     final painel = context.findAncestorStateOfType<_PainelLateralState>();
-    if (painel == null || painel._aberto == null) return false;
+    if (painel == null || painel._pilha.isEmpty) return false;
     painel._fechar();
+    return true;
+  }
+
+  /// Volta para o conteúdo anterior; sem anterior, fecha o painel.
+  static bool voltarOuFechar(BuildContext context) {
+    final painel = context.findAncestorStateOfType<_PainelLateralState>();
+    if (painel == null || painel._pilha.isEmpty) return false;
+    painel._pilha.length > 1 ? painel._voltar() : painel._fechar();
     return true;
   }
 
@@ -58,35 +75,51 @@ class PainelLateral extends StatefulWidget {
 }
 
 class _Aberto {
-  const _Aberto(this.titulo, this.icone, this.conteudo, this.aoFechar);
+  _Aberto(this.titulo, this.icone, this.conteudo, this.aoFechar);
 
   final String titulo;
   final IconData icone;
   final WidgetBuilder conteudo;
   final VoidCallback? aoFechar;
+
+  /// Identidade na pilha: dois editores seguidos são telas diferentes, e o
+  /// segundo não pode herdar os campos do primeiro.
+  late final int id;
 }
 
 class _PainelLateralState extends State<PainelLateral> {
-  _Aberto? _aberto;
+  /// O que está aberto, do primeiro ao que aparece por cima.
+  final List<_Aberto> _pilha = [];
   bool _cabe = false;
+  int _proximoId = 0;
 
-  /// Muda a cada conteúdo novo: dois editores seguidos são telas diferentes,
-  /// e o segundo não pode herdar os campos do primeiro.
-  int _versao = 0;
-
-  void _mostrar(_Aberto novo) {
-    final anterior = _aberto;
+  void _mostrar(_Aberto novo, {required bool empilhar}) {
+    novo.id = _proximoId++;
+    final saem = empilhar ? const <_Aberto>[] : List.of(_pilha);
     setState(() {
-      _aberto = novo;
-      _versao++;
+      if (!empilhar) _pilha.clear();
+      _pilha.add(novo);
     });
-    anterior?.aoFechar?.call();
+    _avisar(saem);
+  }
+
+  void _voltar() {
+    final sai = _pilha.last;
+    setState(_pilha.removeLast);
+    _avisar([sai]);
   }
 
   void _fechar() {
-    final anterior = _aberto;
-    setState(() => _aberto = null);
-    anterior?.aoFechar?.call();
+    final saem = List.of(_pilha);
+    setState(_pilha.clear);
+    _avisar(saem);
+  }
+
+  /// Avisa quem saiu, do que estava por cima para o de baixo.
+  void _avisar(List<_Aberto> saem) {
+    for (final a in saem.reversed) {
+      a.aoFechar?.call();
+    }
   }
 
   @override
@@ -95,14 +128,12 @@ class _PainelLateralState extends State<PainelLateral> {
       builder: (context, constraints) {
         _cabe = constraints.maxWidth >= PainelLateral.larguraMinima;
         // Ao estreitar a janela o painel fecha, e não volta sozinho depois.
-        if (!_cabe && _aberto != null) {
-          final aviso = _aberto!.aoFechar;
-          _aberto = null;
-          if (aviso != null) {
-            WidgetsBinding.instance.addPostFrameCallback((_) => aviso());
-          }
+        if (!_cabe && _pilha.isNotEmpty) {
+          final saem = List.of(_pilha);
+          _pilha.clear();
+          WidgetsBinding.instance.addPostFrameCallback((_) => _avisar(saem));
         }
-        final aberto = _aberto;
+        final aberto = _pilha.isEmpty ? null : _pilha.last;
 
         // Sempre uma linha, com a página no mesmo lugar: abrir o painel não
         // pode recriar a lista e jogar a rolagem de volta ao topo.
@@ -124,9 +155,23 @@ class _PainelLateralState extends State<PainelLateral> {
                         crossAxisAlignment: CrossAxisAlignment.stretch,
                         children: [
                           Padding(
-                            padding: const EdgeInsets.fromLTRB(20, 14, 10, 0),
+                            padding: EdgeInsets.fromLTRB(
+                              _pilha.length > 1 ? 6 : 20,
+                              14,
+                              10,
+                              0,
+                            ),
                             child: Row(
                               children: [
+                                if (_pilha.length > 1) ...[
+                                  IconButton(
+                                    tooltip: 'Voltar',
+                                    onPressed: _voltar,
+                                    icon: const Icon(Icons.arrow_back_rounded,
+                                        size: 20),
+                                  ),
+                                  const SizedBox(width: 2),
+                                ],
                                 Icon(aberto.icone,
                                     size: 16, color: context.tones.muted),
                                 const SizedBox(width: 10),
@@ -147,9 +192,19 @@ class _PainelLateralState extends State<PainelLateral> {
                           ),
                           Expanded(
                             child: _DentroDoPainel(
-                              child: KeyedSubtree(
-                                key: ValueKey(_versao),
-                                child: Builder(builder: aberto.conteudo),
+                              // Os de baixo continuam montados, só escondidos:
+                              // ao voltar, a lista está onde foi deixada, com
+                              // a mesma rolagem e o que estava aberto.
+                              child: IndexedStack(
+                                index: _pilha.length - 1,
+                                sizing: StackFit.expand,
+                                children: [
+                                  for (final a in _pilha)
+                                    KeyedSubtree(
+                                      key: ValueKey(a.id),
+                                      child: Builder(builder: a.conteudo),
+                                    ),
+                                ],
                               ),
                             ),
                           ),
@@ -220,9 +275,12 @@ Future<void> abrirAoLado(
   aoFechar?.call();
 }
 
-/// Fecha o que foi aberto por [abrirAoLado]: o painel, ou a folha.
+/// Fecha o que foi aberto por [abrirAoLado]: no painel, volta para o que
+/// estava antes, ou fecha se não havia nada; na folha, fecha a folha.
 void fecharDetalhe(BuildContext context) {
-  if (PainelLateral.dentro(context) && PainelLateral.fechar(context)) return;
+  if (PainelLateral.dentro(context) && PainelLateral.voltarOuFechar(context)) {
+    return;
+  }
   Navigator.of(context).maybePop();
 }
 
