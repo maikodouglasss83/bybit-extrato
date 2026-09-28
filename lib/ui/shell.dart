@@ -744,7 +744,8 @@ class _Assinante extends StatelessWidget {
   }
 }
 
-/// Botão de sair no pé do menu: vermelho, entre duas linhas finas.
+/// Botão de sair no pé do menu: contorno vermelho arredondado, com o ícone e
+/// o texto alinhados à esquerda, na mesma linha do nome acima.
 class _BotaoSair extends StatelessWidget {
   const _BotaoSair({required this.onTap});
 
@@ -753,29 +754,37 @@ class _BotaoSair extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final vermelho = context.tones.negative;
-    final linha = BorderSide(color: vermelho.withValues(alpha: 0.45));
+    final raio = BorderRadius.circular(10);
 
-    return Material(
-      color: Colors.transparent,
-      child: InkWell(
-        onTap: onTap,
-        child: Container(
-          height: 44,
-          decoration: BoxDecoration(border: Border(top: linha, bottom: linha)),
-          child: Row(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              Icon(Icons.logout_rounded, size: 19, color: vermelho),
-              const SizedBox(width: 10),
-              Text(
-                'Sair',
-                style: TextStyle(
-                  fontSize: 15,
-                  fontWeight: FontWeight.w600,
-                  color: vermelho,
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 8),
+      child: Material(
+        color: Colors.transparent,
+        borderRadius: raio,
+        child: InkWell(
+          onTap: onTap,
+          borderRadius: raio,
+          child: Container(
+            height: 44,
+            padding: const EdgeInsets.symmetric(horizontal: 14),
+            decoration: BoxDecoration(
+              borderRadius: raio,
+              border: Border.all(color: vermelho.withValues(alpha: 0.4)),
+            ),
+            child: Row(
+              children: [
+                Icon(Icons.logout_rounded, size: 19, color: vermelho),
+                const SizedBox(width: 10),
+                Text(
+                  'Sair',
+                  style: TextStyle(
+                    fontSize: 15,
+                    fontWeight: FontWeight.w700,
+                    color: vermelho,
+                  ),
                 ),
-              ),
-            ],
+              ],
+            ),
           ),
         ),
       ),
