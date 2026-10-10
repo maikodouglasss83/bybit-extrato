@@ -16,12 +16,12 @@ void main() {
   testWidgets('gera os ícones', (tester) async {
     // (arquivo, tamanho, cheio, escala)
     const icones = [
-      ('web/icons/Icon-192.png', 192, false, 1.0),
-      ('web/icons/Icon-512.png', 512, false, 1.0),
+      ('web/icons/Icon-192.png', 192, false, 0.6),
+      ('web/icons/Icon-512.png', 512, false, 0.6),
       // Maskable: o sistema recorta um círculo; o desenho fica na área segura.
-      ('web/icons/Icon-maskable-192.png', 192, true, 0.78),
-      ('web/icons/Icon-maskable-512.png', 512, true, 0.78),
-      ('web/favicon.png', 64, false, 1.0),
+      ('web/icons/Icon-maskable-192.png', 192, true, 0.5),
+      ('web/icons/Icon-maskable-512.png', 512, true, 0.5),
+      ('web/favicon.png', 64, false, 0.68),
     ];
 
     await tester.runAsync(() async {

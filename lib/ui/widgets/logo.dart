@@ -4,11 +4,11 @@ import 'package:flutter/material.dart';
 /// qualquer tema, na aba do navegador e no ícone da tela inicial.
 const corDaMarca = Color(0xFFFF9F1A);
 
-/// Tinta escura do desenho sobre o laranja.
-const tintaDaMarca = Color(0xFF1A1206);
+/// Fundo escuro dos ícones gerados, o mesmo das superfícies do app.
+const fundoDaMarca = Color(0xFF14171C);
 
-/// Logo do ExtratoCripto: um extrato — papel com a borda de baixo serrilhada
-/// e três linhas de texto — sobre o quadrado laranja.
+/// Logo do ExtratoCripto: a carteira laranja sobre o quadrado em laranja
+/// suave.
 class LogoExtratoCripto extends StatelessWidget {
   const LogoExtratoCripto({super.key, this.size = 34});
 
@@ -16,21 +16,31 @@ class LogoExtratoCripto extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return SizedBox.square(
-      dimension: size,
-      child: const CustomPaint(painter: PintorDoLogo()),
+    return Container(
+      width: size,
+      height: size,
+      alignment: Alignment.center,
+      decoration: BoxDecoration(
+        color: corDaMarca.withValues(alpha: 0.16),
+        borderRadius: BorderRadius.circular(size * 0.32),
+      ),
+      child: Icon(
+        Icons.account_balance_wallet_rounded,
+        size: size * 0.5,
+        color: corDaMarca,
+      ),
     );
   }
 }
 
-/// Desenha o logo numa grade de 24 unidades, a mesma do SVG da landing.
+/// Desenha o logo para os ícones do app, numa grade de 24 unidades.
 ///
-/// [cheio] pinta o quadrado inteiro, sem cantos arredondados: é o que os
-/// ícones "maskable" pedem, porque o sistema recorta a forma que quiser.
-/// [escala] encolhe o desenho em volta do centro, para caber na área segura
-/// desses ícones.
+/// A carteira é traçada à mão porque os ícones são gerados sem a fonte de
+/// ícones carregada. [cheio] pinta o quadrado inteiro, sem cantos
+/// arredondados: é o que os ícones "maskable" pedem, porque o sistema recorta
+/// a forma que quiser. [escala] muda o tamanho da carteira dentro do quadrado.
 class PintorDoLogo extends CustomPainter {
-  const PintorDoLogo({this.cheio = false, this.escala = 1});
+  const PintorDoLogo({this.cheio = false, this.escala = 0.6});
 
   final bool cheio;
   final double escala;
@@ -38,7 +48,7 @@ class PintorDoLogo extends CustomPainter {
   @override
   void paint(Canvas canvas, Size size) {
     final u = size.width / 24;
-    final fundo = Paint()..color = corDaMarca;
+    final fundo = Paint()..color = fundoDaMarca;
     final quadrado = Offset.zero & size;
     if (cheio) {
       canvas.drawRect(quadrado, fundo);
@@ -54,32 +64,24 @@ class PintorDoLogo extends CustomPainter {
     canvas.scale(escala);
     canvas.translate(-size.width / 2, -size.height / 2);
 
-    Offset p(double x, double y) => Offset(x * u, y * u);
+    RRect caixa(double l, double t, double r, double b, double raio) =>
+        RRect.fromLTRBR(l * u, t * u, r * u, b * u, Radius.circular(raio * u));
 
-    // O papel, com a borda de baixo em serra, e as linhas vazadas nele.
-    final papel = Path()
-      ..fillType = PathFillType.evenOdd
-      ..moveTo(p(6, 3).dx, p(6, 3).dy);
-    for (final ponto in [
-      p(18, 3),
-      p(18, 21),
-      p(16, 19.5),
-      p(14, 21),
-      p(12, 19.5),
-      p(10, 21),
-      p(8, 19.5),
-      p(6, 21),
-    ]) {
-      papel.lineTo(ponto.dx, ponto.dy);
-    }
-    papel.close();
-    for (final (x, y, largura) in [(9.0, 8.0, 6.0), (9.0, 11.5, 6.0), (9.0, 15.0, 4.0)]) {
-      papel.addRRect(RRect.fromRectAndRadius(
-        Rect.fromLTWH(x * u, y * u, largura * u, 1.6 * u),
-        Radius.circular(0.8 * u),
-      ));
-    }
-    canvas.drawPath(papel, Paint()..color = tintaDaMarca);
+    // O corpo da carteira, com o recorte onde entra o fecho.
+    final corpo = Path.combine(
+      PathOperation.difference,
+      Path()..addRRect(caixa(3, 3, 21, 21, 2)),
+      Path()..addRRect(caixa(10, 6, 22, 18, 2)),
+    );
+    // O fecho, com o botão vazado.
+    final fecho = Path.combine(
+      PathOperation.difference,
+      Path()..addRRect(caixa(12, 8, 22, 16, 0.6)),
+      Path()..addOval(Rect.fromCircle(center: Offset(16 * u, 12 * u), radius: 1.5 * u)),
+    );
+    final tinta = Paint()..color = corDaMarca;
+    canvas.drawPath(corpo, tinta);
+    canvas.drawPath(fecho, tinta);
 
     canvas.restore();
   }
