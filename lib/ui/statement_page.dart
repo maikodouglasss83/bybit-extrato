@@ -385,23 +385,17 @@ class _BotaoNovo extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Tooltip(
-      message: 'Novo lançamento',
-      child: InkWell(
-        onTap: onTap,
-        borderRadius: BorderRadius.circular(10),
-        child: Container(
-          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
-          decoration: BoxDecoration(
-            color: AppColors.accent,
-            borderRadius: BorderRadius.circular(10),
-            border: Border.all(color: AppColors.accent),
-          ),
-          child: const Icon(
-            Icons.add_rounded,
-            size: 18,
-            color: tintaDaMarca,
-          ),
+    return IconButton.filled(
+      onPressed: onTap,
+      tooltip: 'Novo lançamento',
+      icon: const Icon(Icons.add_rounded, size: 20),
+      style: IconButton.styleFrom(
+        backgroundColor: AppColors.accent,
+        foregroundColor: tintaDaMarca,
+        minimumSize: const Size(40, 38),
+        tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(10),
         ),
       ),
     );
