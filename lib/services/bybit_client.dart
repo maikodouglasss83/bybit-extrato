@@ -366,6 +366,7 @@ class BybitClient {
         'type': 'SIDE_QUERY_AUTH_ALL',
         'statusCode': status,
         'limit': porPagina,
+        'pageSize': porPagina,
         'page': page,
       });
       final data = (result['data'] as List?) ?? const [];
@@ -381,8 +382,10 @@ class BybitClient {
             .map(LedgerEntry.fromCardAuthorization),
       );
 
+      // O tamanho da página é o que a Bybit respondeu, não o que foi pedido.
+      final tamanho = (result['pageSize'] as num?)?.toInt() ?? porPagina;
       final total = (result['totalCount'] as num?)?.toInt() ?? 0;
-      if (data.isEmpty || page * porPagina >= total) break;
+      if (data.isEmpty || page * tamanho >= total) break;
     }
     return autorizacoes;
   }
