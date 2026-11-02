@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:convert';
 
 import 'package:crypto/crypto.dart';
@@ -322,40 +323,64 @@ class BybitClient {
   /// andamento vêm deste outro endpoint, e é ele que faz a compra aparecer no
   /// app logo depois de o cartão passar.
   ///
-  /// A mesma consulta traz também as autorizações já concluídas. Elas não são
+  /// As autorizações já concluídas vêm numa consulta à parte. Elas não são
   /// gasto pendente, mas guardam a hora em que o cartão passou — a liquidação
   /// chega com a hora em que o estabelecimento confirmou, às vezes um dia
   /// depois, e é pela autorização que a compra volta para o dia certo.
   Future<({List<LedgerEntry> pendentes, List<LedgerEntry> concluidas})>
       cardAuthorizations() async {
-    final result = await _post(
-      '/v5/card/transaction/query-asset-records',
-      body: {
-        'type': 'SIDE_QUERY_AUTH_ALL',
-        'statusCode': '0',
-        'limit': 100,
-        'page': 1,
-      },
-    );
-    final data = (result['data'] as List?) ?? const [];
-    // Só compras autorizadas. Estorno de autorização (side 3 é a liquidação,
-    // e há outros lados para estorno) e o que foi recusado ficam de fora.
-    final autorizacoes = data
-        .map((e) => Map<String, dynamic>.from(e as Map))
-        .where((j) =>
-            j['side']?.toString() == '1' && asDouble(j['basicAmount']) > 0)
-        .toList();
+    final pendentes = await _autorizacoes(_autorizacaoPendente);
 
-    return (
-      pendentes: autorizacoes
-          .where((j) => j['tradeStatus']?.toString() == '0')
-          .map(LedgerEntry.fromCardAuthorization)
-          .toList(),
-      concluidas: autorizacoes
-          .where((j) => j['tradeStatus']?.toString() == '1')
-          .map(LedgerEntry.fromCardAuthorization)
-          .toList(),
-    );
+    // As concluídas só acertam a data: se falharem, as pendentes ainda valem,
+    // e a próxima atualização corrige as datas.
+    var concluidas = const <LedgerEntry>[];
+    try {
+      concluidas = await _autorizacoes(_autorizacaoConcluida);
+    } on BybitException catch (_) {
+    } on TimeoutException catch (_) {}
+
+    return (pendentes: pendentes, concluidas: concluidas);
+  }
+
+  static const _autorizacaoPendente = '0';
+  static const _autorizacaoConcluida = '1';
+
+  /// Teto de páginas por consulta. É o total da resposta que diz quando parar;
+  /// o teto só protege o limite apertado do endpoint de um total errado.
+  static const _maximoDePaginas = 5;
+
+  /// Autorizações com o [status] pedido, de todas as páginas.
+  Future<List<LedgerEntry>> _autorizacoes(String status) async {
+    const porPagina = 500;
+    final autorizacoes = <LedgerEntry>[];
+
+    for (var page = 1; page <= _maximoDePaginas; page++) {
+      final result = await _post(
+        '/v5/card/transaction/query-asset-records',
+        body: {
+          'type': 'SIDE_QUERY_AUTH_ALL',
+          'statusCode': status,
+          'limit': porPagina,
+          'page': page,
+        },
+      );
+      final data = (result['data'] as List?) ?? const [];
+      // Só compras autorizadas. Estorno de autorização (side 3 é a liquidação,
+      // e há outros lados para estorno) e o que foi recusado ficam de fora.
+      autorizacoes.addAll(
+        data
+            .map((e) => Map<String, dynamic>.from(e as Map))
+            .where((j) =>
+                j['side']?.toString() == '1' &&
+                j['tradeStatus']?.toString() == status &&
+                asDouble(j['basicAmount']) > 0)
+            .map(LedgerEntry.fromCardAuthorization),
+      );
+
+      final total = (result['totalCount'] as num?)?.toInt() ?? 0;
+      if (data.isEmpty || page * porPagina >= total) break;
+    }
+    return autorizacoes;
   }
 
   /// Pontos acumulados e teto de cashback do cartão.
