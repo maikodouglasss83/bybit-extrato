@@ -27,6 +27,7 @@ class PreferencesStore {
   static const _kBudgetTree = 'budget_tree';
   static const _kBudgetPending = 'budget_tree_pending';
   static const _kPurchaseDates = 'purchase_dates';
+  static const _kPurchaseDatesPage = 'purchase_dates_page';
   static const _kCachedEntries = 'cached_entries';
   static const _kManualSubscriptions = 'manual_subscriptions';
   static const _kCancelledSubscriptions = 'cancelled_subscriptions';
@@ -245,6 +246,14 @@ class PreferencesStore {
         _kPurchaseDates,
         datas.map((id, ms) => MapEntry(id, '$ms')),
       );
+
+  /// Próxima página das autorizações a percorrer para achar a hora das
+  /// compras antigas; 0 quando o histórico inteiro já foi visto.
+  Future<int> loadPurchaseDatesPage() async =>
+      int.tryParse((await _loadMap(_kPurchaseDatesPage))['pagina'] ?? '') ?? 1;
+
+  Future<void> savePurchaseDatesPage(int pagina) =>
+      _saveMap(_kPurchaseDatesPage, {'pagina': '$pagina'});
 
   /// Se o planejamento mudou neste aparelho e a nuvem ainda não recebeu.
   ///

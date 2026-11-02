@@ -1,4 +1,5 @@
 import 'dart:async' show StreamSubscription, unawaited;
+import 'dart:math' show max;
 
 import 'package:flutter/foundation.dart' show ChangeNotifier, visibleForTesting;
 
@@ -1881,6 +1882,12 @@ class AppState extends ChangeNotifier {
   /// cancelada ou estornada, e não há mais o que esperar.
   static const _prazoDeLiquidacao = Duration(days: 15);
 
+  /// Quanto o valor pode mudar da autorização para a liquidação, e em quantos
+  /// dias, para ainda ser a mesma compra: há estabelecimentos que autorizam
+  /// uma estimativa e só acertam o valor ao liquidar.
+  static const _variacaoDaLiquidacao = 0.15;
+  static const _prazoComValorDiferente = Duration(days: 5);
+
   int get pendingCardCount => _pendingCard.length;
 
   /// Troca as pendentes pelas que acabaram de chegar.
@@ -1893,7 +1900,9 @@ class AppState extends ChangeNotifier {
   ///
   /// [concluidas] são autorizações que já liquidaram: não voltam para a tela,
   /// só emprestam à liquidação a hora em que a compra foi feita.
-  void _applyPendingCard(
+  ///
+  /// Devolve se alguma compra ganhou uma data nova.
+  bool _applyPendingCard(
     List<LedgerEntry> recebidas, {
     List<LedgerEntry> concluidas = const [],
   }) {
@@ -1919,6 +1928,26 @@ class AppState extends ChangeNotifier {
       return null;
     }
 
+    /// A mesma compra liquidada com outro valor. Só pega o que nenhuma
+    /// autorização reconheceu nem já tem data certa.
+    LedgerEntry? liquidacaoParecida(LedgerEntry autorizacao) {
+      final chave = _merchantKey(autorizacao);
+      final valor = autorizacao.change.abs();
+      final inicio = autorizacao.time.subtract(const Duration(hours: 1));
+      final fim = autorizacao.time.add(_prazoComValorDiferente);
+      for (final e in liquidadas) {
+        if (usadas.contains(e.id) || _datasDaCompra.containsKey(e.id)) continue;
+        if (e.time.isBefore(inicio) || e.time.isAfter(fim)) continue;
+        if (_merchantKey(e) != chave) continue;
+        if ((e.change.abs() - valor).abs() > valor * _variacaoDaLiquidacao) {
+          continue;
+        }
+        usadas.add(e.id);
+        return e;
+      }
+      return null;
+    }
+
     final chegaram = {for (final e in recebidas) e.id};
     final candidatas = {
       for (final e in _pendingAguardando) e.id: e,
@@ -1937,8 +1966,24 @@ class AppState extends ChangeNotifier {
     var moveuAjuste = false;
     var lembrouData = false;
 
+    final liquidacoes = {
+      for (final autorizacao in candidatas)
+        if (liquidacaoDe(autorizacao) case final liquidacao?)
+          autorizacao.id: liquidacao,
+    };
+    // Valor igual primeiro, de todas: é o par mais seguro. O que a Bybit ainda
+    // diz estar pendente não liquidou, por mais parecido que seja o valor.
     for (final autorizacao in candidatas) {
-      final liquidacao = liquidacaoDe(autorizacao);
+      if (liquidacoes.containsKey(autorizacao.id) ||
+          chegaram.contains(autorizacao.id)) {
+        continue;
+      }
+      final liquidacao = liquidacaoParecida(autorizacao);
+      if (liquidacao != null) liquidacoes[autorizacao.id] = liquidacao;
+    }
+
+    for (final autorizacao in candidatas) {
+      final liquidacao = liquidacoes[autorizacao.id];
       if (liquidacao != null) {
         // Já liquidou: daqui em diante quem conta é a liquidação — mas no dia
         // em que o cartão passou.
@@ -1976,6 +2021,67 @@ class AppState extends ChangeNotifier {
       _syncPreference(_kSyncFixosPorCompra, _entryFixedOverrides);
       _syncPreference(_kSyncOcultos, _hiddenIds.toList());
     }
+    return lembrouData;
+  }
+
+  /// Próxima página a percorrer das autorizações; 0 quando já foram todas.
+  int _paginaDasDatas = 1;
+  bool _corrigindoDatas = false;
+
+  /// Busca a hora das compras nas autorizações concluídas, sem prender a tela.
+  ///
+  /// A Bybit entrega 10 por página e limita as chamadas, então o histórico
+  /// leva minutos: as datas vão se acertando sozinhas com o app aberto. Se ele
+  /// fechar no meio, a volta continua da página onde parou. Depois de ver tudo,
+  /// basta olhar as páginas recentes até uma que não traga nada novo.
+  Future<void> _corrigirDatasDasCompras(BybitClient client) async {
+    if (_corrigindoDatas) return;
+    _corrigindoDatas = true;
+    try {
+      final conhecidas = <LedgerEntry>[];
+      var pagina = 1;
+      while (true) {
+        final lote = await client.cardCompletedAuthorizations(page: pagina);
+        if (!identical(_client, client)) return;
+
+        // Todas juntas: duas compras iguais só se separam vendo as duas.
+        conhecidas.addAll(lote.entries);
+        final aprendeu = _applyPendingCard(_pendingCard, concluidas: conhecidas);
+        if (aprendeu) notifyListeners();
+
+        final acabou = !lote.temMais || _passouDasCompras(lote.entries);
+        if (_paginaDasDatas != 0 && pagina >= _paginaDasDatas) {
+          _paginaDasDatas = acabou ? 0 : pagina + 1;
+          unawaited(_preferences.savePurchaseDatesPage(_paginaDasDatas));
+        }
+        if (acabou || (!aprendeu && _paginaDasDatas == 0)) return;
+
+        pagina = aprendeu ? pagina + 1 : max(pagina + 1, _paginaDasDatas);
+        await Future<void>.delayed(client.esperaDoLimite);
+      }
+    } catch (_) {
+      // Só acerta datas: o que faltou fica para a próxima atualização.
+    } finally {
+      _corrigindoDatas = false;
+    }
+  }
+
+  /// Se estas autorizações já são anteriores à compra mais antiga guardada.
+  bool _passouDasCompras(List<LedgerEntry> autorizacoes) {
+    final compras = _entries.where((e) => e.kind == LedgerKind.cardPurchase);
+    if (compras.isEmpty || autorizacoes.isEmpty) return false;
+    final primeira = compras
+        .map((e) => e.time)
+        .reduce((a, b) => a.isBefore(b) ? a : b)
+        .subtract(_prazoDeLiquidacao);
+    return autorizacoes.every((a) => a.time.isBefore(primeira));
+  }
+
+  /// Roda a correção das datas com [client], para os testes.
+  @visibleForTesting
+  Future<void> corrigirDatasDasCompras(BybitClient client) {
+    _client = client;
+    return _corrigirDatasDasCompras(client);
   }
 
   /// Guarda a hora da autorização como a hora da compra liquidada.
@@ -2138,6 +2244,7 @@ class AppState extends ChangeNotifier {
     // que a Bybit não devolve mais.
     _entries.addAll(await _preferences.loadCachedEntries());
     _datasDaCompra = await _preferences.loadPurchaseDates();
+    _paginaDasDatas = await _preferences.loadPurchaseDatesPage();
     _aplicarDatasDaCompra();
 
     // As pendentes da última abertura voltam também: a próxima atualização
@@ -2269,6 +2376,9 @@ class AppState extends ChangeNotifier {
     _pendingCard = const [];
     _pendingAguardando = const [];
     unawaited(_preferences.savePendingCard(const [], const []));
+    // A próxima chave pode ser de outra conta, com outro histórico.
+    _paginaDasDatas = 1;
+    unawaited(_preferences.savePurchaseDatesPage(1));
     apiKeyInfo = null;
     connectWarning = null;
     _cursor = null;
@@ -2348,11 +2458,7 @@ class AppState extends ChangeNotifier {
       // confirmou. Vêm depois das liquidadas, porque é contra elas que a mesma
       // compra é reconhecida quando liquida.
       try {
-        final autorizacoes = await client.cardAuthorizations();
-        _applyPendingCard(
-          autorizacoes.pendentes,
-          concluidas: autorizacoes.concluidas,
-        );
+        _applyPendingCard(await client.cardPendingAuthorizations());
       } catch (_) {
         // O limite de consultas deste endpoint é apertado. Falhou, fica a
         // lista anterior: sai da tela quem deixou de estar pendente, não quem
@@ -2374,6 +2480,7 @@ class AppState extends ChangeNotifier {
       unawaited(syncWithCloud(pushOnly: true));
       errorMessage = null;
       phase = LoadPhase.ready;
+      unawaited(_corrigirDatasDasCompras(client));
     } on BybitException catch (e) {
       if (e.isAuth) {
         errorMessage =

@@ -1,4 +1,3 @@
-import 'dart:async';
 import 'dart:convert';
 
 import 'package:crypto/crypto.dart';
@@ -29,7 +28,7 @@ class BybitClient {
     required this.apiKey,
     required this.apiSecret,
     this.testnet = false,
-    this.esperaDoLimite = const Duration(seconds: 2),
+    this.esperaDoLimite = const Duration(seconds: 3),
   });
 
   final String apiKey;
@@ -327,67 +326,50 @@ class BybitClient {
   /// que costuma levar de algumas horas a dois dias. As autorizações ainda em
   /// andamento vêm deste outro endpoint, e é ele que faz a compra aparecer no
   /// app logo depois de o cartão passar.
+  Future<List<LedgerEntry>> cardPendingAuthorizations() async =>
+      (await _autorizacoes(_autorizacaoPendente, 1)).entries;
+
+  /// Autorizações já concluídas, da mais recente para a mais antiga.
   ///
-  /// As autorizações já concluídas vêm numa consulta à parte. Elas não são
-  /// gasto pendente, mas guardam a hora em que o cartão passou — a liquidação
-  /// chega com a hora em que o estabelecimento confirmou, às vezes um dia
-  /// depois, e é pela autorização que a compra volta para o dia certo.
-  Future<({List<LedgerEntry> pendentes, List<LedgerEntry> concluidas})>
-      cardAuthorizations() async {
-    final pendentes = await _autorizacoes(_autorizacaoPendente);
-
-    // As concluídas só acertam a data: se falharem, as pendentes ainda valem,
-    // e a próxima atualização corrige as datas.
-    var concluidas = const <LedgerEntry>[];
-    try {
-      await Future<void>.delayed(esperaDoLimite);
-      concluidas = await _autorizacoes(_autorizacaoConcluida);
-    } on BybitException catch (_) {
-    } on TimeoutException catch (_) {}
-
-    return (pendentes: pendentes, concluidas: concluidas);
-  }
+  /// Não são gasto pendente, mas guardam a hora em que o cartão passou — a
+  /// liquidação chega com a hora em que o estabelecimento confirmou, às vezes
+  /// dias depois, e é pela autorização que a compra volta para o dia certo.
+  ///
+  /// A Bybit responde 10 por página, qualquer que seja o tamanho pedido, e
+  /// limita as chamadas: o histórico inteiro não cabe em uma atualização.
+  Future<({List<LedgerEntry> entries, bool temMais})>
+      cardCompletedAuthorizations({required int page}) =>
+          _autorizacoes(_autorizacaoConcluida, page);
 
   static const _autorizacaoPendente = '0';
   static const _autorizacaoConcluida = '1';
 
-  /// Teto de páginas por consulta. É o total da resposta que diz quando parar;
-  /// o teto só protege o limite apertado do endpoint de um total errado.
-  static const _maximoDePaginas = 5;
+  Future<({List<LedgerEntry> entries, bool temMais})> _autorizacoes(
+    String status,
+    int page,
+  ) async {
+    final result = await _consultarAutorizacoes({
+      'type': 'SIDE_QUERY_AUTH_ALL',
+      'statusCode': status,
+      'page': page,
+    });
+    final data = (result['data'] as List?) ?? const [];
+    final tamanho = (result['pageSize'] as num?)?.toInt() ?? data.length;
+    final total = (result['totalCount'] as num?)?.toInt() ?? 0;
 
-  /// Autorizações com o [status] pedido, de todas as páginas.
-  Future<List<LedgerEntry>> _autorizacoes(String status) async {
-    const porPagina = 500;
-    final autorizacoes = <LedgerEntry>[];
-
-    for (var page = 1; page <= _maximoDePaginas; page++) {
-      if (page > 1) await Future<void>.delayed(esperaDoLimite);
-      final result = await _consultarAutorizacoes({
-        'type': 'SIDE_QUERY_AUTH_ALL',
-        'statusCode': status,
-        'limit': porPagina,
-        'pageSize': porPagina,
-        'page': page,
-      });
-      final data = (result['data'] as List?) ?? const [];
+    return (
       // Só compras autorizadas. Estorno de autorização (side 3 é a liquidação,
       // e há outros lados para estorno) e o que foi recusado ficam de fora.
-      autorizacoes.addAll(
-        data
-            .map((e) => Map<String, dynamic>.from(e as Map))
-            .where((j) =>
-                j['side']?.toString() == '1' &&
-                j['tradeStatus']?.toString() == status &&
-                asDouble(j['basicAmount']) > 0)
-            .map(LedgerEntry.fromCardAuthorization),
-      );
-
-      // O tamanho da página é o que a Bybit respondeu, não o que foi pedido.
-      final tamanho = (result['pageSize'] as num?)?.toInt() ?? porPagina;
-      final total = (result['totalCount'] as num?)?.toInt() ?? 0;
-      if (data.isEmpty || page * tamanho >= total) break;
-    }
-    return autorizacoes;
+      entries: data
+          .map((e) => Map<String, dynamic>.from(e as Map))
+          .where((j) =>
+              j['side']?.toString() == '1' &&
+              j['tradeStatus']?.toString() == status &&
+              asDouble(j['basicAmount']) > 0)
+          .map(LedgerEntry.fromCardAuthorization)
+          .toList(),
+      temMais: data.isNotEmpty && page * tamanho < total,
+    );
   }
 
   /// Este endpoint aceita poucas chamadas seguidas: recusada por excesso,
