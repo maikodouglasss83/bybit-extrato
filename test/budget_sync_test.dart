@@ -32,6 +32,9 @@ class _NuvemFalsa extends CloudSync {
   Future<List<LedgerEntry>> pullEntries() async => const [];
 
   @override
+  Future<List<LedgerEntry>> pullManualEntries() async => const [];
+
+  @override
   Future<void> pushEntries(List<LedgerEntry> entries) async {}
 }
 

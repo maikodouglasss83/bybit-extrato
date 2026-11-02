@@ -129,6 +129,39 @@ class CloudSync {
     ];
   }
 
+  /// Todos os lançamentos manuais. Consulta à parte porque a lista completa
+  /// pode passar do limite de linhas de uma resposta, e aqui uma linha que
+  /// faltasse seria tomada por um lançamento excluído em outro aparelho.
+  Future<List<LedgerEntry>> pullManualEntries() async {
+    final client = _client;
+    final userId = _userId;
+    if (client == null || userId == null) return const [];
+
+    final linhas = await client
+        .from('transacoes')
+        .select('dados')
+        .eq('user_id', userId)
+        .like('id_lancamento', 'manual-%');
+
+    return [
+      for (final linha in linhas as List)
+        LedgerEntry.fromCache(Map<String, dynamic>.from(linha['dados'] as Map)),
+    ];
+  }
+
+  /// Apaga lançamentos da nuvem.
+  Future<void> deleteEntries(List<String> ids) async {
+    final client = _client;
+    final userId = _userId;
+    if (client == null || userId == null || ids.isEmpty) return;
+
+    await client
+        .from('transacoes')
+        .delete()
+        .eq('user_id', userId)
+        .inFilter('id_lancamento', ids);
+  }
+
   /// Sobe os lançamentos. Repetir é inofensivo: a chave primária é o par
   /// usuário + lançamento, então reenviar apenas atualiza a mesma linha.
   Future<void> pushEntries(List<LedgerEntry> entries) async {

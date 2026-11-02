@@ -1867,7 +1867,15 @@ class AppState extends ChangeNotifier {
   /// Ficam fora de [_entries] de propósito: não são da Bybit, então não podem
   /// virar par de uma autorização nem sumir ao trocar a chave. O gasto entra
   /// nos totais como uma compra; a entrada só aparece no extrato.
+  ///
+  /// Na nuvem, cada um é uma linha da tabela de transações: assim um aparelho
+  /// nunca sobrescreve o que outro registrou.
   List<LedgerEntry> _lancamentosManuais = const [];
+
+  /// O que mudou aqui e a nuvem ainda não recebeu. Enquanto estiver na fila, a
+  /// versão deste aparelho vale mais que a da nuvem.
+  Set<String> _manuaisAEnviar = {};
+  Set<String> _manuaisARemover = {};
 
   /// Registra um lançamento, ou substitui o de identificador [id].
   Future<void> salvarLancamentoManual({
@@ -1898,17 +1906,22 @@ class AppState extends ChangeNotifier {
       ..._lancamentosManuais.where((e) => e.id != lancamento.id),
       lancamento,
     ];
+    _manuaisAEnviar = {..._manuaisAEnviar, lancamento.id};
     await _persistirLancamentos();
     // Sem isto, uma categoria dada ao estabelecimento venceria a escolhida.
     await setEntryOverrides(lancamento, category: categoria, onlyThis: true);
     notifyListeners();
+    await _enviarLancamentos();
   }
 
   Future<void> removerLancamentoManual(LedgerEntry lancamento) async {
     _lancamentosManuais =
         _lancamentosManuais.where((e) => e.id != lancamento.id).toList();
+    _manuaisAEnviar = {..._manuaisAEnviar}..remove(lancamento.id);
+    _manuaisARemover = {..._manuaisARemover, lancamento.id};
     await _persistirLancamentos();
     notifyListeners();
+    await _enviarLancamentos();
   }
 
   /// A versão mais nova de um lançamento manual, que pode ter sido editado
@@ -1918,10 +1931,70 @@ class AppState extends ChangeNotifier {
 
   Future<void> _persistirLancamentos() async {
     await _preferences.saveManualEntries(_lancamentosManuais);
-    _syncPreference(
-      _kSyncLancamentos,
-      _lancamentosManuais.map((e) => e.toJson()).toList(),
-    );
+    await _preferences.saveManualQueue(_manuaisAEnviar, _manuaisARemover);
+  }
+
+  /// Manda a fila para a nuvem. O que falhar fica nela para a próxima vez.
+  Future<void> _enviarLancamentos() async {
+    if (!_cloud.available || !_cloud.signedIn) return;
+    if (_manuaisAEnviar.isEmpty && _manuaisARemover.isEmpty) return;
+
+    final enviar = _lancamentosManuais
+        .where((e) => _manuaisAEnviar.contains(e.id))
+        .toList();
+    final remover = _manuaisARemover.toList();
+    try {
+      await _cloud.pushEntries(enviar);
+      await _cloud.deleteEntries(remover);
+    } catch (e) {
+      cloudError = 'Lançamento guardado neste aparelho, mas não foi enviado '
+          'para a nuvem: $e';
+      notifyListeners();
+      return;
+    }
+
+    // Só sai da fila a versão enviada: pode ter sido editada nesse meio tempo.
+    final enviados = {for (final e in enviar) e.id: e};
+    _manuaisAEnviar = _manuaisAEnviar
+        .where((id) => !identical(enviados[id], versaoPorId(id)))
+        .toSet();
+    _manuaisARemover = _manuaisARemover.difference(remover.toSet());
+    await _preferences.saveManualQueue(_manuaisAEnviar, _manuaisARemover);
+  }
+
+  LedgerEntry? versaoPorId(String id) =>
+      _lancamentosManuais.where((e) => e.id == id).firstOrNull;
+
+  /// Adota o que está na nuvem, menos o que este aparelho ainda vai enviar.
+  void _juntarLancamentos(List<LedgerEntry> remotos) {
+    final daqui = _lancamentosManuais
+        .where((e) => _manuaisAEnviar.contains(e.id))
+        .toList();
+    final ids = daqui.map((e) => e.id).toSet();
+    _lancamentosManuais = [
+      ...remotos.where(
+        (e) => !ids.contains(e.id) && !_manuaisARemover.contains(e.id),
+      ),
+      ...daqui,
+    ];
+    unawaited(_preferences.saveManualEntries(_lancamentosManuais));
+  }
+
+  /// A primeira versão guardava a lista inteira nas preferências. O que ainda
+  /// estiver lá entra na fila e vira linha da tabela.
+  void _adotarListaAntiga(List<dynamic> antiga) {
+    final conhecidos = {
+      ..._lancamentosManuais.map((e) => e.id),
+      ..._manuaisARemover,
+    };
+    final novos = antiga
+        .whereType<Map>()
+        .map((e) => LedgerEntry.fromCache(Map<String, dynamic>.from(e)))
+        .where((e) => !conhecidos.contains(e.id))
+        .toList();
+    if (novos.isEmpty) return;
+    _lancamentosManuais = [..._lancamentosManuais, ...novos];
+    _manuaisAEnviar = {..._manuaisAEnviar, ...novos.map((e) => e.id)};
   }
 
   /// Põe lançamentos direto, sem passar pelo cofre, para os testes.
@@ -2284,6 +2357,14 @@ class AppState extends ChangeNotifier {
 
   /// Carrega credenciais salvas e, se existirem, já busca os dados.
   Future<void> boot() async {
+    // Antes de ligar a nuvem: a sessão que volta já dispara uma sincronização,
+    // e ela precisa da fila deste aparelho.
+    _lancamentosManuais = await _preferences.loadManualEntries();
+    final fila = await _preferences.loadManualQueue();
+    // Sem fila, são lançamentos de antes dela: nenhum foi para a tabela.
+    _manuaisAEnviar = fila?.enviar ?? _lancamentosManuais.map((e) => e.id).toSet();
+    _manuaisARemover = fila?.remover ?? {};
+
     // Sem projeto configurado isto é um no-op e o app segue só local.
     //
     // Com prazo: a sincronização é um extra, e o app não pode ficar preso na
@@ -2312,7 +2393,6 @@ class AppState extends ChangeNotifier {
     budgetNodes = await _preferences.loadBudgetTree() ?? defaultBudgetTree();
     _planejamentoPendente = await _preferences.loadBudgetPending();
     manualSubscriptions = await _preferences.loadManualSubscriptions();
-    _lancamentosManuais = await _preferences.loadManualEntries();
     _cancelledSubscriptions = await _preferences.loadCancelledSubscriptions();
 
     // O histórico guardado entra antes da rede: o app já abre com os meses
@@ -2635,6 +2715,8 @@ class AppState extends ChangeNotifier {
 
   /// Junta o que está na nuvem com o que está neste aparelho.
   ///
+  /// Lançamentos manuais seguem a nuvem, respeitando a fila deste aparelho.
+  ///
   /// Transações são fatos: a união dos dois lados é sempre o conjunto certo,
   /// e é o que preserva os meses que a Bybit apagou. Já os ajustes seguem o
   /// que veio da nuvem, para um aparelho novo adotar a configuração dos
@@ -2648,14 +2730,27 @@ class AppState extends ChangeNotifier {
 
     try {
       if (!pushOnly) {
-        final remotos = await _cloud.pullEntries();
+        final remotos =
+            (await _cloud.pullEntries()).where((e) => !e.isManual).toList();
         if (remotos.isNotEmpty) {
           _mergeUnique(remotos);
           await _preferences.saveCachedEntries(_entries);
         }
+        _juntarLancamentos(await _cloud.pullManualEntries());
 
         final ajustes = await _cloud.pullPreferences();
         _applyRemotePreferences(ajustes);
+        await _persistirLancamentos();
+        await _enviarLancamentos();
+
+        // Já viraram linhas: a lista antiga não pode trazê-los de volta.
+        if (ajustes[_kSyncLancamentos] is List &&
+            (ajustes[_kSyncLancamentos] as List).isNotEmpty &&
+            _manuaisAEnviar.isEmpty) {
+          await _cloud.pushPreference(_kSyncLancamentos, const <dynamic>[]);
+        }
+      } else {
+        await _enviarLancamentos();
       }
 
       await _cloud.pushEntries(_entries);
@@ -2724,10 +2819,7 @@ class AppState extends ChangeNotifier {
           .toList();
     }
     if (ajustes[_kSyncLancamentos] is List) {
-      _lancamentosManuais = (ajustes[_kSyncLancamentos] as List)
-          .whereType<Map>()
-          .map((e) => LedgerEntry.fromCache(Map<String, dynamic>.from(e)))
-          .toList();
+      _adotarListaAntiga(ajustes[_kSyncLancamentos] as List);
     }
     if (ajustes[_kSyncAssinaturasCanceladas] is List) {
       _cancelledSubscriptions = (ajustes[_kSyncAssinaturasCanceladas] as List)
@@ -2765,7 +2857,6 @@ class AppState extends ChangeNotifier {
     _preferences.saveBudgetTree(budgetNodes);
     _preferences.saveCardGoal(cardGoalUsd);
     _preferences.saveManualSubscriptions(manualSubscriptions);
-    _preferences.saveManualEntries(_lancamentosManuais);
     _preferences.saveCancelledSubscriptions(_cancelledSubscriptions);
   }
 
@@ -2791,10 +2882,6 @@ class AppState extends ChangeNotifier {
     await _cloud.pushPreference(
       _kSyncAssinaturas,
       manualSubscriptions.map((m) => m.toJson()).toList(),
-    );
-    await _cloud.pushPreference(
-      _kSyncLancamentos,
-      _lancamentosManuais.map((e) => e.toJson()).toList(),
     );
     await _cloud.pushPreference(
       _kSyncAssinaturasCanceladas,

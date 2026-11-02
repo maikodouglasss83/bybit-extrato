@@ -31,6 +31,7 @@ class PreferencesStore {
   static const _kCachedEntries = 'cached_entries';
   static const _kManualSubscriptions = 'manual_subscriptions';
   static const _kManualEntries = 'manual_entries';
+  static const _kManualQueue = 'manual_entries_queue';
   static const _kCancelledSubscriptions = 'cancelled_subscriptions';
 
   Future<Map<String, String>> loadCategoryOverrides() =>
@@ -375,6 +376,34 @@ class PreferencesStore {
       );
     } catch (_) {
       // Sem cofre, o lançamento vale enquanto a aba estiver aberta.
+    }
+  }
+
+  /// O que ainda falta mandar para a nuvem. Nulo antes da primeira gravação.
+  Future<({Set<String> enviar, Set<String> remover})?> loadManualQueue() async {
+    try {
+      final raw = await _storage.read(key: _kManualQueue);
+      if (raw == null || raw.isEmpty) return null;
+      final j = jsonDecode(raw) as Map<String, dynamic>;
+      Set<String> ids(dynamic v) =>
+          (v as List<dynamic>).map((e) => e.toString()).toSet();
+      return (enviar: ids(j['enviar']), remover: ids(j['remover']));
+    } catch (_) {
+      return null;
+    }
+  }
+
+  Future<void> saveManualQueue(Set<String> enviar, Set<String> remover) async {
+    try {
+      await _storage.write(
+        key: _kManualQueue,
+        value: jsonEncode({
+          'enviar': enviar.toList(),
+          'remover': remover.toList(),
+        }),
+      );
+    } catch (_) {
+      // Sem cofre, a fila vale enquanto a aba estiver aberta.
     }
   }
 
