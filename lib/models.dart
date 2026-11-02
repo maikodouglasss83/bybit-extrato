@@ -331,13 +331,18 @@ class LedgerEntry {
   /// identificador — e é esse que fica.
   final bool pending;
 
-  /// De onde veio: `log`, `deposit`, `withdraw`, `transfer` ou `card`.
+  /// De onde veio: `log`, `deposit`, `withdraw`, `transfer`, `card` ou `manual`.
   final String source;
 
   bool get isIn => change >= 0;
 
   bool get isCard =>
       kind == LedgerKind.cardPurchase || kind == LedgerKind.cardRefund;
+
+  /// Registrado à mão por quem usa o app, e não vindo da Bybit.
+  bool get isManual => source == fonteManual;
+
+  static const fonteManual = 'manual';
 
   /// O mesmo lançamento em outro horário — o da compra, quando a Bybit só
   /// informou o da liquidação.

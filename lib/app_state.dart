@@ -255,7 +255,7 @@ class AppState extends ChangeNotifier {
   /// Extrato já filtrado e ordenado do mais recente para o mais antigo.
   List<LedgerEntry> get entries {
     final query = search.trim().toLowerCase();
-    final list = [..._entries, ..._pendingCard].where((e) {
+    final list = [..._entries, ..._pendingCard, ..._lancamentosManuais].where((e) {
       if (!_matchesFilter(e)) return false;
       if (query.isEmpty) return true;
       return e.coin.toLowerCase().contains(query) ||
@@ -1850,10 +1850,84 @@ class AppState extends ChangeNotifier {
   List<LedgerEntry> get cardEntries {
     // As pendentes entram em tudo o que soma gasto: o dinheiro já saiu do
     // limite no momento em que o cartão passou.
-    final list = [..._entries.where((e) => e.isCard), ..._pendingCard]
-      ..sort((a, b) => b.time.compareTo(a.time));
+    final list = [
+      ..._entries.where((e) => e.isCard),
+      ..._pendingCard,
+      ..._lancamentosManuais,
+    ]..sort((a, b) => b.time.compareTo(a.time));
     return list;
   }
+
+  // ---------------------------------------------------------------------
+  // Lançamentos manuais
+  // ---------------------------------------------------------------------
+
+  /// Gastos e entradas registrados à mão, como o dinheiro ou outro cartão.
+  ///
+  /// Ficam fora de [_entries] de propósito: não são da Bybit, então não podem
+  /// virar par de uma autorização nem sumir ao trocar a chave. O gasto entra
+  /// nos totais como uma compra; a entrada só aparece no extrato.
+  List<LedgerEntry> _lancamentosManuais = const [];
+
+  /// Registra um lançamento, ou substitui o de identificador [id].
+  Future<void> salvarLancamentoManual({
+    String? id,
+    required String nome,
+    required double valorBrl,
+    required DateTime quando,
+    required String categoria,
+    bool entrada = false,
+  }) async {
+    final lancamento = LedgerEntry(
+      id: id ??
+          _idUnico(
+            'manual-${DateTime.now().microsecondsSinceEpoch}',
+            _lancamentosManuais.map((e) => e.id),
+          ),
+      time: quando,
+      rawType: 'MANUAL',
+      kind: entrada ? LedgerKind.cardRefund : LedgerKind.cardPurchase,
+      coin: 'BRL',
+      change: entrada ? valorBrl.abs() : -valorBrl.abs(),
+      fee: 0,
+      note: nome.trim(),
+      category: categoria,
+      source: LedgerEntry.fonteManual,
+    );
+    _lancamentosManuais = [
+      ..._lancamentosManuais.where((e) => e.id != lancamento.id),
+      lancamento,
+    ];
+    await _persistirLancamentos();
+    // Sem isto, uma categoria dada ao estabelecimento venceria a escolhida.
+    await setEntryOverrides(lancamento, category: categoria, onlyThis: true);
+    notifyListeners();
+  }
+
+  Future<void> removerLancamentoManual(LedgerEntry lancamento) async {
+    _lancamentosManuais =
+        _lancamentosManuais.where((e) => e.id != lancamento.id).toList();
+    await _persistirLancamentos();
+    notifyListeners();
+  }
+
+  /// A versão mais nova de um lançamento manual, que pode ter sido editado
+  /// enquanto os detalhes dele estavam abertos.
+  LedgerEntry versaoAtual(LedgerEntry e) =>
+      _lancamentosManuais.where((m) => m.id == e.id).firstOrNull ?? e;
+
+  Future<void> _persistirLancamentos() async {
+    await _preferences.saveManualEntries(_lancamentosManuais);
+    _syncPreference(
+      _kSyncLancamentos,
+      _lancamentosManuais.map((e) => e.toJson()).toList(),
+    );
+  }
+
+  /// Põe lançamentos direto, sem passar pelo cofre, para os testes.
+  @visibleForTesting
+  void aplicarAjustesDaNuvem(Map<String, dynamic> ajustes) =>
+      _applyRemotePreferences(ajustes);
 
   // ---------------------------------------------------------------------
   // Compras pendentes do cartão
@@ -2238,6 +2312,7 @@ class AppState extends ChangeNotifier {
     budgetNodes = await _preferences.loadBudgetTree() ?? defaultBudgetTree();
     _planejamentoPendente = await _preferences.loadBudgetPending();
     manualSubscriptions = await _preferences.loadManualSubscriptions();
+    _lancamentosManuais = await _preferences.loadManualEntries();
     _cancelledSubscriptions = await _preferences.loadCancelledSubscriptions();
 
     // O histórico guardado entra antes da rede: o app já abre com os meses
@@ -2555,6 +2630,7 @@ class AppState extends ChangeNotifier {
   static const _kSyncCategoriasPorCompra = 'entry_category_overrides';
   static const _kSyncFixosPorCompra = 'entry_fixed_overrides';
   static const _kSyncAssinaturas = 'manual_subscriptions';
+  static const _kSyncLancamentos = 'manual_entries';
   static const _kSyncAssinaturasCanceladas = 'cancelled_subscriptions';
 
   /// Junta o que está na nuvem com o que está neste aparelho.
@@ -2647,6 +2723,12 @@ class AppState extends ChangeNotifier {
           .whereType<ManualSubscription>()
           .toList();
     }
+    if (ajustes[_kSyncLancamentos] is List) {
+      _lancamentosManuais = (ajustes[_kSyncLancamentos] as List)
+          .whereType<Map>()
+          .map((e) => LedgerEntry.fromCache(Map<String, dynamic>.from(e)))
+          .toList();
+    }
     if (ajustes[_kSyncAssinaturasCanceladas] is List) {
       _cancelledSubscriptions = (ajustes[_kSyncAssinaturasCanceladas] as List)
           .map((e) => e.toString())
@@ -2683,6 +2765,7 @@ class AppState extends ChangeNotifier {
     _preferences.saveBudgetTree(budgetNodes);
     _preferences.saveCardGoal(cardGoalUsd);
     _preferences.saveManualSubscriptions(manualSubscriptions);
+    _preferences.saveManualEntries(_lancamentosManuais);
     _preferences.saveCancelledSubscriptions(_cancelledSubscriptions);
   }
 
@@ -2708,6 +2791,10 @@ class AppState extends ChangeNotifier {
     await _cloud.pushPreference(
       _kSyncAssinaturas,
       manualSubscriptions.map((m) => m.toJson()).toList(),
+    );
+    await _cloud.pushPreference(
+      _kSyncLancamentos,
+      _lancamentosManuais.map((e) => e.toJson()).toList(),
     );
     await _cloud.pushPreference(
       _kSyncAssinaturasCanceladas,

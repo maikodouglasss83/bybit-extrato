@@ -4,6 +4,9 @@ import 'package:flutter/material.dart';
 /// qualquer tema, na aba do navegador e no ícone da tela inicial.
 const corDaMarca = Color(0xFFFF9F1A);
 
+/// Tinta escura sobre o laranja da marca.
+const tintaDaMarca = Color(0xFF1A1206);
+
 /// Fundo escuro dos ícones gerados, o mesmo das superfícies do app.
 const fundoDaMarca = Color(0xFF14171C);
 

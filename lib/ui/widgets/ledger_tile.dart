@@ -10,6 +10,68 @@ import 'entry_editor.dart';
 import 'merchant_avatar.dart';
 
 /// Botão para tirar um lançamento das contas, ou trazer de volta.
+/// Editar e excluir: só o que foi registrado à mão pode mudar de verdade.
+class _AcoesDoManual extends StatelessWidget {
+  const _AcoesDoManual({required this.entry, required this.state});
+
+  final LedgerEntry entry;
+  final AppState state;
+
+  Future<void> _excluir(BuildContext context) async {
+    final confirmou = await showDialog<bool>(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        title: const Text('Excluir este lançamento?'),
+        content: const Text('Ele sai do extrato e dos totais.'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(dialogContext).pop(false),
+            child: const Text('Cancelar'),
+          ),
+          TextButton(
+            onPressed: () => Navigator.of(dialogContext).pop(true),
+            child: const Text('Excluir'),
+          ),
+        ],
+      ),
+    );
+    if (confirmou != true || !context.mounted) return;
+    // Fecha antes: os detalhes não têm mais o que mostrar.
+    fecharDetalhe(context);
+    await state.removerLancamentoManual(entry);
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Row(
+      children: [
+        Expanded(
+          child: OutlinedButton.icon(
+            onPressed: () =>
+                showLancamentoManual(context, state: state, lancamento: entry),
+            icon: const Icon(Icons.edit_outlined, size: 18),
+            label: const Text('Editar'),
+          ),
+        ),
+        const SizedBox(width: 10),
+        Expanded(
+          child: OutlinedButton.icon(
+            onPressed: () => _excluir(context),
+            icon: const Icon(Icons.delete_outline_rounded, size: 18),
+            label: const Text('Excluir'),
+            style: OutlinedButton.styleFrom(
+              foregroundColor: context.tones.negative,
+              side: BorderSide(
+                color: context.tones.negative.withValues(alpha: 0.5),
+              ),
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+}
+
 class _HideAction extends StatelessWidget {
   const _HideAction({required this.entry, required this.state});
 
@@ -215,7 +277,7 @@ void showLedgerDetails(
     conteudo: (_) => AnimatedBuilder(
       animation: state,
       builder: (_, __) => SingleChildScrollView(
-        child: LedgerDetails(entry: entry, state: state),
+        child: LedgerDetails(entry: state.versaoAtual(entry), state: state),
       ),
     ),
   );
@@ -293,7 +355,7 @@ class LedgerDetails extends StatelessWidget {
             const SizedBox(height: 8),
             _row(context, 'Moeda', entry.coin),
             // Com apelido, o nome da fatura vira informação de conferência.
-            if (entry.isCard && entry.note != null)
+            if (entry.isCard && entry.note != null && !entry.isManual)
               _row(
                 context,
                 state.hasCustomName(entry) ? 'Nome na fatura' : 'Estabelecimento',
@@ -334,6 +396,10 @@ class LedgerDetails extends StatelessWidget {
             const SizedBox(height: 18),
             const Divider(),
             const SizedBox(height: 12),
+            if (entry.isManual) ...[
+              _AcoesDoManual(entry: entry, state: state),
+              const SizedBox(height: 16),
+            ],
             _HideAction(entry: entry, state: state),
           ],
         ),
@@ -346,6 +412,7 @@ class LedgerDetails extends StatelessWidget {
         'withdraw' => 'Registro de saques',
         'transfer' => 'Transferências internas',
         'card' => 'Bybit Card',
+        LedgerEntry.fonteManual => 'Lançamento manual',
         _ => 'Extrato da conta',
       };
 

@@ -8,6 +8,7 @@ import 'widgets/common.dart';
 import 'widgets/side_panel.dart';
 import 'widgets/entry_editor.dart';
 import 'widgets/ledger_tile.dart';
+import 'widgets/logo.dart';
 import 'widgets/merchant_avatar.dart';
 
 /// Extrato completo, com busca e filtros.
@@ -94,9 +95,18 @@ class _StatementPageState extends State<StatementPage> {
               child: MonthPicker(
                 state: state,
                 enabled: _apenasDoMes,
-                trailing: _BotaoTudo(
-                  ativo: !_apenasDoMes,
-                  onTap: () => setState(() => _apenasDoMes = !_apenasDoMes),
+                trailing: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    _BotaoNovo(
+                      onTap: () => showLancamentoManual(context, state: state),
+                    ),
+                    const SizedBox(width: 8),
+                    _BotaoTudo(
+                      ativo: !_apenasDoMes,
+                      onTap: () => setState(() => _apenasDoMes = !_apenasDoMes),
+                    ),
+                  ],
                 ),
               ),
             ),
@@ -150,7 +160,7 @@ class _StatementPageState extends State<StatementPage> {
       conteudo: (_) => AnimatedBuilder(
         animation: state,
         builder: (_, __) => SingleChildScrollView(
-          child: LedgerDetails(entry: entry, state: state),
+          child: LedgerDetails(entry: state.versaoAtual(entry), state: state),
         ),
       ),
     );
@@ -364,6 +374,37 @@ class _StatementPageState extends State<StatementPage> {
       rows.add(_Row.entry(entry));
     }
     return rows;
+  }
+}
+
+/// Abre o registro de um lançamento manual.
+class _BotaoNovo extends StatelessWidget {
+  const _BotaoNovo({required this.onTap});
+
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    return Tooltip(
+      message: 'Novo lançamento',
+      child: InkWell(
+        onTap: onTap,
+        borderRadius: BorderRadius.circular(10),
+        child: Container(
+          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+          decoration: BoxDecoration(
+            color: AppColors.accent,
+            borderRadius: BorderRadius.circular(10),
+            border: Border.all(color: AppColors.accent),
+          ),
+          child: const Icon(
+            Icons.add_rounded,
+            size: 18,
+            color: tintaDaMarca,
+          ),
+        ),
+      ),
+    );
   }
 }
 
@@ -936,6 +977,7 @@ class _Situacao extends StatelessWidget {
           Icons.schedule_rounded,
           AppColors.warning,
         ),
+      final e when e.isManual => ('Manual', Icons.edit_note_rounded, tones.muted),
       final e when e.neutral => ('Interna', Icons.swap_vert_rounded, tones.muted),
       final e when e.kind == LedgerKind.cardPurchase => (
           'Pago',

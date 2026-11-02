@@ -30,6 +30,7 @@ class PreferencesStore {
   static const _kPurchaseDatesPage = 'purchase_dates_page';
   static const _kCachedEntries = 'cached_entries';
   static const _kManualSubscriptions = 'manual_subscriptions';
+  static const _kManualEntries = 'manual_entries';
   static const _kCancelledSubscriptions = 'cancelled_subscriptions';
 
   Future<Map<String, String>> loadCategoryOverrides() =>
@@ -352,6 +353,31 @@ class PreferencesStore {
   }
 
   /// Assinaturas cadastradas à mão, para o que não passa pelo cartão.
+  /// Lançamentos registrados à mão.
+  Future<List<LedgerEntry>> loadManualEntries() async {
+    try {
+      final raw = await _storage.read(key: _kManualEntries);
+      if (raw == null || raw.isEmpty) return const [];
+      return (jsonDecode(raw) as List<dynamic>)
+          .whereType<Map>()
+          .map((e) => LedgerEntry.fromCache(Map<String, dynamic>.from(e)))
+          .toList();
+    } catch (_) {
+      return const [];
+    }
+  }
+
+  Future<void> saveManualEntries(List<LedgerEntry> lancamentos) async {
+    try {
+      await _storage.write(
+        key: _kManualEntries,
+        value: jsonEncode(lancamentos.map((e) => e.toJson()).toList()),
+      );
+    } catch (_) {
+      // Sem cofre, o lançamento vale enquanto a aba estiver aberta.
+    }
+  }
+
   Future<List<ManualSubscription>> loadManualSubscriptions() async {
     try {
       final raw = await _storage.read(key: _kManualSubscriptions);

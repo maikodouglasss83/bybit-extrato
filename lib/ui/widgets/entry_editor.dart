@@ -4,6 +4,8 @@ import '../../app_state.dart';
 import '../../budget.dart';
 import '../../models.dart';
 import '../../theme.dart';
+import '../../util/categorizer.dart';
+import '../../util/format.dart';
 import 'common.dart';
 import 'side_panel.dart';
 
@@ -16,6 +18,10 @@ Future<void> showEntryEditor(
   required AppState state,
   required LedgerEntry entry,
 }) {
+  // O lançamento manual pode mudar por inteiro, não só de nome e categoria.
+  if (entry.isManual) {
+    return showLancamentoManual(context, state: state, lancamento: entry);
+  }
   return abrirAoLado(
     context,
     titulo: 'Editar compra',
@@ -256,6 +262,202 @@ class _EntryEditorState extends State<_EntryEditor> {
                       // Fecha sem salvar e volta para a tela de onde veio.
                       onPressed: () => fecharDetalhe(context),
                       child: const Text('Cancelar'),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+/// Registra um gasto ou uma entrada à mão, ou edita [lancamento].
+Future<void> showLancamentoManual(
+  BuildContext context, {
+  required AppState state,
+  LedgerEntry? lancamento,
+}) {
+  return abrirAoLado(
+    context,
+    titulo: lancamento == null ? 'Novo lançamento' : 'Editar lançamento',
+    icone: Icons.add_card_rounded,
+    comTeclado: true,
+    conteudo: (_) => _LancamentoManual(state: state, lancamento: lancamento),
+  );
+}
+
+class _LancamentoManual extends StatefulWidget {
+  const _LancamentoManual({required this.state, this.lancamento});
+
+  final AppState state;
+  final LedgerEntry? lancamento;
+
+  @override
+  State<_LancamentoManual> createState() => _LancamentoManualState();
+}
+
+class _LancamentoManualState extends State<_LancamentoManual> {
+  LedgerEntry? get _original => widget.lancamento;
+
+  late final _nome = TextEditingController(text: _original?.note ?? '');
+  late final _valor = TextEditingController(
+    text: _original == null
+        ? ''
+        : _original!.change.abs().toStringAsFixed(2).replaceAll('.', ','),
+  );
+  late bool _entrada = _original?.isIn ?? false;
+  late DateTime _quando = _original?.time ?? DateTime.now();
+
+  /// Nulo até alguém escolher: o nome digitado sugere a categoria.
+  late String? _categoria =
+      _original == null ? null : widget.state.categoryOf(_original!);
+  String? _erro;
+
+  @override
+  void dispose() {
+    _nome.dispose();
+    _valor.dispose();
+    super.dispose();
+  }
+
+  Future<void> _escolherData() async {
+    final hoje = DateTime.now();
+    final escolhida = await showDatePicker(
+      context: context,
+      initialDate: _quando,
+      firstDate: DateTime(hoje.year - 10),
+      lastDate: hoje,
+    );
+    if (escolhida == null) return;
+    setState(() {
+      _quando = DateTime(
+        escolhida.year,
+        escolhida.month,
+        escolhida.day,
+        _quando.hour,
+        _quando.minute,
+      );
+    });
+  }
+
+  Future<void> _salvar() async {
+    final nome = _nome.text.trim();
+    final valor = double.tryParse(
+      _valor.text.trim().replaceAll('.', '').replaceAll(',', '.'),
+    );
+    if (nome.isEmpty) {
+      setState(() => _erro = 'Dê um nome para o lançamento.');
+      return;
+    }
+    if (valor == null || valor <= 0) {
+      setState(() => _erro = 'Informe o valor.');
+      return;
+    }
+
+    await widget.state.salvarLancamentoManual(
+      id: _original?.id,
+      nome: nome,
+      valorBrl: valor,
+      quando: _quando,
+      entrada: _entrada,
+      categoria: _categoria ?? categorizeMerchant(nome),
+    );
+    if (!mounted) return;
+    fecharDetalhe(context);
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return FolhaOuPainel(
+      inicial: 0.78,
+      maximo: 0.95,
+      builder: (scrollController) => Column(
+        children: [
+          Expanded(
+            child: ListView(
+              controller: scrollController,
+              padding: const EdgeInsets.fromLTRB(24, 4, 24, 8),
+              children: [
+                Row(
+                  children: [
+                    Expanded(
+                      child: _Opcao(
+                        selecionada: !_entrada,
+                        icone: Icons.arrow_upward_rounded,
+                        titulo: 'Gasto',
+                        descricao: 'Conta nos totais',
+                        onTap: () => setState(() => _entrada = false),
+                      ),
+                    ),
+                    const SizedBox(width: 10),
+                    Expanded(
+                      child: _Opcao(
+                        selecionada: _entrada,
+                        icone: Icons.arrow_downward_rounded,
+                        titulo: 'Entrada',
+                        descricao: 'Só no extrato',
+                        onTap: () => setState(() => _entrada = true),
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 18),
+                TextField(
+                  controller: _nome,
+                  autofocus: _original == null,
+                  textCapitalization: TextCapitalization.sentences,
+                  textInputAction: TextInputAction.next,
+                  decoration: const InputDecoration(labelText: 'Nome'),
+                ),
+                const SizedBox(height: 14),
+                TextField(
+                  controller: _valor,
+                  keyboardType:
+                      const TextInputType.numberWithOptions(decimal: true),
+                  decoration: const InputDecoration(
+                    labelText: 'Valor',
+                    prefixText: r'R$ ',
+                  ),
+                ),
+                const SizedBox(height: 14),
+                OutlinedButton.icon(
+                  onPressed: _escolherData,
+                  icon: const Icon(Icons.event_rounded, size: 18),
+                  label: Text(fmtFullDate(_quando)),
+                ),
+                const SizedBox(height: 22),
+                Text('Categoria', style: context.texts.titleSmall),
+                const SizedBox(height: 12),
+                _SeletorDeCategoria(
+                  state: widget.state,
+                  selecionada: _categoria ?? SpendCategories.outros,
+                  onChanged: (v) => setState(() => _categoria = v),
+                ),
+                const SizedBox(height: 8),
+              ],
+            ),
+          ),
+          SafeArea(
+            top: false,
+            child: Padding(
+              padding: const EdgeInsets.fromLTRB(24, 8, 24, 16),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  // Junto do botão: a lista de categorias é longa, e o aviso
+                  // no fim dela ficaria fora da tela.
+                  if (_erro != null) ...[
+                    ErrorBanner(message: _erro!),
+                    const SizedBox(height: 10),
+                  ],
+                  SizedBox(
+                    width: double.infinity,
+                    child: FilledButton(
+                      onPressed: _salvar,
+                      child: const Text('Salvar'),
                     ),
                   ),
                 ],
