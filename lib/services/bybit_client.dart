@@ -29,11 +29,16 @@ class BybitClient {
     required this.apiKey,
     required this.apiSecret,
     this.testnet = false,
+    this.esperaDoLimite = const Duration(seconds: 2),
   });
 
   final String apiKey;
   final String apiSecret;
   final bool testnet;
+
+  /// Pausa entre consultas de autorizações, e a primeira espera depois de a
+  /// Bybit recusar uma delas por excesso de chamadas.
+  final Duration esperaDoLimite;
 
   static const _recvWindow = '20000';
   static const _timeout = Duration(seconds: 25);
@@ -335,6 +340,7 @@ class BybitClient {
     // e a próxima atualização corrige as datas.
     var concluidas = const <LedgerEntry>[];
     try {
+      await Future<void>.delayed(esperaDoLimite);
       concluidas = await _autorizacoes(_autorizacaoConcluida);
     } on BybitException catch (_) {
     } on TimeoutException catch (_) {}
@@ -355,15 +361,13 @@ class BybitClient {
     final autorizacoes = <LedgerEntry>[];
 
     for (var page = 1; page <= _maximoDePaginas; page++) {
-      final result = await _post(
-        '/v5/card/transaction/query-asset-records',
-        body: {
-          'type': 'SIDE_QUERY_AUTH_ALL',
-          'statusCode': status,
-          'limit': porPagina,
-          'page': page,
-        },
-      );
+      if (page > 1) await Future<void>.delayed(esperaDoLimite);
+      final result = await _consultarAutorizacoes({
+        'type': 'SIDE_QUERY_AUTH_ALL',
+        'statusCode': status,
+        'limit': porPagina,
+        'page': page,
+      });
       final data = (result['data'] as List?) ?? const [];
       // Só compras autorizadas. Estorno de autorização (side 3 é a liquidação,
       // e há outros lados para estorno) e o que foi recusado ficam de fora.
@@ -382,6 +386,28 @@ class BybitClient {
     }
     return autorizacoes;
   }
+
+  /// Este endpoint aceita poucas chamadas seguidas: recusada por excesso,
+  /// a consulta espera o dobro a cada vez antes de tentar de novo.
+  Future<Map<String, dynamic>> _consultarAutorizacoes(
+    Map<String, dynamic> body,
+  ) async {
+    var espera = esperaDoLimite;
+    for (var tentativa = 1;; tentativa++) {
+      try {
+        return await _post('/v5/card/transaction/query-asset-records', body: body);
+      } on BybitException catch (e) {
+        if (e.code != _excessoDeChamadas || tentativa == _tentativasNoLimite) {
+          rethrow;
+        }
+      }
+      await Future<void>.delayed(espera);
+      espera *= 2;
+    }
+  }
+
+  static const _excessoDeChamadas = 10006;
+  static const _tentativasNoLimite = 3;
 
   /// Pontos acumulados e teto de cashback do cartão.
   Future<CardRewards> cardRewards() async {

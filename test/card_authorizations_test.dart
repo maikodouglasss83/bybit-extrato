@@ -30,7 +30,9 @@ void main() {
     List<Map<String, dynamic>>? pedidos,
     int? totalConcluidas,
     int? erroNasConcluidas,
+    int recusasDasConcluidas = 1 << 30,
   }) {
+    var recusas = 0;
     final bybit = MockClient((pedido) async {
       if (pedido.url.path.endsWith('/market/time')) {
         return http.Response(
@@ -42,7 +44,9 @@ void main() {
       final corpo = jsonDecode(pedido.body) as Map<String, dynamic>;
       pedidos?.add(corpo);
       final status = corpo['statusCode'] as String;
-      if (status == '1' && erroNasConcluidas != null) {
+      if (status == '1' &&
+          erroNasConcluidas != null &&
+          recusas++ < recusasDasConcluidas) {
         return http.Response(
           jsonEncode({'retCode': erroNasConcluidas, 'retMsg': 'limite'}),
           200,
@@ -63,7 +67,11 @@ void main() {
     });
 
     return http.runWithClient(
-      () => BybitClient(apiKey: 'chave', apiSecret: 'segredo').cardAuthorizations(),
+      () => BybitClient(
+        apiKey: 'chave',
+        apiSecret: 'segredo',
+        esperaDoLimite: Duration.zero,
+      ).cardAuthorizations(),
       () => bybit,
     );
   }
@@ -111,6 +119,21 @@ void main() {
         ['card-auth-ctx-1', 'card-auth-ctx-pagina-2'],
       );
       expect(pedidos.where((p) => p['statusCode'] == '1'), hasLength(2));
+    });
+
+    test('recusada por excesso de chamadas, tenta de novo', () async {
+      final pedidos = <Map<String, dynamic>>[];
+      final r = await consultar(
+        {
+          '1': [autorizacao('ctx-1', '1')],
+        },
+        pedidos: pedidos,
+        erroNasConcluidas: 10006,
+        recusasDasConcluidas: 2,
+      );
+
+      expect(r.concluidas.single.id, 'card-auth-ctx-1');
+      expect(pedidos.where((p) => p['statusCode'] == '1'), hasLength(3));
     });
 
     test('se as concluídas falharem, as pendentes continuam valendo', () async {
